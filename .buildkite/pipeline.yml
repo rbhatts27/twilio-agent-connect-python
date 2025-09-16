@@ -1,0 +1,78 @@
+steps:
+  - label: ":python: linting"
+    key: lint
+    commands: |
+      pip install poetry==1.8.3
+      poetry config virtualenvs.create false
+      poetry install --no-root
+      poetry run black --check .
+      poetry run isort --check-only .
+    plugins:
+      - docker#v3.8.0:
+          image: registry.twilio.com/library/python/3.10-slim
+
+  - label: ":python: type-check"
+    key: type-check
+    commands: |
+      pip install poetry==1.8.3
+      poetry config virtualenvs.create false
+      poetry install --no-root
+      poetry run mypy taf
+    plugins:
+      - docker#v3.8.0:
+          image: registry.twilio.com/library/python/3.10-slim
+
+  - label: ":python: test-3.8"
+    key: test-38
+    commands: |
+      pip install poetry==1.8.3
+      poetry config virtualenvs.create false
+      poetry install --no-root
+      poetry run pytest
+    plugins:
+      - docker#v3.8.0:
+          image: registry.twilio.com/library/python/3.8-slim
+
+  - label: ":python: test-3.9"
+    key: test-39
+    commands: |
+      pip install poetry==1.8.3
+      poetry config virtualenvs.create false
+      poetry install --no-root
+      poetry run pytest
+    plugins:
+      - docker#v3.8.0:
+          image: registry.twilio.com/library/python/3.9-slim
+
+  - label: ":python: test-3.10"
+    key: test-310
+    commands: |
+      pip install poetry==1.8.3
+      poetry config virtualenvs.create false
+      poetry install --no-root
+      poetry run pytest
+    plugins:
+      - docker#v3.8.0:
+          image: registry.twilio.com/library/python/3.10-slim
+
+  - label: ":python: test-3.11"
+    key: test-311
+    commands: |
+      pip install poetry==1.8.3
+      poetry config virtualenvs.create false
+      poetry install --no-root
+      poetry run pytest
+    plugins:
+      - docker#v3.8.0:
+          image: registry.twilio.com/library/python/3.11-slim
+
+  - label: ":python: test-3.12"
+    key: test-312
+    commands: |
+      pip install poetry==1.8.3
+      poetry config virtualenvs.create false
+      poetry install --no-root
+      poetry run pytest
+    plugins:
+      - docker#v3.8.0:
+          image: registry.twilio.com/library/python/3.12-slim
