@@ -52,24 +52,7 @@ class TestTAF:
 
         result = taf.process_message(event_data)
 
-        assert isinstance(result, dict)
-        assert "event" in result
-        assert "processing" in result
-        assert "config" in result
-
-        # Check event data
-        assert result["event"]["type"] == "onMessageAdded"
-        assert result["event"]["conversation_sid"] == "CHxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-        assert result["event"]["body"] == "Hello, I need help"
-        assert result["event"]["author"] == "+12345678901"
-        assert result["event"]["is_message_event"] is True
-
-        # Check processing decision
-        assert result["processing"]["should_process"] is True
-        assert result["processing"]["model_provider"] == "openai"
-
-        # Check config
-        assert result["config"]["model_provider"] == "openai"
+        assert result == "Hello, I need help"
 
     def test_process_message_empty_body(self):
         """Test processing a message with empty body."""
@@ -84,7 +67,7 @@ class TestTAF:
 
         result = taf.process_message(event_data)
 
-        assert result["processing"]["should_process"] is False
+        assert result is None
 
     def test_process_message_whitespace_body(self):
         """Test processing a message with whitespace-only body."""
@@ -99,7 +82,7 @@ class TestTAF:
 
         result = taf.process_message(event_data)
 
-        assert result["processing"]["should_process"] is False
+        assert result is None
 
     def test_process_message_none_body(self):
         """Test processing a message with None body."""
@@ -114,23 +97,35 @@ class TestTAF:
 
         result = taf.process_message(event_data)
 
-        assert result["processing"]["should_process"] is False
+        assert result is None
 
-    def test_process_message_non_message_event(self):
-        """Test processing a non-message event."""
+    def test_process_message_unsupported_event_type(self):
+        """Test processing an unsupported event type returns None."""
         taf = TAF({"model_provider": "openai"})
 
+        # Test onMessageAdd (real Twilio event, but not supported)
         event_data = {
-            "EventType": "someOtherEvent",
+            "EventType": "onMessageAdd",
             "ConversationSid": "CHxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
             "Body": "Hello world",
             "Author": "+12345678901",
         }
 
         result = taf.process_message(event_data)
+        assert result is None
 
-        assert result["event"]["is_message_event"] is False
-        assert result["processing"]["should_process"] is False
+    def test_process_message_participant_event(self):
+        """Test processing a participant event returns None."""
+        taf = TAF({"model_provider": "openai"})
+
+        event_data = {
+            "EventType": "onParticipantAdded",
+            "ConversationSid": "CHxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "ParticipantSid": "MBxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        }
+
+        result = taf.process_message(event_data)
+        assert result is None
 
     def test_process_message_invalid_event_data(self):
         """Test processing invalid event data."""
@@ -165,27 +160,7 @@ class TestTAF:
 
         result = taf.process_message(real_webhook_data)
 
-        assert result["event"]["type"] == "onMessageAdded"
-        assert (
-            result["event"]["conversation_sid"] == "CHd151e6bcbe3643979a3f41f6d0da3b24"
-        )
-        assert result["event"]["body"] == "Hello oh"
-        assert result["event"]["author"] == "+12162622233"
-        assert result["processing"]["should_process"] is True
-
-    def test_get_model_provider(self):
-        """Test get_model_provider method."""
-        taf = TAF({"model_provider": "openai"})
-
-        assert taf.get_model_provider() == "openai"
-
-    def test_repr(self):
-        """Test string representation of TAF instance."""
-        taf = TAF({"model_provider": "openai"})
-
-        repr_str = repr(taf)
-        assert "TAF" in repr_str
-        assert "model_provider=openai" in repr_str
+        assert result == "Hello oh"
 
     def test_multiple_message_processing(self):
         """Test that one TAF instance can process multiple messages."""
@@ -211,20 +186,8 @@ class TestTAF:
         result2 = taf.process_message(event2)
 
         # Both should be processed successfully
-        assert result1["processing"]["should_process"] is True
-        assert result2["processing"]["should_process"] is True
-
-        # Different conversation IDs
-        assert (
-            result1["event"]["conversation_sid"] != result2["event"]["conversation_sid"]
-        )
-
-        # Same model provider for both
-        assert (
-            result1["processing"]["model_provider"]
-            == result2["processing"]["model_provider"]
-            == "openai"
-        )
+        assert result1 == "First message"
+        assert result2 == "Second message"
 
     def test_different_model_providers(self):
         """Test TAF with different model providers."""
@@ -239,4 +202,4 @@ class TestTAF:
 
         openai_result = openai_taf.process_message(event_data)
 
-        assert openai_result["processing"]["model_provider"] == "openai"
+        assert openai_result == "Test message"

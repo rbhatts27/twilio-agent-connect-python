@@ -28,23 +28,7 @@ class TestTAFIntegration:
         result = taf.process_message(webhook_data)
 
         # Step 4: Verify complete workflow
-        assert result["processing"]["should_process"] is True
-        assert result["processing"]["model_provider"] == "openai"
-        assert result["event"]["body"] == "I need help with my order"
-        assert (
-            result["event"]["conversation_sid"] == "CHd151e6bcbe3643979a3f41f6d0da3b24"
-        )
-
-        # Step 5: Verify this would be sent to AI
-        if result["processing"]["should_process"]:
-            conversation_id = result["event"]["conversation_sid"]
-            message = result["event"]["body"]
-            model_provider = result["processing"]["model_provider"]
-
-            # These would be used to call AI service
-            assert conversation_id is not None
-            assert message is not None
-            assert model_provider is not None
+        assert result == "I need help with my order"
 
     def test_url_encoded_webhook_processing(self):
         """Test processing URL-encoded webhook data like real Twilio webhooks."""
@@ -64,9 +48,7 @@ class TestTAFIntegration:
         taf = TAF({"model_provider": "openai"})
         result = taf.process_message(event_dict)
 
-        assert result["event"]["body"] == "Hello world"
-        assert result["event"]["author"] == "+12162622233"
-        assert result["processing"]["should_process"] is True
+        assert result == "Hello world"
 
     def test_multiple_providers_same_webhook(self):
         """Test processing same webhook with different AI providers."""
@@ -81,11 +63,7 @@ class TestTAFIntegration:
         openai_taf = TAF({"model_provider": "openai"})
         openai_result = openai_taf.process_message(webhook_data)
 
-        assert openai_result["processing"]["model_provider"] == "openai"
-        assert openai_result["processing"]["should_process"] is True
-
-        # Both should process the same message consistently
-        assert openai_result["event"]["body"] == "Test message"
+        assert openai_result == "Test message"
 
     def test_webhook_filtering_workflow(self):
         """Test complete workflow for filtering different types of webhooks."""
@@ -137,9 +115,24 @@ class TestTAFIntegration:
 
         for test_case in test_cases:
             result = taf.process_message(test_case["webhook"])
-            assert (
-                result["processing"]["should_process"] == test_case["should_process"]
-            ), f"Failed for {test_case['name']}"
+
+            if test_case["webhook"]["EventType"] == "onMessageAdded":
+                if test_case["should_process"]:
+                    # Should return the message body
+                    assert (
+                        result is not None
+                    ), f"Expected result for {test_case['name']}"
+                    assert isinstance(
+                        result, str
+                    ), f"Expected string result for {test_case['name']}"
+                else:
+                    # Should return None for empty/whitespace messages
+                    assert result is None, f"Expected None for {test_case['name']}"
+            else:
+                # Other event types return None
+                assert (
+                    result is None
+                ), f"Expected None for unsupported event {test_case['name']}"
 
     def test_configuration_validation_workflow(self):
         """Test complete workflow with configuration validation."""
@@ -151,7 +144,7 @@ class TestTAFIntegration:
 
         for config in valid_configs:
             taf = TAF(config)
-            assert taf.get_model_provider() == "openai"
+            assert taf.config.model_provider == "openai"
 
         # Invalid configurations
         invalid_configs = [
@@ -189,13 +182,12 @@ class TestTAFIntegration:
         result = taf.process_message(real_webhook)
 
         # Verify complete processing
-        assert result["processing"]["should_process"] is True
-        assert result["event"]["is_message_event"] is True
-        assert "password" in result["event"]["body"]
-        assert result["event"]["author"] == "+12162622233"
-
-        # This webhook should definitely be processed by AI
-        assert result["processing"]["should_process"] is True
+        assert result is not None
+        assert "password" in result
+        assert (
+            result
+            == "Hi, I'm having trouble with my account login. Can you help me reset my password?"
+        )
 
     def test_batch_webhook_processing(self):
         """Test processing multiple webhooks in sequence."""
@@ -216,17 +208,13 @@ class TestTAFIntegration:
             result = taf.process_message(webhook)
             results.append(result)
 
-        # All should be processed
+        # All should be processed and return message strings
         assert len(results) == 5
-        assert all(r["processing"]["should_process"] for r in results)
+        assert all(isinstance(r, str) for r in results)
+        assert all(r.startswith("Message ") for r in results)
 
-        # Each should have unique conversation ID
-        conversation_ids = [r["event"]["conversation_sid"] for r in results]
-        assert len(set(conversation_ids)) == 5
-
-        # All should use same model provider
-        providers = [r["processing"]["model_provider"] for r in results]
-        assert all(p == "openai" for p in providers)
+        # Each message should be unique
+        assert len(set(results)) == 5
 
     def test_error_recovery_workflow(self):
         """Test error handling in complete workflow."""
@@ -241,7 +229,7 @@ class TestTAFIntegration:
         }
 
         valid_result = taf.process_message(valid_webhook)
-        assert valid_result["processing"]["should_process"] is True
+        assert valid_result == "Valid message"
 
         # Then try invalid webhook
         invalid_webhook = {"EventType": "onMessageAdded"}  # Missing required fields
@@ -251,4 +239,4 @@ class TestTAFIntegration:
 
         # TAF should still work after error
         another_valid_result = taf.process_message(valid_webhook)
-        assert another_valid_result["processing"]["should_process"] is True
+        assert another_valid_result == "Valid message"

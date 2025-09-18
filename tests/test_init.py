@@ -28,4 +28,4 @@ def test_imports():
 def test_basic_taf_functionality():
     """Test basic TAF functionality works."""
     taf = TAF({"model_provider": "openai"})
-    assert taf.get_model_provider() == "openai"
+    assert taf.config.model_provider == "openai"

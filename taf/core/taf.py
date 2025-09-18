@@ -36,7 +36,7 @@ class TAF:
         else:
             raise ValueError("Config must be TAFConfig instance or dictionary")
 
-    def process_message(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+    def process_message(self, event_data: Dict[str, Any]) -> Optional[str]:
         """
         Process a Twilio webhook message event.
 
@@ -44,44 +44,32 @@ class TAF:
             event_data: Dictionary containing Twilio webhook event data
 
         Returns:
-            Dict[str, Any]: Processing result with event info and decision
+            Optional[str]: Message body content if it's an onMessageAdded event with content,
+            or None if event type is not supported or message is empty
 
         Raises:
             ValueError: If event_data cannot be parsed as TwilioWebhookEvent
         """
-        # Parse and validate the webhook event
+        # Check if this is a supported event type first
+        event_type = event_data.get("EventType", "")
+
+        if event_type != "onMessageAdded":
+            # Unsupported event type - ignore silently
+            print(f"🤖 TAF: ⚠️  Filter (Unsupported event type)")
+            return None
+
+        # Parse and validate the webhook event (only for onMessageAdded)
         try:
             event = TwilioWebhookEvent(**event_data)
         except ValidationError as e:
             raise ValueError(f"Invalid webhook event data: {e}") from e
 
-        # Analyze the event
-        should_process = event.should_process_with_agent()
-
-        return {
-            "event": {
-                "type": event.EventType,
-                "conversation_sid": event.ConversationSid,
-                "body": event.Body,
-                "author": event.Author,
-                "is_message_event": event.is_message_event(),
-            },
-            "processing": {
-                "should_process": should_process,
-                "model_provider": self.config.model_provider,
-            },
-            "config": self.config.dict(),
-        }
-
-    def get_model_provider(self) -> str:
-        """
-        Get the configured AI model provider.
-
-        Returns:
-            str: Model provider name
-        """
-        return self.config.model_provider
-
-    def __repr__(self) -> str:
-        """String representation of TAF instance."""
-        return f"TAF(model_provider={self.config.model_provider})"
+        # Return body content if it has content, otherwise None
+        if event.Body is not None and event.Body.strip() != "":
+            print(
+                f"🤖 TAF: ✅ Process '{event.Body[:30]}{'...' if len(event.Body) > 30 else ''}'"
+            )
+            return event.Body.strip()
+        else:
+            print(f"🤖 TAF: ⚠️  Filter (empty message)")
+            return None
