@@ -1,13 +1,13 @@
 import pytest
 
-from taf import __version__, hello
-
-
-def test_hello():
-    """Test that hello function returns expected message."""
-    result = hello()
-    assert result == "Hello from Twilio Agentic Framework!"
-    assert isinstance(result, str)
+from taf import (
+    TAF,
+    ModelProvider,
+    TAFConfig,
+    TwilioWebhookEvent,
+    WebhookEventType,
+    __version__,
+)
 
 
 def test_version():
@@ -16,8 +16,16 @@ def test_version():
     assert __version__ == "0.1.0"
 
 
-def test_hello_no_args():
-    """Test that hello function works without arguments."""
-    result = hello()
-    assert result is not None
-    assert len(result) > 0
+def test_imports():
+    """Test that all main classes can be imported."""
+    assert TAF is not None
+    assert TAFConfig is not None
+    assert ModelProvider is not None
+    assert TwilioWebhookEvent is not None
+    assert WebhookEventType is not None
+
+
+def test_basic_taf_functionality():
+    """Test basic TAF functionality works."""
+    taf = TAF({"model_provider": "openai"})
+    assert taf.config.model_provider == "openai"
