@@ -8,7 +8,7 @@ class MemoraMemory(BaseModel):
 
 
 class MemoraClient:
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def retrieve_context(
@@ -21,4 +21,4 @@ class MemoraClient:
         This endpoint is optimized for conversational AI and memory retrieval use cases.
         If a query is not specified then one is inferred from the conversation context.
         """
-        pass
+        return []
