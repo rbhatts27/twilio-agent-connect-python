@@ -2,4 +2,6 @@
 
 from typing import List
 
-__all__: List[str] = []
+from .memora import MemoraClient
+
+__all__: List[str] = ["MemoraClient"]

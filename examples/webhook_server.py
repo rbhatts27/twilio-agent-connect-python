@@ -15,13 +15,13 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 # Add parent directory to path to import taf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from taf import TAF
+from taf.core import TAF, TAFConfig
 
 
 class WebhookHandler(BaseHTTPRequestHandler):
     """HTTP request handler for Twilio webhooks."""
 
-    def __init__(self, *args, taf_instance=None, **kwargs):
+    def __init__(self, *args, taf_instance: TAF = None, **kwargs):
         self.taf = taf_instance
         super().__init__(*args, **kwargs)
 
@@ -53,26 +53,16 @@ class WebhookHandler(BaseHTTPRequestHandler):
             body = webhook_data.get("Body", "")
             print(f"📨 {event_type}: '{body[:50]}{'...' if len(body) > 50 else ''}'")
 
-            # Process with TAF (TAF will handle event filtering)
             if self.taf:
                 try:
-                    result = self.taf.process_message(webhook_data)
+                    # 1. get identity from webhook data
+                    identity = self.taf.resolve_identity(webhook_data)
+                    # 2. build context from identity
+                    context = self.taf.build_context(identity)
+                    # todo: 3. adapter to vendors
+                    # currently just return context
 
-                    if result is None:
-                        response_data = {
-                            "status": "ignored",
-                            "event_type": webhook_data.get("EventType", "Unknown"),
-                            "message": "Event ignored by TAF",
-                        }
-                    else:
-                        response_data = {
-                            "status": "success",
-                            "processed": True,
-                            "event_type": "onMessageAdded",
-                            "message_body": result,
-                            "message": "Webhook processed successfully",
-                        }
-
+                    response_data = context
                     # Send success response
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
@@ -126,13 +116,12 @@ def main():
     args = parser.parse_args()
 
     # Initialize TAF
-    config = {"model_provider": "openai"}  # Default to OpenAI
-    taf = TAF(config)
+    taf = TAF(config=TAFConfig())
 
     print("=" * 60)
     print("Twilio Agentic Framework - Webhook Test Server")
     print("=" * 60)
-    print(f"TAF Configuration: model_provider={taf.config.model_provider}")
+    print(f"TAF Configuration: memora_service_id={taf.config.memora_service_id}")
     print(f"Server will start on: http://localhost:{args.port}")
     print()
     print("💡 For real Twilio webhooks:")

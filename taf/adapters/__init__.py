@@ -2,4 +2,6 @@
 
 from typing import List
 
-__all__: List[str] = []
+from .openai_adapter import OpenAIAdapter
+
+__all__: List[str] = ["OpenAIAdapter"]

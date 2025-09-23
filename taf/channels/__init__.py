@@ -2,4 +2,7 @@
 
 from typing import List
 
-__all__: List[str] = []
+from .channel_router import ChannelRouter
+from .sms_channel import SmsChannel
+
+__all__: List[str] = ["ChannelRouter", "SmsChannel"]

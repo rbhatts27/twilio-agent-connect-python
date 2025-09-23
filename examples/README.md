@@ -99,7 +99,7 @@ import urllib.parse
 from taf import TAF
 
 app = Flask(__name__)
-taf = TAF({"model_provider": "openai"})
+taf = TAF({})
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -130,7 +130,7 @@ import urllib.parse
 from taf import TAF
 
 app = FastAPI()
-taf = TAF({"model_provider": "openai"})
+taf = TAF({})
 
 @app.post("/webhook")
 async def webhook(request: Request):

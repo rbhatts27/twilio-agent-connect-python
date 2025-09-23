@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from taf import TAF, ModelProvider, TAFConfig
+from taf import TAF, TAFConfig
 
 
 class TestTAF:
@@ -11,26 +11,27 @@ class TestTAF:
 
     def test_init_with_config_dict(self):
         """Test TAF initialization with configuration dictionary."""
-        config_dict = {"model_provider": "openai"}
+        config_dict = {"memora_service_id": "test_service_123"}
         taf = TAF(config_dict)
 
         assert isinstance(taf.config, TAFConfig)
-        assert taf.config.model_provider == ModelProvider.OPENAI
+        assert taf.config.memora_service_id == "test_service_123"
 
     def test_init_with_config_object(self):
         """Test TAF initialization with TAFConfig object."""
-        config = TAFConfig(model_provider=ModelProvider.OPENAI)
+        config = TAFConfig(memora_service_id="test_service_123")
         taf = TAF(config)
 
         assert isinstance(taf.config, TAFConfig)
-        assert taf.config.model_provider == ModelProvider.OPENAI
+        assert taf.config.memora_service_id == "test_service_123"
 
-    def test_init_with_invalid_config_dict(self):
-        """Test TAF initialization with invalid configuration dictionary."""
-        invalid_config = {"model_provider": "invalid_provider"}
+    def test_init_with_empty_config_dict(self):
+        """Test TAF initialization with empty configuration dictionary."""
+        config_dict = {}
+        taf = TAF(config_dict)
 
-        with pytest.raises(ValueError, match="Invalid configuration"):
-            TAF(invalid_config)
+        assert isinstance(taf.config, TAFConfig)
+        assert taf.config.memora_service_id is None
 
     def test_init_with_invalid_config_type(self):
         """Test TAF initialization with invalid configuration type."""
@@ -41,7 +42,7 @@ class TestTAF:
 
     def test_process_message_valid(self):
         """Test processing a valid message event."""
-        taf = TAF({"model_provider": "openai"})
+        taf = TAF({})
 
         event_data = {
             "EventType": "onMessageAdded",
@@ -56,7 +57,7 @@ class TestTAF:
 
     def test_process_message_empty_body(self):
         """Test processing a message with empty body."""
-        taf = TAF({"model_provider": "openai"})
+        taf = TAF({})
 
         event_data = {
             "EventType": "onMessageAdded",
@@ -71,7 +72,7 @@ class TestTAF:
 
     def test_process_message_whitespace_body(self):
         """Test processing a message with whitespace-only body."""
-        taf = TAF({"model_provider": "openai"})
+        taf = TAF({})
 
         event_data = {
             "EventType": "onMessageAdded",
@@ -86,7 +87,7 @@ class TestTAF:
 
     def test_process_message_none_body(self):
         """Test processing a message with None body."""
-        taf = TAF({"model_provider": "openai"})
+        taf = TAF({})
 
         event_data = {
             "EventType": "onMessageAdded",
@@ -101,7 +102,7 @@ class TestTAF:
 
     def test_process_message_unsupported_event_type(self):
         """Test processing an unsupported event type returns None."""
-        taf = TAF({"model_provider": "openai"})
+        taf = TAF({})
 
         # Test onMessageAdd (real Twilio event, but not supported)
         event_data = {
@@ -116,7 +117,7 @@ class TestTAF:
 
     def test_process_message_participant_event(self):
         """Test processing a participant event returns None."""
-        taf = TAF({"model_provider": "openai"})
+        taf = TAF({})
 
         event_data = {
             "EventType": "onParticipantAdded",
@@ -129,7 +130,7 @@ class TestTAF:
 
     def test_process_message_invalid_event_data(self):
         """Test processing invalid event data."""
-        taf = TAF({"model_provider": "openai"})
+        taf = TAF({})
 
         # Missing required fields
         invalid_event_data = {"EventType": "onMessageAdded"}
@@ -139,7 +140,7 @@ class TestTAF:
 
     def test_process_message_real_webhook_data(self):
         """Test processing real webhook data."""
-        taf = TAF({"model_provider": "openai"})
+        taf = TAF({})
 
         real_webhook_data = {
             "MessagingServiceSid": "MG3675a614bcfcfb1921727b0138617cdf",
@@ -164,7 +165,7 @@ class TestTAF:
 
     def test_multiple_message_processing(self):
         """Test that one TAF instance can process multiple messages."""
-        taf = TAF({"model_provider": "openai"})
+        taf = TAF({})
 
         # First message
         event1 = {
@@ -189,9 +190,9 @@ class TestTAF:
         assert result1 == "First message"
         assert result2 == "Second message"
 
-    def test_different_model_providers(self):
-        """Test TAF with different model providers."""
-        openai_taf = TAF({"model_provider": "openai"})
+    def test_different_config_options(self):
+        """Test TAF with different configuration options."""
+        default_taf = TAF({})
 
         event_data = {
             "EventType": "onMessageAdded",
@@ -200,6 +201,6 @@ class TestTAF:
             "Author": "+12345678901",
         }
 
-        openai_result = openai_taf.process_message(event_data)
+        result = default_taf.process_message(event_data)
 
-        assert openai_result == "Test message"
+        assert result == "Test message"

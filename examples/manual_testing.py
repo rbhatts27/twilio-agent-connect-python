@@ -14,7 +14,7 @@ from typing import Any, Dict
 # Add parent directory to path to import taf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from taf import TAF, ModelProvider, TAFConfig
+from taf import TAF, TAFConfig
 
 # Sample webhook payloads for testing
 SAMPLE_WEBHOOKS = {
@@ -133,15 +133,15 @@ def test_configuration():
     print_subheader("Valid Configurations")
 
     valid_configs = [
-        {"model_provider": "openai"},
-        TAFConfig(model_provider=ModelProvider.OPENAI),
+        {},
+        TAFConfig(),
     ]
 
     for i, config in enumerate(valid_configs):
         try:
             taf = TAF(config)
             print(f"✅ Config {i+1}: {type(config).__name__}")
-            print(f"   Provider: {taf.config.model_provider}")
+            print(f"   Service ID: {taf.config.memora_service_id}")
         except Exception as e:
             print(f"❌ Config {i+1}: {str(e)}")
 
@@ -149,7 +149,7 @@ def test_configuration():
     print_subheader("Invalid Configurations")
 
     invalid_configs = [
-        {"model_provider": "invalid_provider"},
+        {"invalid_field": "invalid_value"},
         "not_a_dict",
         123,
         None,
@@ -168,7 +168,7 @@ def test_valid_webhooks():
     print_header("Valid Webhook Testing")
 
     # Initialize TAF
-    taf = TAF({"model_provider": "openai"})
+    taf = TAF({})
 
     success_count = 0
     total_count = len(SAMPLE_WEBHOOKS)
@@ -187,7 +187,7 @@ def test_invalid_webhooks():
     """Test invalid webhook scenarios."""
     print_header("Invalid Webhook Testing")
 
-    taf = TAF({"model_provider": "openai"})
+    taf = TAF({})
 
     for name, webhook in INVALID_WEBHOOKS.items():
         print_subheader(f"Testing {name}")
@@ -202,7 +202,7 @@ def test_batch_processing():
     """Test processing multiple webhooks in sequence."""
     print_header("Batch Processing Test")
 
-    taf = TAF({"model_provider": "openai"})
+    taf = TAF({})
 
     # Process all valid webhooks in sequence
     results = []
@@ -236,7 +236,7 @@ def performance_test():
 
     import time
 
-    taf = TAF({"model_provider": "openai"})
+    taf = TAF({})
     webhook = SAMPLE_WEBHOOKS["basic_message"]
 
     # Test processing speed
@@ -259,7 +259,7 @@ def interactive_test():
     """Interactive testing mode."""
     print_header("Interactive Testing Mode")
 
-    taf = TAF({"model_provider": "openai"})
+    taf = TAF({})
 
     print("Enter webhook data as JSON (or 'quit' to exit):")
     print(
