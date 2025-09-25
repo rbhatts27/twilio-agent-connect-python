@@ -1,7 +1,7 @@
 """Pydantic models for Twilio webhook events."""
 
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -10,6 +10,51 @@ class WebhookEventType(str, Enum):
     """Enum for Twilio webhook event types."""
 
     ONMESSAGEADDED = "onMessageAdded"
+
+
+class TwilioSMSWebhookEvent(BaseModel):
+    """
+    SMS webhook request model from Twilio.
+    """
+
+    MessageSid: str = Field(..., description="Message SID")
+    AccountSid: str = Field(..., description="Account SID")
+    From: str = Field(..., description="Sender phone number")
+    To: str = Field(..., description="Recipient phone number")
+    Body: Optional[str] = Field(None, description="Message body")
+    FromCountry: Optional[str] = Field(None, description="Sender country")
+    FromState: Optional[str] = Field(None, description="Sender state")
+    FromCity: Optional[str] = Field(None, description="Sender city")
+    FromZip: Optional[str] = Field(None, description="Sender ZIP code")
+    ToCountry: Optional[str] = Field(None, description="Recipient country")
+    ToState: Optional[str] = Field(None, description="Recipient state")
+    NumMedia: Optional[str] = Field(None, description="Number of media attachments")
+    NumSegments: Optional[str] = Field(None, description="Number of message segments")
+    SmsStatus: Optional[str] = Field(None, description="SMS status")
+    SmsMessageSid: Optional[str] = Field(None, description="SMS Message SID")
+    SmsSid: Optional[str] = Field(None, description="SMS SID")
+    ApiVersion: Optional[str] = Field(None, description="API version")
+
+    def is_message_event(self) -> bool:
+        """
+        Check if this is a message-related webhook event.
+
+        Returns:
+            True if this is a message event, False otherwise
+        """
+        return True  # SMS webhooks are always message events
+
+    def should_process_with_agent(self) -> bool:
+        """
+        Determine if this webhook should be processed by the AI agent.
+
+        Returns:
+            True if should be processed by agent, False otherwise
+        """
+        return self.Body is not None and self.Body.strip() != ""
+
+    class Config:
+        populate_by_name = True
 
 
 class TwilioWebhookEvent(BaseModel):

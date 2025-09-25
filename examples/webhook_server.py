@@ -12,6 +12,8 @@ import sys
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+from taf.core.context import SessionIdentity
+
 # Add parent directory to path to import taf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -41,7 +43,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 # Convert from lists to single values
                 webhook_data = {k: v[0] if v else "" for k, v in parsed_data.items()}
             else:
-                # Try to parse as JSON
+                # TODO: Use channels to parse webhook data
                 try:
                     webhook_data = json.loads(post_data)
                 except json.JSONDecodeError:
@@ -49,51 +51,60 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     return
 
             # Log essential webhook info
-            event_type = webhook_data.get("EventType", "Unknown")
             body = webhook_data.get("Body", "")
-            print(f"📨 {event_type}: '{body[:50]}{'...' if len(body) > 50 else ''}'")
 
-            if self.taf:
-                try:
-                    # 1. get identity from webhook data
-                    identity = self.taf.resolve_identity(webhook_data)
-                    # 2. build context from identity
-                    context = self.taf.build_context(identity)
-                    # todo: 3. adapter to vendors
-                    # currently just return context
+            try:
+                print("🔄 Step 1: Resolving identity with Maestro...")
+                # 1. get identity from webhook data with maestro
+                identity = self.taf.resolve_identity(
+                    event_data=webhook_data,
+                    profile_id="mem_profile_00000000000000000000000001",
+                )
+                print(
+                    f"✅ Maestro resolved identity: profile_id={identity.profile_id}, conversation_id={identity.conversation_id}"
+                )
 
-                    response_data = context
-                    # Send success response
-                    self.send_response(200)
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(json.dumps(response_data).encode())
+                print("🔄 Step 2: Building context with Memora...")
+                # 2. build context from identity with memora
+                context = self.taf.build_context(
+                    service_id="mem_service_00000000000000000000000000",
+                    identity=SessionIdentity(
+                        profile_id=identity.profile_id,
+                        conversation_id=identity.conversation_id,
+                    ),
+                    query=body,
+                )
+                print(
+                    f"✅ Memora built context with {len(context) if isinstance(context, list) else 'N/A'} memories"
+                )
+                # TODO: 3. adapter to vendors
+                # currently just return context
 
-                except Exception as e:
-                    print(f"❌ Error: {str(e)}")
-
-                    self.send_response(400)
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(
-                        json.dumps({"status": "error", "message": str(e)}).encode()
-                    )
-            else:
-                # No TAF instance, just echo the data
+                response_data = context
+                print("🎉 Successfully processed webhook with TAF")
+                # Send success response
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
+                self.wfile.write(json.dumps(response_data).encode())
+
+            except Exception as e:
+                print(f"❌ TAF Error processing webhook: {str(e)}")
+
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
                 self.wfile.write(
-                    json.dumps({"status": "received", "data": webhook_data}).encode()
+                    json.dumps({"status": "error", "message": str(e)}).encode()
                 )
 
         except Exception as e:
-            print(f"Server error: {str(e)}")
+            print(f"❌ Server error processing request: {str(e)}")
             self.send_error(500, str(e))
 
-    def log_message(self, format, *args):
-        """Override to customize logging."""
-        print(f"[{self.log_date_time_string()}] {format % args}")
+    def log_message(self, fmt, *args):
+        """Override to suppress HTTP request logging."""
+        pass
 
 
 def create_handler(taf_instance):
@@ -115,37 +126,30 @@ def main():
     )
     args = parser.parse_args()
 
-    # Initialize TAF
-    taf = TAF(config=TAFConfig())
+    # Initialize TAF with environment variables
+    taf = TAF(
+        config=TAFConfig(
+            memora_base_url=os.getenv("MEMORA_BASE_URL"),
+            memora_auth_token=os.getenv("MEMORA_AUTH_TOKEN"),
+            maestro_base_url=os.getenv("MAESTRO_BASE_URL"),
+            twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
+        )
+    )
 
-    print("=" * 60)
-    print("Twilio Agentic Framework - Webhook Test Server")
-    print("=" * 60)
-    print(f"TAF Configuration: memora_service_id={taf.config.memora_service_id}")
-    print(f"Server will start on: http://localhost:{args.port}")
-    print()
-    print("💡 For real Twilio webhooks:")
-    print(f"   1. Start this server: python test_server.py --port {args.port}")
-    print(f"   2. In another terminal: ngrok http {args.port}")
-    print("   3. Copy ngrok URL to Twilio Console webhook settings")
-    print()
+    print("🚀 Twilio Agentic Framework - Webhook Server")
+    print(f"Starting on: http://localhost:{args.port}")
 
     handler_class = create_handler(taf)
 
     try:
         server = HTTPServer(("localhost", args.port), handler_class)
 
-        print(f"🚀 Server starting on http://localhost:{args.port}")
-        print("📨 Ready to receive webhooks!")
-        print("⏹️  Press Ctrl+C to stop")
-        print("=" * 60)
+        print("📨 Ready to receive webhooks! Press Ctrl+C to stop")
 
         server.serve_forever()
 
     except KeyboardInterrupt:
-        print("\n🛑 Shutting down server...")
-        server.shutdown()
-        print("✅ Server stopped.")
+        print("\n🛑 Server stopped")
     except Exception as e:
         print(f"❌ Error starting server: {e}")
         sys.exit(1)

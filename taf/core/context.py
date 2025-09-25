@@ -25,18 +25,6 @@ class Memory(BaseModel):
     )
 
 
-class SessionContext(BaseModel):
-    """
-    Session context model for Twilio Agentic Framework.
-
-    This model holds session-specific information including conversation details,
-    user profile, and memory for maintaining context.
-    """
-
-    profile: Profile = Field(..., description="User profile information")
-    memory: Memory = Field(..., description="User memory for conversation context")
-
-
 class SessionIdentity(BaseModel):
     """
     Identity model for session identification.
@@ -45,4 +33,4 @@ class SessionIdentity(BaseModel):
     """
 
     profile_id: str = Field(..., description="Unique profile identifier")
-    conversation_sid: str = Field(..., description="Conversation SID")
+    conversation_id: str = Field(..., description="Conversation SID")

@@ -1,6 +1,6 @@
 """Core TAF (Twilio Agentic Framework) class for processing events and configuration."""
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import ValidationError
 
@@ -8,8 +8,8 @@ from taf.context.maestro import MaestroClient
 from taf.context.memora import MemoraClient, MemoraMemory
 from taf.core.config import TAFConfig
 
-from ..models.webhook import TwilioWebhookEvent
-from .context import Memory, Profile, SessionContext, SessionIdentity
+from ..models.webhook import TwilioSMSWebhookEvent, TwilioWebhookEvent
+from .context import Memory, Profile, SessionIdentity
 
 
 class TAF:
@@ -40,57 +40,60 @@ class TAF:
         else:
             raise ValueError("Config must be TAFConfig instance or dictionary")
 
-        self.memora_client = MemoraClient()
-        self.maestro_client = MaestroClient()
+        self.memora_client = MemoraClient(
+            base_url=self.config.memora_base_url,
+            auth_token=self.config.memora_auth_token,
+        )
+        self.maestro_client = MaestroClient(
+            base_url=self.config.maestro_base_url,
+            account_sid=self.config.twilio_account_sid,
+        )
 
-    def resolve_identity(self, event_data: Dict[str, Any]) -> SessionIdentity:
+    def resolve_identity(
+        self, event_data: Dict[str, Any], profile_id: Optional[str]
+    ) -> SessionIdentity:
         """
         Process a Twilio webhook message event, return identity if valid.
 
         Args:
             event_data: Dictionary containing Twilio webhook event data
+            profile_id: Profile ID to associate with the conversation
 
         Returns:
             SessionIdentity: Identity information for the session
 
         Raises:
-            ValueError: If event_data cannot be parsed as TwilioWebhookEvent
+            ValueError: If event_data cannot be parsed as a valid webhook event or profile_id is None
         """
+        if profile_id is None:
+            raise ValueError("profile_id is required")
 
-        # Parse and validate the webhook event
-        try:
-            event = TwilioWebhookEvent(**event_data)
-        except ValidationError as e:
-            raise ValueError(f"Invalid webhook event data: {e}") from e
+        conversation = self.maestro_client.create_conversation()
+        print(conversation)
+        participant = self.maestro_client.add_participant(
+            conversation_id=conversation.id, profile_id=profile_id
+        )
+        return SessionIdentity(
+            profile_id=participant.profile_id, conversation_id=conversation.id
+        )
 
-        # TODO: Get profile id from maestro when implemented
-
-        return SessionIdentity(profile_id="", conversation_sid=event.ConversationSid)
-
-    def build_context(self, identity: SessionIdentity) -> SessionContext:
+    def build_context(
+        self, service_id: str, identity: SessionIdentity, query: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
         Fetch context from Memora.
 
         Args:
+            service_id: Memora service ID
             identity: Session identity containing profile and conversation information
 
         Returns:
-            SessionContext: Complete session context with profile and memory
+            List of memory dictionaries from Memora
         """
-        # Only fetch memory if memora service is configured
-        memora_memory = None
-        if self.config.memora_service_id and identity.profile_id:
-            memora_memory = self.memora_client.retrieve_context(
-                service_id=self.config.memora_service_id,
-                profile_id=identity.profile_id,
-                query=None,
-            )
-
-        return SessionContext(
-            profile=Profile(id=identity.profile_id),
-            memory=Memory(
-                conversation_sid=identity.conversation_sid, memory_list=memora_memory
-            ),
+        return self.memora_client.retrieve_context(
+            service_id=service_id,
+            profile_id=identity.profile_id,
+            query=query,
         )
 
     def process_message(self, event_data: Dict[str, Any]) -> Optional[str]:
