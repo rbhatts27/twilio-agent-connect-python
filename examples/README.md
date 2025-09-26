@@ -1,39 +1,16 @@
 # TAF Examples
 
-This directory contains examples and testing tools for the Twilio Agentic Framework (TAF).
+This directory contains examples for the Twilio Agentic Framework (TAF).
 
 ## Quick Start
 
 ```bash
-# Test TAF with sample webhook payloads (no server needed)
-python examples/manual_testing.py
-
 # Start webhook server for real Twilio testing
 python examples/webhook_server.py
 # Then in another terminal: ngrok http 8000
 ```
 
 ## Available Examples
-
-### `manual_testing.py` - Comprehensive TAF Testing
-Test TAF processing with various webhook scenarios without needing a server.
-
-**Features:**
-- ✅ Sample webhook payloads (basic messages, edge cases, error scenarios)
-- ✅ Configuration validation testing
-- ✅ Performance benchmarking
-- ✅ Interactive mode for custom testing
-
-**Usage:**
-```bash
-# Run all test suites
-python examples/manual_testing.py
-
-# Interactive testing mode
-python examples/manual_testing.py interactive
-> sample:basic_message
-> {"EventType": "onMessageAdded", "ConversationSid": "CH123", "Body": "Test message", "Author": "+1234567890"}
-```
 
 ### `webhook_server.py` - Real Webhook Testing Server
 HTTP server to receive and test actual Twilio webhooks with TAF processing.
@@ -114,11 +91,10 @@ def webhook():
     # Process with TAF
     result = taf.process_message(webhook_data)
 
-    if result['processing']['should_process']:
+    if result is not None:
         # Send to your AI service
-        conversation_id = result['event']['conversation_sid']
-        message = result['event']['body']
-        # your_ai_service.process(conversation_id, message)
+        # your_ai_service.process(webhook_data.get('ConversationSid'), result)
+        pass
 
     return jsonify({"status": "processed"})
 ```
@@ -145,7 +121,7 @@ async def webhook(request: Request):
     # Process with TAF
     result = taf.process_message(webhook_data)
 
-    if result['processing']['should_process']:
+    if result is not None:
         # Send to your AI service
         pass
 
@@ -194,9 +170,8 @@ python examples/webhook_server.py --port 8001
 
 **TAF processing errors:**
 ```bash
-# Test TAF logic first
-python examples/manual_testing.py
 # Check webhook data format in server logs
+# Verify webhook payload structure matches TwilioWebhookEvent model
 ```
 
 ## Security for Production
@@ -223,10 +198,9 @@ if not validate_twilio_signature(request.url, request.get_data(as_text=True), si
 
 ## Next Steps
 
-1. **Start with manual testing** to understand TAF behavior
-2. **Set up webhook server** and test with curl
-3. **Use ngrok** to test with real Twilio webhooks
-4. **Integrate with your AI service** using the processed results
-5. **Deploy to production** with proper security and monitoring
+1. **Set up webhook server** and test with curl
+2. **Use ngrok** to test with real Twilio webhooks
+3. **Integrate with your AI service** using the processed results
+4. **Deploy to production** with proper security and monitoring
 
 Happy building! 🚀

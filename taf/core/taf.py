@@ -69,7 +69,6 @@ class TAF:
             raise ValueError("profile_id is required")
 
         conversation = self.maestro_client.create_conversation()
-        print(conversation)
         participant = self.maestro_client.add_participant(
             conversation_id=conversation.id, profile_id=profile_id
         )

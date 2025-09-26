@@ -12,8 +12,6 @@ import sys
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from taf.core.context import SessionIdentity
-
 # Add parent directory to path to import taf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -67,11 +65,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 print("🔄 Step 2: Building context with Memora...")
                 # 2. build context from identity with memora
                 context = self.taf.build_context(
-                    service_id="mem_service_00000000000000000000000000",
-                    identity=SessionIdentity(
-                        profile_id=identity.profile_id,
-                        conversation_id=identity.conversation_id,
-                    ),
+                    service_id=os.getenv("MEMORA_SERVICE_ID"),
+                    identity=identity,
                     query=body,
                 )
                 print(
