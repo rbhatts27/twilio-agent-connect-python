@@ -11,19 +11,19 @@ class TestTAF:
 
     def test_init_with_config_dict(self):
         """Test TAF initialization with configuration dictionary."""
-        config_dict = {"memora_service_id": "test_service_123"}
+        config_dict = {"memora_auth_token": "test_token_123"}
         taf = TAF(config_dict)
 
         assert isinstance(taf.config, TAFConfig)
-        assert taf.config.memora_service_id == "test_service_123"
+        assert taf.config.memora_auth_token == "test_token_123"
 
     def test_init_with_config_object(self):
         """Test TAF initialization with TAFConfig object."""
-        config = TAFConfig(memora_service_id="test_service_123")
+        config = TAFConfig(memora_auth_token="test_token_123")
         taf = TAF(config)
 
         assert isinstance(taf.config, TAFConfig)
-        assert taf.config.memora_service_id == "test_service_123"
+        assert taf.config.memora_auth_token == "test_token_123"
 
     def test_init_with_empty_config_dict(self):
         """Test TAF initialization with empty configuration dictionary."""
@@ -31,7 +31,7 @@ class TestTAF:
         taf = TAF(config_dict)
 
         assert isinstance(taf.config, TAFConfig)
-        assert taf.config.memora_service_id is None
+        assert taf.config.memora_auth_token is None
 
     def test_init_with_invalid_config_type(self):
         """Test TAF initialization with invalid configuration type."""

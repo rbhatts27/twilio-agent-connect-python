@@ -20,4 +20,4 @@ def test_imports():
 def test_basic_taf_functionality():
     """Test basic TAF functionality works."""
     taf = TAF({})
-    assert taf.config.memora_service_id is None
+    assert taf.config.memora_auth_token is None

@@ -144,15 +144,15 @@ class TestTAFIntegration:
 
         for config in valid_configs:
             taf = TAF(config)
-            assert taf.config.memora_service_id is None
+            assert taf.config.memora_auth_token is None
 
         # Configuration with extra fields should be allowed (ignored)
         flexible_config = {
             "extra_field": "extra_value",
-            "memora_service_id": "test_123",
+            "memora_auth_token": "test_123",
         }
         taf = TAF(flexible_config)
-        assert taf.config.memora_service_id == "test_123"
+        assert taf.config.memora_auth_token == "test_123"
 
         # Invalid configurations (wrong types)
         invalid_configs = [
