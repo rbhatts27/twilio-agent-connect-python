@@ -12,10 +12,16 @@ import sys
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 # Add parent directory to path to import taf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from taf.core import TAF, TAFConfig
+from taf.core.logging import get_logger
 
 
 class WebhookHandler(BaseHTTPRequestHandler):
@@ -23,6 +29,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
     def __init__(self, *args, taf_instance: TAF = None, **kwargs):
         self.taf = taf_instance
+        self.logger = get_logger(__name__)
         super().__init__(*args, **kwargs)
 
     def do_POST(self):
@@ -50,33 +57,36 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
             # Log essential webhook info
             body = webhook_data.get("Body", "")
+            self.logger.info(
+                f"Processing webhook with body: {body[:100]}{'...' if len(body) > 100 else ''}"
+            )
 
             try:
-                print("🔄 Step 1: Resolving identity with Maestro...")
+                self.logger.info("Step 1: Resolving identity with Maestro")
                 # 1. get identity from webhook data with maestro
                 identity = self.taf.resolve_identity(
                     event_data=webhook_data,
                     profile_id="mem_profile_00000000000000000000000001",
                 )
-                print(
-                    f"✅ Maestro resolved identity: profile_id={identity.profile_id}, conversation_id={identity.conversation_id}"
+                self.logger.info(
+                    f"Maestro resolved identity: profile_id={identity.profile_id}, conversation_id={identity.conversation_id}"
                 )
 
-                print("🔄 Step 2: Building context with Memora...")
+                self.logger.info("Step 2: Building context with Memora")
                 # 2. build context from identity with memora
                 context = self.taf.build_context(
                     service_id=os.getenv("MEMORA_SERVICE_ID"),
                     identity=identity,
                     query=body,
                 )
-                print(
-                    f"✅ Memora built context with {len(context) if isinstance(context, list) else 'N/A'} memories"
+                self.logger.info(
+                    f"Memora built context with {len(context) if isinstance(context, list) else 'N/A'} memories"
                 )
                 # TODO: 3. adapter to vendors
                 # currently just return context
 
                 response_data = context
-                print("🎉 Successfully processed webhook with TAF")
+                self.logger.info("Successfully processed webhook with TAF")
                 # Send success response
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -84,7 +94,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps(response_data).encode())
 
             except Exception as e:
-                print(f"❌ TAF Error processing webhook: {str(e)}")
+                self.logger.error(f"TAF Error processing webhook: {str(e)}")
 
                 self.send_response(400)
                 self.send_header("Content-Type", "application/json")
@@ -94,7 +104,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 )
 
         except Exception as e:
-            print(f"❌ Server error processing request: {str(e)}")
+            self.logger.error(f"Server error processing request: {str(e)}")
             self.send_error(500, str(e))
 
     def log_message(self, fmt, *args):
@@ -113,13 +123,6 @@ def create_handler(taf_instance):
 
 def main():
     """Run the webhook test server."""
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Twilio Webhook Test Server")
-    parser.add_argument(
-        "--port", type=int, default=8000, help="Port to run server on (default: 8000)"
-    )
-    args = parser.parse_args()
 
     # Initialize TAF with environment variables
     taf = TAF(
@@ -131,22 +134,22 @@ def main():
         )
     )
 
-    print("🚀 Twilio Agentic Framework - Webhook Server")
-    print(f"Starting on: http://localhost:{args.port}")
+    logger = get_logger(__name__)
+    logger.info("Twilio Agentic Framework - Webhook Server")
 
     handler_class = create_handler(taf)
 
     try:
-        server = HTTPServer(("localhost", args.port), handler_class)
+        server = HTTPServer(("localhost", 8000), handler_class)
 
-        print("📨 Ready to receive webhooks! Press Ctrl+C to stop")
+        logger.info("Ready to receive webhooks! Press Ctrl+C to stop")
 
         server.serve_forever()
 
     except KeyboardInterrupt:
-        print("\n🛑 Server stopped")
+        logger.info("Server stopped")
     except Exception as e:
-        print(f"❌ Error starting server: {e}")
+        logger.error(f"Error starting server: {e}")
         sys.exit(1)
 
 

@@ -3,6 +3,8 @@ from typing import Any, Dict, List, Literal, Optional, Union
 import requests
 from pydantic import BaseModel, Field
 
+from taf.core.logging import get_logger
+
 
 class TraitQuery(BaseModel):
     """Query specification for traits within a specific group."""
@@ -169,6 +171,7 @@ class MemoraClient:
         self.base_url = base_url or "https://memory.twilio.com/v1"
         self.auth_token = auth_token
         self.session = requests.Session()
+        self.logger = get_logger(__name__)
 
         if self.auth_token:
             self.session.headers.update({"X-Pre-Auth-Context": self.auth_token})
@@ -195,6 +198,7 @@ class MemoraClient:
             requests.RequestException: If the API request fails
             ValueError: If the response cannot be parsed
         """
+
         # Use the correct endpoint from the API spec
         endpoint = f"/Services/{service_id}/Profiles/{profile_id}/Recall"
         url = f"{self.base_url}{endpoint}"
@@ -225,11 +229,13 @@ class MemoraClient:
 
             return result
 
-        except requests.RequestException:
+        except requests.RequestException as e:
+            self.logger.error(f"Failed to retrieve context from Memora: {e}")
             # For now, return empty list on API errors
             # In production, you might want to log this or handle differently
             return []
 
-        except Exception:
+        except Exception as e:
+            self.logger.error(f"Failed to parse Memora response: {e}")
             # Handle parsing errors
             return []

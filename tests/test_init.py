@@ -19,5 +19,11 @@ def test_imports():
 
 def test_basic_taf_functionality():
     """Test basic TAF functionality works."""
-    taf = TAF({})
-    assert taf.config.memora_auth_token is None
+    config = {
+        "memora_auth_token": "test_token_123",
+        "memora_base_url": "https://memory.twilio.com/v1",
+        "maestro_base_url": "https://maestro.twilio.com/v1",
+        "twilio_account_sid": "ACtest123",
+    }
+    taf = TAF(config)
+    assert taf.config.memora_auth_token == "test_token_123"

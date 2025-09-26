@@ -3,6 +3,8 @@ from typing import Any, List, Optional
 import requests
 from pydantic import BaseModel, Field
 
+from taf.core.logging import get_logger
+
 
 class ConversationResponse(BaseModel):
     """Response from creating a conversation."""
@@ -65,6 +67,7 @@ class MaestroClient:
         self.base_url = base_url
         self.account_sid = account_sid
         self.session = requests.Session()
+        self.logger = get_logger(__name__)
 
         if self.account_sid:
             self.session.headers.update(
@@ -90,21 +93,24 @@ class MaestroClient:
         Raises:
             requests.RequestException: If the API request fails
         """
+
         if not self.base_url:
+            self.logger.error("base_url must be configured but was None")
             raise ValueError("base_url must be configured")
 
         url = f"{self.base_url}/Conversations/{conversation_id}/Participants"
 
         request_data = ParticipantRequest(profile_id=profile_id)
-
         request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
 
         try:
             response = self.session.post(url, json=request_payload)
             response.raise_for_status()
-            return ParticipantResponse(**response.json())
+            participant = ParticipantResponse(**response.json())
+            return participant
 
-        except requests.RequestException:
+        except requests.RequestException as e:
+            self.logger.error(f"Failed to add participant: {e}")
             raise
 
     def create_conversation(self) -> ConversationResponse:
@@ -117,7 +123,9 @@ class MaestroClient:
         Raises:
             requests.RequestException: If the API request fails
         """
+
         if not self.base_url:
+            self.logger.error("base_url must be configured but was None")
             raise ValueError("base_url must be configured")
 
         url = f"{self.base_url}/Conversations"
@@ -125,7 +133,9 @@ class MaestroClient:
         try:
             response = self.session.post(url, json={})
             response.raise_for_status()
-            return ConversationResponse(**response.json())
+            conversation = ConversationResponse(**response.json())
+            return conversation
 
-        except requests.RequestException:
+        except requests.RequestException as e:
+            self.logger.error(f"Failed to create conversation: {e}")
             raise

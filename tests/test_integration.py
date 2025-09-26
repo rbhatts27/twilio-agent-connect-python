@@ -7,13 +7,23 @@ import pytest
 from taf import TAF, TAFConfig
 
 
+def get_test_config():
+    """Get a valid test configuration."""
+    return {
+        "memora_auth_token": "test_token_123",
+        "memora_base_url": "https://memory.twilio.com/v1",
+        "maestro_base_url": "https://maestro.twilio.com/v1",
+        "twilio_account_sid": "ACtest123",
+    }
+
+
 class TestTAFIntegration:
     """Integration tests for complete TAF workflow."""
 
     def test_end_to_end_webhook_processing(self):
         """Test complete webhook processing workflow."""
         # Step 1: Create TAF instance
-        config = TAFConfig()
+        config = TAFConfig(**get_test_config())
         taf = TAF(config)
 
         # Step 2: Simulate webhook data
@@ -45,7 +55,7 @@ class TestTAFIntegration:
         event_dict = {k: v[0] for k, v in parsed_data.items()}
 
         # Process with TAF
-        taf = TAF({})
+        taf = TAF(get_test_config())
         result = taf.process_message(event_dict)
 
         assert result == "Hello world"
@@ -59,15 +69,15 @@ class TestTAFIntegration:
             "Author": "+12162622233",
         }
 
-        # Test with OpenAI
-        openai_taf = TAF({})
+        # Test with different config
+        openai_taf = TAF(get_test_config())
         openai_result = openai_taf.process_message(webhook_data)
 
         assert openai_result == "Test message"
 
     def test_webhook_filtering_workflow(self):
         """Test complete workflow for filtering different types of webhooks."""
-        taf = TAF({})
+        taf = TAF(get_test_config())
 
         # Test cases with expected outcomes
         test_cases = [
@@ -138,21 +148,19 @@ class TestTAFIntegration:
         """Test complete workflow with configuration validation."""
         # Valid configurations
         valid_configs = [
-            {},
-            TAFConfig(),
+            get_test_config(),
+            TAFConfig(**get_test_config()),
         ]
 
         for config in valid_configs:
             taf = TAF(config)
-            assert taf.config.memora_auth_token is None
+            assert taf.config.memora_auth_token == "test_token_123"
 
         # Configuration with extra fields should be allowed (ignored)
-        flexible_config = {
-            "extra_field": "extra_value",
-            "memora_auth_token": "test_123",
-        }
+        flexible_config = get_test_config().copy()
+        flexible_config["extra_field"] = "extra_value"
         taf = TAF(flexible_config)
-        assert taf.config.memora_auth_token == "test_123"
+        assert taf.config.memora_auth_token == "test_token_123"
 
         # Invalid configurations (wrong types)
         invalid_configs = [
@@ -185,7 +193,7 @@ class TestTAFIntegration:
         }
 
         # Process with TAF
-        taf = TAF({})
+        taf = TAF(get_test_config())
         result = taf.process_message(real_webhook)
 
         # Verify complete processing
@@ -198,7 +206,7 @@ class TestTAFIntegration:
 
     def test_batch_webhook_processing(self):
         """Test processing multiple webhooks in sequence."""
-        taf = TAF({})
+        taf = TAF(get_test_config())
 
         webhooks = [
             {
@@ -225,7 +233,7 @@ class TestTAFIntegration:
 
     def test_error_recovery_workflow(self):
         """Test error handling in complete workflow."""
-        taf = TAF({})
+        taf = TAF(get_test_config())
 
         # Process valid message first
         valid_webhook = {
