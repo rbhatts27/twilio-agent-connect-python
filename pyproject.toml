@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "twilio-agentic-framework"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Python framework for building agentic applications with Twilio"
 authors = ["Twilio Conversation AI <team_conversational-ai@twilio.com>"]
 readme = "README.md"
@@ -26,12 +26,14 @@ packages = [{include = "taf"}]
 [tool.poetry.dependencies]
 python = "^3.8"
 pydantic = "^2.0.0"
+requests = "^2.31.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.0.0"
 black = "^23.0.0"
 isort = "^5.12.0"
 mypy = "^1.0.0"
+types-requests = "^2.31.0"
 
 [tool.black]
 line-length = 88

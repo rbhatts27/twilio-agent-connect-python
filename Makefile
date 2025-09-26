@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test lint format type-check pre-commit clean build publish example
+.PHONY: help install install-dev test lint format type-check pre-commit clean build publish example server ngrok
 
 # Default target
 help: ## Show this help message
@@ -50,6 +50,12 @@ publish: ## Publish to PyPI (requires authentication)
 
 example: ## Run the basic usage example
 	python examples/basic_usage.py
+
+server: ## Start the webhook test server on port 8000
+	python examples/webhook_server.py --port 8000
+
+ngrok: ## Start ngrok tunnel to local server with custom domain
+	ngrok http 8000 --domain=taf-voice-local.ngrok.dev
 
 dev-setup: install-dev install-pre-commit ## Complete development environment setup
 

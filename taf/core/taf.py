@@ -1,11 +1,15 @@
 """Core TAF (Twilio Agentic Framework) class for processing events and configuration."""
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import ValidationError
 
-from ..models.config import TAFConfig
-from ..models.webhook import TwilioWebhookEvent
+from taf.context.maestro import MaestroClient
+from taf.context.memora import MemoraClient, MemoraMemory
+from taf.core.config import TAFConfig
+
+from ..models.webhook import TwilioSMSWebhookEvent, TwilioWebhookEvent
+from .context import Memory, Profile, SessionIdentity
 
 
 class TAF:
@@ -36,6 +40,61 @@ class TAF:
         else:
             raise ValueError("Config must be TAFConfig instance or dictionary")
 
+        self.memora_client = MemoraClient(
+            base_url=self.config.memora_base_url,
+            auth_token=self.config.memora_auth_token,
+        )
+        self.maestro_client = MaestroClient(
+            base_url=self.config.maestro_base_url,
+            account_sid=self.config.twilio_account_sid,
+        )
+
+    def resolve_identity(
+        self, event_data: Dict[str, Any], profile_id: Optional[str]
+    ) -> SessionIdentity:
+        """
+        Process a Twilio webhook message event, return identity if valid.
+
+        Args:
+            event_data: Dictionary containing Twilio webhook event data
+            profile_id: Profile ID to associate with the conversation
+
+        Returns:
+            SessionIdentity: Identity information for the session
+
+        Raises:
+            ValueError: If event_data cannot be parsed as a valid webhook event or profile_id is None
+        """
+        if profile_id is None:
+            raise ValueError("profile_id is required")
+
+        conversation = self.maestro_client.create_conversation()
+        participant = self.maestro_client.add_participant(
+            conversation_id=conversation.id, profile_id=profile_id
+        )
+        return SessionIdentity(
+            profile_id=participant.profile_id, conversation_id=conversation.id
+        )
+
+    def build_context(
+        self, service_id: str, identity: SessionIdentity, query: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch context from Memora.
+
+        Args:
+            service_id: Memora service ID
+            identity: Session identity containing profile and conversation information
+
+        Returns:
+            List of memory dictionaries from Memora
+        """
+        return self.memora_client.retrieve_context(
+            service_id=service_id,
+            profile_id=identity.profile_id,
+            query=query,
+        )
+
     def process_message(self, event_data: Dict[str, Any]) -> Optional[str]:
         """
         Process a Twilio webhook message event.
@@ -50,26 +109,15 @@ class TAF:
         Raises:
             ValueError: If event_data cannot be parsed as TwilioWebhookEvent
         """
-        # Check if this is a supported event type first
-        event_type = event_data.get("EventType", "")
-
-        if event_type != "onMessageAdded":
-            # Unsupported event type - ignore silently
-            print(f"🤖 TAF: ⚠️  Filter (Unsupported event type)")
-            return None
-
-        # Parse and validate the webhook event (only for onMessageAdded)
+        # Parse and validate the webhook event
         try:
             event = TwilioWebhookEvent(**event_data)
         except ValidationError as e:
             raise ValueError(f"Invalid webhook event data: {e}") from e
 
-        # Return body content if it has content, otherwise None
-        if event.Body is not None and event.Body.strip() != "":
-            print(
-                f"🤖 TAF: ✅ Process '{event.Body[:30]}{'...' if len(event.Body) > 30 else ''}'"
-            )
-            return event.Body.strip()
-        else:
-            print(f"🤖 TAF: ⚠️  Filter (empty message)")
+        # Only process message events with content
+        if not event.should_process_with_agent():
             return None
+
+        # Return the message body for now
+        return event.Body

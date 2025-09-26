@@ -11,15 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-### Deprecated
-
 ### Removed
 
 ### Fixed
 
-### Security
+## [0.1.1] - 2025-09-25
 
-## [0.1.0] - 2025-01-17
+### Added
+- Environment variable support for TAF configuration
+- Support for memora_auth_token, memora_base_url, maestro_base_url, and twilio_account_sid
+
+### Changed
+- Updated webhook_server.py to use environment variables instead of hardcoded configuration
+- Simplified webhook handler by removing unnecessary TAF null check
+- Modernized Pydantic usage in tests (dict() → model_dump(), schema() → model_json_schema())
+
+### Removed
+- Debug logging statements from maestro.py and memora.py API clients
+
+### Fixed
+- Updated test suite to match actual TAFConfig field names
+- Fixed deprecated Pydantic v1 method usage in tests
+
+## [0.1.0] - 2025-09-17
 
 ### Added
 - Initial release of Twilio Agentic Framework

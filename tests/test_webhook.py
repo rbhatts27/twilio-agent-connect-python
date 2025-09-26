@@ -165,7 +165,7 @@ class TestTwilioWebhookEvent:
             Author="+12345678901",
         )
 
-        event_dict = event.dict()
+        event_dict = event.model_dump()
 
         assert isinstance(event_dict, dict)
         assert event_dict["EventType"] == "onMessageAdded"
@@ -175,7 +175,7 @@ class TestTwilioWebhookEvent:
 
     def test_event_json_schema(self):
         """Test that event has valid JSON schema."""
-        schema = TwilioWebhookEvent.schema()
+        schema = TwilioWebhookEvent.model_json_schema()
 
         assert "properties" in schema
         assert "EventType" in schema["properties"]

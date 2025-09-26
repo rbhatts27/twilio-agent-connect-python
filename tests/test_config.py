@@ -3,21 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from taf.models.config import ModelProvider, TAFConfig
-
-
-class TestModelProvider:
-    """Test ModelProvider enum."""
-
-    def test_available_providers(self):
-        """Test that all expected providers are available."""
-        assert ModelProvider.OPENAI == "openai"
-
-    def test_enum_values(self):
-        """Test enum string values."""
-        providers = list(ModelProvider)
-        assert len(providers) == 1
-        assert ModelProvider.OPENAI in providers
+from taf.core.config import TAFConfig
 
 
 class TestTAFConfig:
@@ -26,52 +12,62 @@ class TestTAFConfig:
     def test_default_config(self):
         """Test config with default values."""
         config = TAFConfig()
-        assert config.model_provider == ModelProvider.OPENAI
+        assert config.memora_auth_token is None
+        assert config.memora_base_url is None
+        assert config.maestro_base_url is None
+        assert config.twilio_account_sid is None
 
-    def test_config_with_openai(self):
-        """Test config with OpenAI provider."""
-        config = TAFConfig(model_provider=ModelProvider.OPENAI)
-        assert config.model_provider == ModelProvider.OPENAI
-
-    def test_config_with_string_provider(self):
-        """Test config with string provider value."""
-        config = TAFConfig(model_provider="openai")
-        assert config.model_provider == "openai"
+    def test_config_with_values(self):
+        """Test config with actual field values."""
+        config = TAFConfig(
+            memora_auth_token="test_token_123",
+            memora_base_url="https://memory.twilio.com/v1",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            twilio_account_sid="ACtest123",
+        )
+        assert config.memora_auth_token == "test_token_123"
+        assert config.memora_base_url == "https://memory.twilio.com/v1"
+        assert config.maestro_base_url == "https://maestro.twilio.com/v1"
+        assert config.twilio_account_sid == "ACtest123"
 
     def test_config_dict_conversion(self):
         """Test converting config to dictionary."""
-        config = TAFConfig(model_provider=ModelProvider.OPENAI)
-        config_dict = config.dict()
+        config = TAFConfig(memora_auth_token="test_token_123")
+        config_dict = config.model_dump()
 
         assert isinstance(config_dict, dict)
-        assert "model_provider" in config_dict
-        assert config_dict["model_provider"] == "openai"
-
-    def test_invalid_provider(self):
-        """Test that invalid provider raises ValidationError."""
-        with pytest.raises(ValidationError):
-            TAFConfig(model_provider="invalid_provider")
+        assert "memora_auth_token" in config_dict
+        assert config_dict["memora_auth_token"] == "test_token_123"
 
     def test_config_from_dict(self):
         """Test creating config from dictionary."""
-        config_data = {"model_provider": "openai"}
+        config_data = {"memora_auth_token": "test_token_123"}
         config = TAFConfig(**config_data)
-        assert config.model_provider == ModelProvider.OPENAI
+        assert config.memora_auth_token == "test_token_123"
 
     def test_config_json_schema(self):
         """Test that config has valid JSON schema."""
-        schema = TAFConfig.schema()
+        schema = TAFConfig.model_json_schema()
 
         assert "properties" in schema
-        assert "model_provider" in schema["properties"]
-        assert "example" in schema
+        assert "memora_auth_token" in schema["properties"]
+        assert "memora_base_url" in schema["properties"]
+        assert "maestro_base_url" in schema["properties"]
+        assert "twilio_account_sid" in schema["properties"]
 
     def test_config_equality(self):
         """Test config equality comparison."""
-        config1 = TAFConfig(model_provider=ModelProvider.OPENAI)
-        config2 = TAFConfig(model_provider=ModelProvider.OPENAI)
-        config3 = TAFConfig(model_provider="openai")
+        config1 = TAFConfig(memora_auth_token="test_token_123")
+        config2 = TAFConfig(memora_auth_token="test_token_123")
+        config3 = TAFConfig()
 
         assert config1 == config2
-        # String and enum should be equal due to use_enum_values=True
-        assert config1.model_provider == config3.model_provider
+        assert config1 != config3
+
+    def test_empty_config(self):
+        """Test empty config is valid."""
+        config = TAFConfig()
+        assert config.memora_auth_token is None
+        assert config.memora_base_url is None
+        assert config.maestro_base_url is None
+        assert config.twilio_account_sid is None
