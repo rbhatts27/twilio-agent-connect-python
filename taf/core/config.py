@@ -1,7 +1,5 @@
 """Configuration models for the Twilio Agentic Framework."""
 
-from typing import Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -21,7 +19,7 @@ class TAFConfig(BaseModel):
 
     twilio_account_sid: str = Field(description="Twilio Account SID")
 
-    log_level: Optional[str] = Field(
+    log_level: str = Field(
         default="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
     )
