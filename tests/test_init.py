@@ -6,7 +6,7 @@ from taf import TAF, TAFConfig, TwilioWebhookEvent, WebhookEventType, __version_
 def test_version():
     """Test that version is available and is a string."""
     assert isinstance(__version__, str)
-    assert __version__ == "0.1.0"
+    assert __version__ == "0.1.1"
 
 
 def test_imports():
