@@ -15,6 +15,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [0.1.2] - 2025-09-26
+
+### Added
+- Structured logging system with configurable log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- Centralized logging setup in taf/core/logging.py
+- Python-dotenv support for loading .env files in webhook server
+- .env.example file with sample environment variables
+- Logging throughout TAF core, Maestro, and Memora clients
+
+### Changed
+- Made TAFConfig fields required for better validation
+- Replaced print statements with proper logging in webhook server
+- Updated all tests to work with required configuration fields
+
+### Fixed
+- Type annotation for log_level configuration (changed from Optional[str] to str)
+- Removed unused Optional import from typing
+
 ## [0.1.1] - 2025-09-25
 
 ### Added

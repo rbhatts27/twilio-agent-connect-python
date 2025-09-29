@@ -6,32 +6,42 @@ from pydantic import ValidationError
 from taf import TAF, TAFConfig
 
 
+def get_test_config():
+    """Get a valid test configuration."""
+    return {
+        "memora_auth_token": "test_token_123",
+        "memora_base_url": "https://memory.twilio.com/v1",
+        "maestro_base_url": "https://maestro.twilio.com/v1",
+        "twilio_account_sid": "ACtest123",
+    }
+
+
 class TestTAF:
     """Test TAF core class."""
 
     def test_init_with_config_dict(self):
         """Test TAF initialization with configuration dictionary."""
-        config_dict = {"memora_auth_token": "test_token_123"}
+        config_dict = get_test_config()
         taf = TAF(config_dict)
 
         assert isinstance(taf.config, TAFConfig)
         assert taf.config.memora_auth_token == "test_token_123"
+        assert taf.config.memora_base_url == "https://memory.twilio.com/v1"
 
     def test_init_with_config_object(self):
         """Test TAF initialization with TAFConfig object."""
-        config = TAFConfig(memora_auth_token="test_token_123")
+        config = TAFConfig(**get_test_config())
         taf = TAF(config)
 
         assert isinstance(taf.config, TAFConfig)
         assert taf.config.memora_auth_token == "test_token_123"
+        assert taf.config.memora_base_url == "https://memory.twilio.com/v1"
 
-    def test_init_with_empty_config_dict(self):
-        """Test TAF initialization with empty configuration dictionary."""
+    def test_init_with_empty_config_dict_fails(self):
+        """Test TAF initialization with empty configuration dictionary fails."""
         config_dict = {}
-        taf = TAF(config_dict)
-
-        assert isinstance(taf.config, TAFConfig)
-        assert taf.config.memora_auth_token is None
+        with pytest.raises(ValueError, match="Invalid configuration"):
+            TAF(config_dict)
 
     def test_init_with_invalid_config_type(self):
         """Test TAF initialization with invalid configuration type."""
@@ -42,7 +52,7 @@ class TestTAF:
 
     def test_process_message_valid(self):
         """Test processing a valid message event."""
-        taf = TAF({})
+        taf = TAF(get_test_config())
 
         event_data = {
             "EventType": "onMessageAdded",
@@ -57,7 +67,7 @@ class TestTAF:
 
     def test_process_message_empty_body(self):
         """Test processing a message with empty body."""
-        taf = TAF({})
+        taf = TAF(get_test_config())
 
         event_data = {
             "EventType": "onMessageAdded",
@@ -72,7 +82,7 @@ class TestTAF:
 
     def test_process_message_whitespace_body(self):
         """Test processing a message with whitespace-only body."""
-        taf = TAF({})
+        taf = TAF(get_test_config())
 
         event_data = {
             "EventType": "onMessageAdded",
@@ -87,7 +97,7 @@ class TestTAF:
 
     def test_process_message_none_body(self):
         """Test processing a message with None body."""
-        taf = TAF({})
+        taf = TAF(get_test_config())
 
         event_data = {
             "EventType": "onMessageAdded",
@@ -102,7 +112,7 @@ class TestTAF:
 
     def test_process_message_unsupported_event_type(self):
         """Test processing an unsupported event type returns None."""
-        taf = TAF({})
+        taf = TAF(get_test_config())
 
         # Test onMessageAdd (real Twilio event, but not supported)
         event_data = {
@@ -117,7 +127,7 @@ class TestTAF:
 
     def test_process_message_participant_event(self):
         """Test processing a participant event returns None."""
-        taf = TAF({})
+        taf = TAF(get_test_config())
 
         event_data = {
             "EventType": "onParticipantAdded",
@@ -130,7 +140,7 @@ class TestTAF:
 
     def test_process_message_invalid_event_data(self):
         """Test processing invalid event data."""
-        taf = TAF({})
+        taf = TAF(get_test_config())
 
         # Missing required fields
         invalid_event_data = {"EventType": "onMessageAdded"}
@@ -140,7 +150,7 @@ class TestTAF:
 
     def test_process_message_real_webhook_data(self):
         """Test processing real webhook data."""
-        taf = TAF({})
+        taf = TAF(get_test_config())
 
         real_webhook_data = {
             "MessagingServiceSid": "MG3675a614bcfcfb1921727b0138617cdf",
@@ -165,7 +175,7 @@ class TestTAF:
 
     def test_multiple_message_processing(self):
         """Test that one TAF instance can process multiple messages."""
-        taf = TAF({})
+        taf = TAF(get_test_config())
 
         # First message
         event1 = {
@@ -192,7 +202,7 @@ class TestTAF:
 
     def test_different_config_options(self):
         """Test TAF with different configuration options."""
-        default_taf = TAF({})
+        default_taf = TAF(get_test_config())
 
         event_data = {
             "EventType": "onMessageAdded",
