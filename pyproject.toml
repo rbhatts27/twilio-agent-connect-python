@@ -83,6 +83,13 @@ warn_no_return = true
 warn_unreachable = true
 strict_equality = true
 
+# Specify the paths to type check
+[[tool.mypy.overrides]]
+module = "taf.*"
+python_version = "3.9"
+ignore_missing_imports = true
+mypy_path = "src"
+
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra -q --strict-markers --strict-config"
