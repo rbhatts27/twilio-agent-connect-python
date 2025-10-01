@@ -26,7 +26,7 @@ format: ## Format code with black and isort
 	uv run isort .
 
 type-check: ## Run type checking with mypy
-	uv run mypy taf
+	uv run mypy src/taf
 
 pre-commit: ## Run pre-commit hooks on all files
 	uv run pre-commit run --all-files

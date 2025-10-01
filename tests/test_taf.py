@@ -1,9 +1,8 @@
 """Tests for TAF core class."""
 
 import pytest
-from pydantic import ValidationError
 
-from src.taf import TAF, TAFConfig
+from taf import TAF, TAFConfig
 
 
 def get_test_config():

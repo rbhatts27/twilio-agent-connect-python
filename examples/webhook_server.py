@@ -20,7 +20,7 @@ load_dotenv()
 # Add parent directory to path to import taf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.taf import TAF, TAFConfig, get_logger
+from taf import TAF, TAFConfig, get_logger
 
 
 class WebhookHandler(BaseHTTPRequestHandler):

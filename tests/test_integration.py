@@ -4,7 +4,7 @@ import urllib.parse
 
 import pytest
 
-from src.taf import TAF, TAFConfig
+from taf import TAF, TAFConfig
 
 
 def get_test_config():

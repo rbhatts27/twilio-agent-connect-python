@@ -85,10 +85,8 @@ strict_equality = true
 
 # Specify the paths to type check
 [[tool.mypy.overrides]]
-module = "taf.*"
-python_version = "3.9"
+module = "src.taf.*"
 ignore_missing_imports = true
-mypy_path = "src"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
