@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from taf.core.config import TAFConfig
+from src.taf import TAFConfig
 
 
 class TestTAFConfig:

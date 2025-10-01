@@ -1,6 +1,6 @@
 import pytest
 
-from taf import TAF, TAFConfig, TwilioWebhookEvent, WebhookEventType, __version__
+from src.taf import TAF, TAFConfig, TwilioWebhookEvent, WebhookEventType, __version__
 
 
 def test_version():

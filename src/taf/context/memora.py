@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 import requests
 from pydantic import BaseModel, Field
 
-from taf.core.logging import get_logger
+from src.taf.core.logging import get_logger
 
 
 class TraitQuery(BaseModel):

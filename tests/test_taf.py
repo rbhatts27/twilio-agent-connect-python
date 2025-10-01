@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from taf import TAF, TAFConfig
+from src.taf import TAF, TAFConfig
 
 
 def get_test_config():
