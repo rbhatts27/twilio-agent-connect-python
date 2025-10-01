@@ -2,6 +2,6 @@
 
 from typing import List
 
-from .memora import MemoraClient
+from taf.context.memora import MemoraClient
 
 __all__: List[str] = ["MemoraClient"]

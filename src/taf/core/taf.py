@@ -4,12 +4,12 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import ValidationError
 
-from ..context.maestro import MaestroClient
-from ..context.memora import MemoraClient
-from ..models.webhook import TwilioWebhookEvent
-from .config import TAFConfig
-from .context import SessionIdentity
-from .logging import get_logger, setup_logging
+from taf.context.maestro import MaestroClient
+from taf.context.memora import MemoraClient
+from taf.core.config import TAFConfig
+from taf.core.context import SessionIdentity
+from taf.core.logging import get_logger, setup_logging
+from taf.models.webhook import TwilioWebhookEvent
 
 
 class TAF:
