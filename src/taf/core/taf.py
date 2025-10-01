@@ -1,17 +1,16 @@
 """Core TAF (Twilio Agentic Framework) class for processing events and configuration."""
 
-import logging
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import ValidationError
 
 from taf.context.maestro import MaestroClient
-from taf.context.memora import MemoraClient, MemoraMemory
+from taf.context.memora import MemoraClient
 from taf.core.config import TAFConfig
 from taf.core.logging import get_logger, setup_logging
 
-from ..models.webhook import TwilioSMSWebhookEvent, TwilioWebhookEvent
-from .context import Memory, Profile, SessionIdentity
+from ..models.webhook import TwilioWebhookEvent
+from .context import SessionIdentity
 
 
 class TAF:
@@ -48,7 +47,7 @@ class TAF:
 
         self.memora_client = MemoraClient(
             base_url=self.config.memora_base_url,
-            auth_token=self.config.memora_auth_token,
+            auth_token=self.config.twilio_auth_token,
         )
         self.maestro_client = MaestroClient(
             base_url=self.config.maestro_base_url,

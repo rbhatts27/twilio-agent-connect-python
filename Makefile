@@ -1,4 +1,7 @@
-.PHONY: help install install-dev test lint format type-check pre-commit clean build publish example server ngrok
+.PHONY: help install install-dev test lint format type-check pre-commit clean build publish example server ngrok sync
+
+sync:
+	uv sync --all-extras --all-packages --group dev
 
 # Default target
 help: ## Show this help message
@@ -8,28 +11,28 @@ help: ## Show this help message
 install: ## Install the package in the current environment
 	pip install -e .
 
-install-dev: ## Install development dependencies with Poetry
-	poetry install
+install-dev: ## Install development dependencies with uv
+	uv install
 
 test: ## Run tests
-	poetry run pytest
+	uv run pytest
 
 lint: ## Run linting (black and isort check)
-	poetry run black --check .
-	poetry run isort --check-only .
+	uv run black --check .
+	uv run isort --check-only .
 
 format: ## Format code with black and isort
-	poetry run black .
-	poetry run isort .
+	uv run black .
+	uv run isort .
 
 type-check: ## Run type checking with mypy
-	poetry run mypy taf
+	uv run mypy src/taf
 
 pre-commit: ## Run pre-commit hooks on all files
-	poetry run pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 install-pre-commit: ## Install pre-commit hooks
-	poetry run pre-commit install
+	uv run pre-commit install
 
 check: lint type-check test ## Run all checks (lint, type-check, test)
 
@@ -43,10 +46,7 @@ clean: ## Clean up cache and build artifacts
 	find . -type f -name "*.pyc" -delete
 
 build: ## Build the package
-	poetry build
-
-publish: ## Publish to PyPI (requires authentication)
-	poetry publish
+	uv build
 
 example: ## Run the basic usage example
 	python examples/basic_usage.py

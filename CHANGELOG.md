@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Environment variable support for TAF configuration
-- Support for memora_auth_token, memora_base_url, maestro_base_url, and twilio_account_sid
+- Support for twilio_auth_token, memora_base_url, maestro_base_url, and twilio_account_sid
 
 ### Changed
 - Updated webhook_server.py to use environment variables instead of hardcoded configuration

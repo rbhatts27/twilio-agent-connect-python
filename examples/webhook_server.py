@@ -20,8 +20,7 @@ load_dotenv()
 # Add parent directory to path to import taf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from taf.core import TAF, TAFConfig
-from taf.core.logging import get_logger
+from taf import TAF, TAFConfig, get_logger
 
 
 class WebhookHandler(BaseHTTPRequestHandler):
@@ -128,9 +127,9 @@ def main():
     taf = TAF(
         config=TAFConfig(
             memora_base_url=os.getenv("MEMORA_BASE_URL"),
-            memora_auth_token=os.getenv("MEMORA_AUTH_TOKEN"),
             maestro_base_url=os.getenv("MAESTRO_BASE_URL"),
             twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
+            twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN"),
         )
     )
 

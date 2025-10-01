@@ -1,7 +1,6 @@
 """Tests for TAF core class."""
 
 import pytest
-from pydantic import ValidationError
 
 from taf import TAF, TAFConfig
 
@@ -9,7 +8,7 @@ from taf import TAF, TAFConfig
 def get_test_config():
     """Get a valid test configuration."""
     return {
-        "memora_auth_token": "test_token_123",
+        "twilio_auth_token": "test_token_123",
         "memora_base_url": "https://memory.twilio.com/v1",
         "maestro_base_url": "https://maestro.twilio.com/v1",
         "twilio_account_sid": "ACtest123",
@@ -25,7 +24,7 @@ class TestTAF:
         taf = TAF(config_dict)
 
         assert isinstance(taf.config, TAFConfig)
-        assert taf.config.memora_auth_token == "test_token_123"
+        assert taf.config.twilio_auth_token == "test_token_123"
         assert taf.config.memora_base_url == "https://memory.twilio.com/v1"
 
     def test_init_with_config_object(self):
@@ -34,7 +33,7 @@ class TestTAF:
         taf = TAF(config)
 
         assert isinstance(taf.config, TAFConfig)
-        assert taf.config.memora_auth_token == "test_token_123"
+        assert taf.config.twilio_auth_token == "test_token_123"
         assert taf.config.memora_base_url == "https://memory.twilio.com/v1"
 
     def test_init_with_empty_config_dict_fails(self):

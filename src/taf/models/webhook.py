@@ -1,7 +1,7 @@
 """Pydantic models for Twilio webhook events."""
 
 from enum import Enum
-from typing import Any, Dict, Optional, Union
+from typing import Optional
 
 from pydantic import BaseModel, Field
 

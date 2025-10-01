@@ -1,45 +1,68 @@
-# Twilio Agentic Framework
+# Twilio Agentic Framework (TAF)
 
-A Python framework for building agentic applications with Twilio.
+Twilio Agentic Framework (TAF) is a powerful Python library designed to simplify the development of intelligent,
+context-aware applications using Twilio's communication technologies.
 
-## Installation
+> [!NOTE]
+> Looking for the JavaScript/TypeScript version? Check out [TAF SDK JS/TS](https://github.com/twilio-internal/twilio-agentic-framework-typescript).
 
-Install directly from this Git repository:
+Explore the [examples](examples) directory to see the SDK in action.
+
+
+## Get started
+
+To get started, set up your Python environment (Python 3.9 or newer required), and then install TAF SDK package.
+
+### venv
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install git+https://github.com/twilio-internal/twilio-agentic-framework-python.git
 ```
 
-For development:
+### uv
+
+If you're familiar with [uv](https://docs.astral.sh/uv/), using the tool would be even similar:
 
 ```bash
-git clone https://github.com/twilio-internal/twilio-agentic-framework-python.git
-cd twilio-agentic-framework-python
-poetry install
+uv init
+uv add git+https://github.com/twilio-internal/twilio-agentic-framework-python.git
 ```
 
-Or for editable pip install:
-
-```bash
-git clone https://github.com/twilio-internal/twilio-agentic-framework-python.git
-cd twilio-agentic-framework-python
-pip install -e .
-```
-
-## Usage
+## Example
 
 ```python
-from taf import hello
+from taf import TAF, TAFConfig
 
-print(hello())  # Output: Hello from Twilio Agentic Framework!
+config = TAFConfig(
+    twilio_account_sid="your_account_sid",
+    twilio_auth_token="your_twilio_auth_token",
+    memora_base_url="https://memory.twilio.com/v1",
+    maestro_base_url="https://maestro.twilio.com/v1"
+)
+
+taf = TAF(config)
 ```
 
-## Development
+---
 
-1. Clone the repository
-2. Install in development mode: `pip install -e .`
-3. Make changes and test locally
+# TAF Development / Contribution
 
-## License
+0. Ensure you have [`uv`](https://docs.astral.sh/uv/) installed.
 
-MIT License
+```bash
+uv --version
+```
+
+1. Install dependencies
+
+```bash
+make sync
+```
+
+2. (After making changes) lint/test
+
+```
+make format # run tests linter and typechecker
+```

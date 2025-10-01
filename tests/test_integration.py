@@ -10,7 +10,7 @@ from taf import TAF, TAFConfig
 def get_test_config():
     """Get a valid test configuration."""
     return {
-        "memora_auth_token": "test_token_123",
+        "twilio_auth_token": "test_token_123",
         "memora_base_url": "https://memory.twilio.com/v1",
         "maestro_base_url": "https://maestro.twilio.com/v1",
         "twilio_account_sid": "ACtest123",
@@ -154,13 +154,13 @@ class TestTAFIntegration:
 
         for config in valid_configs:
             taf = TAF(config)
-            assert taf.config.memora_auth_token == "test_token_123"
+            assert taf.config.twilio_auth_token == "test_token_123"
 
         # Configuration with extra fields should be allowed (ignored)
         flexible_config = get_test_config().copy()
         flexible_config["extra_field"] = "extra_value"
         taf = TAF(flexible_config)
-        assert taf.config.memora_auth_token == "test_token_123"
+        assert taf.config.twilio_auth_token == "test_token_123"
 
         # Invalid configurations (wrong types)
         invalid_configs = [
