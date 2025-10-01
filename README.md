@@ -37,7 +37,7 @@ from taf import TAF, TAFConfig
 
 config = TAFConfig(
     twilio_account_sid="your_account_sid",
-    memora_auth_token="your_memora_auth_token",
+    twilio_auth_token="your_twilio_auth_token",
     memora_base_url="https://memory.twilio.com/v1",
     maestro_base_url="https://maestro.twilio.com/v1"
 )

@@ -48,9 +48,6 @@ clean: ## Clean up cache and build artifacts
 build: ## Build the package
 	uv build
 
-publish: ## Publish to PyPI (requires authentication)
-	uv publish
-
 example: ## Run the basic usage example
 	python examples/basic_usage.py
 

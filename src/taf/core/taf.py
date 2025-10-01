@@ -47,7 +47,7 @@ class TAF:
 
         self.memora_client = MemoraClient(
             base_url=self.config.memora_base_url,
-            auth_token=self.config.memora_auth_token,
+            auth_token=self.config.twilio_auth_token,
         )
         self.maestro_client = MaestroClient(
             base_url=self.config.maestro_base_url,
