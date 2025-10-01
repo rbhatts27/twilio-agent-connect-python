@@ -3,7 +3,7 @@ from typing import Any, List, Optional
 import requests
 from pydantic import BaseModel, Field
 
-from taf.core.logging import get_logger
+from ..core.logging import get_logger
 
 
 class ConversationResponse(BaseModel):
