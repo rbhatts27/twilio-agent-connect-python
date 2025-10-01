@@ -7,10 +7,9 @@ from pydantic import ValidationError
 from taf.context.maestro import MaestroClient
 from taf.context.memora import MemoraClient
 from taf.core.config import TAFConfig
+from taf.core.context import SessionIdentity
 from taf.core.logging import get_logger, setup_logging
-
-from ..models.webhook import TwilioWebhookEvent
-from .context import SessionIdentity
+from taf.models.webhook import TwilioWebhookEvent
 
 
 class TAF:

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, List, Optional
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
-    from ..context.memora import MemoraMemory
+    from taf.context.memora import MemoraMemory
 
 
 class Profile(BaseModel):
