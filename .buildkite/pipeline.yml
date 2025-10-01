@@ -3,8 +3,8 @@ steps:
     key: lint
     commands: |
       pip install uv
-      uv venv
-      source .venv/bin/activate
+      uv venv || exit 1
+      . .venv/bin/activate
       uv pip install -e .
       uv run black --check .
       uv run isort --check-only .
@@ -16,8 +16,8 @@ steps:
     key: type-check
     commands: |
       pip install uv
-      uv venv
-      source .venv/bin/activate
+      uv venv || exit 1
+      . .venv/bin/activate
       uv pip install -e .
       uv run mypy taf
     plugins:
@@ -28,8 +28,8 @@ steps:
     key: test-38
     commands: |
       pip install uv
-      uv venv
-      source .venv/bin/activate
+      uv venv || exit 1
+      . .venv/bin/activate
       uv pip install -e .
       uv run pytest
     plugins:
@@ -40,8 +40,8 @@ steps:
     key: test-39
     commands: |
       pip install uv
-      uv venv
-      source .venv/bin/activate
+      uv venv || exit 1
+      . .venv/bin/activate
       uv pip install -e .
       uv run pytest
     plugins:
@@ -52,8 +52,8 @@ steps:
     key: test-310
     commands: |
       pip install uv
-      uv venv
-      source .venv/bin/activate
+      uv venv || exit 1
+      . .venv/bin/activate
       uv pip install -e .
       uv run pytest
     plugins:
@@ -64,8 +64,8 @@ steps:
     key: test-311
     commands: |
       pip install uv
-      uv venv
-      source .venv/bin/activate
+      uv venv || exit 1
+      . .venv/bin/activate
       uv pip install -e .
       uv run pytest
     plugins:
@@ -76,8 +76,8 @@ steps:
     key: test-312
     commands: |
       pip install uv
-      uv venv
-      source .venv/bin/activate
+      uv venv || exit 1
+      . .venv/bin/activate
       uv pip install -e .
       uv run pytest
     plugins:
