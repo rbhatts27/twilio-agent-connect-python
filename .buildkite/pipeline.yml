@@ -24,18 +24,6 @@ steps:
       - docker#v3.8.0:
           image: registry.twilio.com/library/python/3.10-slim
 
-  - label: ":python: test-3.8"
-    key: test-38
-    commands: |
-      pip install uv
-      uv venv || exit 1
-      . .venv/bin/activate
-      uv pip install -e .
-      uv run pytest
-    plugins:
-      - docker#v3.8.0:
-          image: registry.twilio.com/library/python/3.8-slim
-
   - label: ":python: test-3.9"
     key: test-39
     commands: |

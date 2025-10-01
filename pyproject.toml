@@ -6,7 +6,7 @@ authors = [{ name = "Twilio Conversation AI", email = "team_conversational-ai@tw
 readme = "README.md"
 homepage = "https://github.com/twilio-internal/twilio-agentic-framework-python"
 repository = "https://github.com/twilio-internal/twilio-agentic-framework-python"
-requires-python = ">=3.8,<4"
+requires-python = ">=3.9,<4"
 classifiers = [
     "Typing :: Typed",
     "Intended Audience :: Developers",
