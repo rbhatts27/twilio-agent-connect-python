@@ -32,8 +32,10 @@ class TAFConfig(BaseModel):
         json_schema_extra={
             "example": {
                 "memora_base_url": "https://memory.twilio.com/v1",
+                "memory_service_sid": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "maestro_base_url": "https://maestro.twilio.com/v1",
-                "twilio_account_sid": "your_twilio_account_sid",
+                "conversation_service_sid": "ISxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "twilio_account_sid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "twilio_auth_token": "your_auth_token_here",
             }
         },

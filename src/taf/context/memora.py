@@ -176,9 +176,9 @@ class MemoraClient:
         if self.auth_token:
             self.session.headers.update({"X-Pre-Auth-Context": self.auth_token})
 
-    def retrieve_context(
+    def retrieve_memory(
         self, service_id: str, profile_id: str, query: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> List[MemoraMemory]:
         """
         Retrieve profile memories including observations, traits, and events.
         Supports hybrid semantic search, date ranges, trait filters,
@@ -192,7 +192,7 @@ class MemoraClient:
             query: Optional search query to filter memories
 
         Returns:
-            List of dictionaries (JSON-serializable) representing memories
+            List of MemoraMemory objects (TraitMemory, ObservationMemory, or SessionMemory)
 
         Raises:
             requests.RequestException: If the API request fails
@@ -221,13 +221,8 @@ class MemoraClient:
             data = response.json()
             memory_response = MemoryRetrievalResponse(**data)
 
-            # Convert Pydantic models to JSON-serializable dictionaries
-            result = [
-                memory.model_dump(by_alias=True, exclude_none=True)
-                for memory in memory_response.memories
-            ]
-
-            return result
+            # Return typed Pydantic models
+            return memory_response.memories
 
         except requests.RequestException as e:
             self.logger.error(f"Failed to retrieve context from Memora: {e}")

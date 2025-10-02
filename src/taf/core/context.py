@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -34,3 +34,16 @@ class SessionIdentity(BaseModel):
 
     profile_id: str = Field(..., description="Unique profile identifier")
     conversation_id: str = Field(..., description="Conversation SID")
+
+
+class ConversationContext(BaseModel):
+    """
+    Context information for a conversation that's passed to callbacks.
+
+    This provides the necessary context for developers to handle memory-ready
+    events and send responses back through the appropriate channel.
+    """
+
+    conversation_id: str = Field(..., description="Unique conversation identifier")
+    profile_id: str = Field(..., description="Profile ID associated with conversation")
+    channel: str = Field(..., description="Channel type (e.g., 'sms', 'voice')")
