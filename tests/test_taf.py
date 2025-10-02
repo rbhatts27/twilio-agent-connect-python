@@ -12,6 +12,8 @@ def get_test_config():
         "memora_base_url": "https://memory.twilio.com/v1",
         "maestro_base_url": "https://maestro.twilio.com/v1",
         "twilio_account_sid": "ACtest123",
+        "conversation_service_sid": "IS123test",
+        "memory_service_sid": "mem_service_123test",
     }
 
 

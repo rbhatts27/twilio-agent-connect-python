@@ -16,6 +16,10 @@ class TAFConfig(BaseModel):
 
     twilio_account_sid: str = Field(description="Twilio Account SID")
 
+    conversation_service_sid: str = Field(description="Twilio Conversation Service SID")
+
+    memory_service_sid: str = Field(description="Memora Memory Service SID")
+
     twilio_auth_token: str = Field(description="Twilio Auth Token from Twilio Console")
 
     log_level: str = Field(
