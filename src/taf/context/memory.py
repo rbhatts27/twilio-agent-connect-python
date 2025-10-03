@@ -131,7 +131,7 @@ class SessionMemory(BaseModel):
 
 
 # Union type for all memory types
-MemoraMemory = Union[TraitMemory, ObservationMemory, SessionMemory]
+TwilioMemory = Union[TraitMemory, ObservationMemory, SessionMemory]
 
 
 class MemoryRetrievalMeta(BaseModel):
@@ -147,7 +147,7 @@ class MemoryRetrievalMeta(BaseModel):
 class MemoryRetrievalResponse(BaseModel):
     """Response from the memory retrieval API."""
 
-    memories: List[MemoraMemory] = Field(..., description="Retrieved memory results")
+    memories: List[TwilioMemory] = Field(..., description="Retrieved memory results")
     meta: MemoryRetrievalMeta = Field(
         ..., description="Metadata about the retrieval operation"
     )
@@ -155,14 +155,14 @@ class MemoryRetrievalResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class MemoraClient:
+class MemoryClient:
     """Client for interacting with Twilio Memora data plane API."""
 
     def __init__(
         self, base_url: Optional[str] = None, auth_token: Optional[str] = None
     ) -> None:
         """
-        Initialize the Memora client.
+        Initialize the Memory client.
 
         Args:
             base_url: Base URL for the Memora data plane API. Defaults to production.
@@ -178,7 +178,7 @@ class MemoraClient:
 
     def retrieve_memory(
         self, service_id: str, profile_id: str, query: Optional[str] = None
-    ) -> List[MemoraMemory]:
+    ) -> List[TwilioMemory]:
         """
         Retrieve profile memories including observations, traits, and events.
         Supports hybrid semantic search, date ranges, trait filters,
@@ -192,7 +192,7 @@ class MemoraClient:
             query: Optional search query to filter memories
 
         Returns:
-            List of MemoraMemory objects (TraitMemory, ObservationMemory, or SessionMemory)
+            List of TwilioMemory objects (TraitMemory, ObservationMemory, or SessionMemory)
 
         Raises:
             requests.RequestException: If the API request fails

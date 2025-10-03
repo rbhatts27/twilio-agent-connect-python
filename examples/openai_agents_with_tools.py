@@ -7,7 +7,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 from taf import TAFConfig
-from taf.core.context import SessionIdentity
+from taf.core.context import ConversationSession
 from taf.tools.memory import create_memory_tools
 
 # Load environment variables from .env file
@@ -50,7 +50,7 @@ async def main() -> None:
     )
 
     # Create session context
-    session = SessionIdentity(
+    session = ConversationSession(
         profile_id="profile_456...", conversation_id="conversation_789..."
     )
 

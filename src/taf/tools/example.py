@@ -72,7 +72,7 @@ anthropic_schema = calculate_tip.to_anthropic_format()
 ```python
 from taf.tools.memory import create_memory_tools
 from taf.core.config import TAFConfig
-from taf.core.context import SessionIdentity
+from taf.core.context import ConversationSession
 
 # Configuration and session context (not exposed to LLM)
 config = TAFConfig(
@@ -81,7 +81,7 @@ config = TAFConfig(
     memory_service_sid="mem_service_123...",
     # ... other config
 )
-session = SessionIdentity(
+session = ConversationSession(
     profile_id="profile_456...",
     conversation_id="conversation_789..."
 )

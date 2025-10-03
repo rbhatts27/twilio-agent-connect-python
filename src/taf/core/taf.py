@@ -4,10 +4,10 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from pydantic import ValidationError
 
-from taf.context.maestro import MaestroClient
-from taf.context.memora import MemoraClient, MemoraMemory
+from taf.context.conversation import ConversationClient
+from taf.context.memory import MemoryClient, TwilioMemory
 from taf.core.config import TAFConfig
-from taf.core.context import ConversationContext
+from taf.core.context import ConversationSession
 from taf.core.logging import get_logger, setup_logging
 
 
@@ -43,25 +43,25 @@ class TAF:
         setup_logging(log_level=self.config.log_level)
         self.logger = get_logger(__name__)
 
-        self.memora_client = MemoraClient(
+        self.memora_client = MemoryClient(
             base_url=self.config.memora_base_url,
             auth_token=self.config.twilio_auth_token,
         )
-        self.maestro_client = MaestroClient(
+        self.maestro_client = ConversationClient(
             base_url=self.config.maestro_base_url,
             account_sid=self.config.twilio_account_sid,
         )
 
         # Callback for when memory is ready
         self._memory_ready_callback: Optional[
-            Callable[[ConversationContext, List[MemoraMemory]], None]
+            Callable[[ConversationSession, List[TwilioMemory]], None]
         ] = None
 
     def retrieve_memory(
         self,
-        conversation_context: ConversationContext,
+        conversation_context: ConversationSession,
         query: Optional[str] = None,
-    ) -> List[MemoraMemory]:
+    ) -> List[TwilioMemory]:
         """
         Retrieve memories from Memora and trigger callback with conversation context.
 
@@ -70,7 +70,7 @@ class TAF:
             query: Optional query string for memory retrieval
 
         Returns:
-            List of MemoraMemory objects (TraitMemory, ObservationMemory, or SessionMemory)
+            List of TwilioMemory objects (TraitMemory, ObservationMemory, or SessionMemory)
         """
         try:
             memories = self.memora_client.retrieve_memory(
@@ -89,25 +89,25 @@ class TAF:
             raise
 
     def on_memory_ready(
-        self, callback: Callable[[ConversationContext, List[MemoraMemory]], None]
+        self, callback: Callable[[ConversationSession, List[TwilioMemory]], None]
     ) -> None:
         """
         Register a callback to be invoked when memory context is ready.
 
         The callback will be triggered after memory retrieval is complete
-        (after retrieve_memory on MemoraClient) and will receive both the
+        (after retrieve_memory on MemoryClient) and will receive both the
         conversation context and the retrieved memory data as typed Pydantic models.
 
         Args:
-            callback: A callable that accepts a ConversationContext and a list of MemoraMemory objects.
-                     The ConversationContext contains conversation_id, profile_id, needed to send responses.
+            callback: A callable that accepts a ConversationSession and a list of TwilioMemory objects.
+                     The ConversationSession contains conversation_id, profile_id, needed to send responses.
 
         Example:
             ```python
-            from taf.core.context import ConversationContext
-            from taf.context.memora import MemoraMemory
+            from taf.core.context import ConversationSession
+            from taf.context.memory import TwilioMemory
 
-            def handle_memory(context: ConversationContext, memories: List[MemoraMemory]):
+            def handle_memory(context: ConversationSession, memories: List[TwilioMemory]):
                 print(f"Conversation {context.conversation_id} on {context.channel}")
                 print(f"Received {len(memories)} memory items")
 

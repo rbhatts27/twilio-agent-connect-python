@@ -51,14 +51,14 @@ class ParticipantResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class MaestroClient:
+class ConversationClient:
     """Client for interacting with Maestro API."""
 
     def __init__(
         self, base_url: Optional[str] = None, account_sid: Optional[str] = None
     ) -> None:
         """
-        Initialize the Maestro client.
+        Initialize the Conversation client.
 
         Args:
             base_url: Base URL for the Maestro API

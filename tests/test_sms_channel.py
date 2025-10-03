@@ -7,8 +7,8 @@ import pytest
 
 from taf import TAF, TAFConfig
 from taf.channels.sms import SMSChannel
-from taf.context.memora import MemoraMemory
-from taf.core.context import ConversationContext
+from taf.context.memory import TwilioMemory
+from taf.core.context import ConversationSession
 
 
 def get_test_config() -> dict:
@@ -61,7 +61,7 @@ class TestSMSChannel:
         captured_memories = None
 
         def memory_callback(
-            context: ConversationContext, memories: List[MemoraMemory]
+            context: ConversationSession, memories: List[TwilioMemory]
         ) -> None:
             nonlocal captured_context, captured_memories
             captured_context = context

@@ -1,21 +1,11 @@
 """Base channel interface for TAF channels."""
 
 from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import Any, Dict, Optional
-
-from pydantic import BaseModel, Field
+from typing import Any, Dict
 
 from taf import TAF
+from taf.core.context import ConversationSession
 from taf.core.logging import get_logger
-
-
-class ConversationSession(BaseModel):
-    """Internal representation of an active conversation session."""
-
-    conversation_id: str
-    profile_id: str
-    started_at: datetime = Field(default_factory=datetime.now)
 
 
 class BaseChannel(ABC):
@@ -95,7 +85,9 @@ class BaseChannel(ABC):
 
         # Store conversation session
         self._conversations[conv_id] = ConversationSession(
-            conversation_id=conv_id, profile_id=profile_id
+            conversation_id=conv_id,
+            profile_id=profile_id,
+            channel=self.get_channel_name(),
         )
 
         self.logger.info(f"Started conversation {conv_id} for profile {profile_id}")

@@ -7,8 +7,8 @@ import pytest
 
 from taf import TAF, TAFConfig
 from taf.channels.sms import SMSChannel
-from taf.context.memora import MemoraMemory
-from taf.core.context import ConversationContext
+from taf.context.memory import TwilioMemory
+from taf.core.context import ConversationSession
 
 
 def get_test_config():
@@ -65,7 +65,7 @@ class TestTAFIntegration:
         received_memories = None
 
         def memory_ready_callback(
-            context: ConversationContext, memories: List[MemoraMemory]
+            context: ConversationSession, memories: List[TwilioMemory]
         ):
             nonlocal callback_invoked, received_context, received_memories
             callback_invoked = True
@@ -121,7 +121,7 @@ class TestTAFIntegration:
         callback_invoked = False
 
         def memory_ready_callback(
-            context: ConversationContext, memories: List[MemoraMemory]
+            context: ConversationSession, memories: List[TwilioMemory]
         ):
             nonlocal callback_invoked
             callback_invoked = True
@@ -154,7 +154,7 @@ class TestTAFIntegration:
         callback_invoked = False
 
         def memory_ready_callback(
-            context: ConversationContext, memories: List[MemoraMemory]
+            context: ConversationSession, memories: List[TwilioMemory]
         ):
             nonlocal callback_invoked
             callback_invoked = True
@@ -230,7 +230,7 @@ class TestTAFIntegration:
         conversation_ids = set()
 
         def memory_ready_callback(
-            context: ConversationContext, memories: List[MemoraMemory]
+            context: ConversationSession, memories: List[TwilioMemory]
         ):
             nonlocal callback_count
             callback_count += 1
@@ -278,7 +278,7 @@ class TestTAFIntegration:
         received_context = None
 
         def memory_ready_callback(
-            context: ConversationContext, memories: List[MemoraMemory]
+            context: ConversationSession, memories: List[TwilioMemory]
         ):
             nonlocal callback_invoked, received_context
             callback_invoked = True
@@ -327,7 +327,7 @@ class TestTAFIntegration:
         callback_invoked = False
 
         def memory_ready_callback(
-            context: ConversationContext, memories: List[MemoraMemory]
+            context: ConversationSession, memories: List[TwilioMemory]
         ):
             nonlocal callback_invoked
             callback_invoked = True

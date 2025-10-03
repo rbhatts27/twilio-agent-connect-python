@@ -5,11 +5,13 @@ from typing import Any, Dict, List
 import requests
 
 from taf.core.config import TAFConfig
-from taf.core.context import SessionIdentity
+from taf.core.context import ConversationSession
 from taf.tools.base import TAFTool, function_tool
 
 
-def create_memory_tools(config: TAFConfig, session: SessionIdentity) -> List[TAFTool]:
+def create_memory_tools(
+    config: TAFConfig, session: ConversationSession
+) -> List[TAFTool]:
     """
     Create memory tools with injected configuration and session context.
 

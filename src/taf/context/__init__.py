@@ -2,6 +2,6 @@
 
 from typing import List
 
-from taf.context.memora import MemoraClient
+from taf.context.memory import MemoryClient
 
-__all__: List[str] = ["MemoraClient"]
+__all__: List[str] = ["MemoryClient"]

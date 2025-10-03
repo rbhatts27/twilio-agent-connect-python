@@ -4,7 +4,7 @@ from typing import Any, Dict
 
 from taf import TAF
 from taf.channels.base import BaseChannel
-from taf.core.context import ConversationContext
+from taf.core.context import ConversationSession
 from taf.models.webhook import TwilioWebhookEvent
 
 
@@ -134,12 +134,5 @@ class SMSChannel(BaseChannel):
 
         session = self._conversations[conv_id]
 
-        # Create conversation context
-        conversation_context = ConversationContext(
-            conversation_id=conv_id,
-            profile_id=session.profile_id,
-            channel=self.get_channel_name(),
-        )
-
-        # Retrieve memory and trigger callback
-        self.taf.retrieve_memory(conversation_context, query=event.Body)
+        # Retrieve memory and trigger callback using the session
+        self.taf.retrieve_memory(session, query=event.Body)

@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 from taf import TAFConfig
-from taf.core.context import SessionIdentity
+from taf.core.context import ConversationSession
 from taf.tools.memory import create_memory_tools
 
 # Load environment variables from .env file
@@ -18,15 +18,15 @@ async def main() -> None:
     # Initialize TAF
     config = TAFConfig(
         memora_base_url="https://memora.twilio.com/v1",
+        memory_service_sid="mem_service_123...",
         maestro_base_url="https://maestro.twilio.com/v1",
         conversation_service_sid="IS123...",
-        memory_service_sid="mem_service_123...",
         twilio_account_sid="AC123...",
         twilio_auth_token="auth_token",
     )
 
     # Create session context (from webhook or conversation flow)
-    session = SessionIdentity(
+    session = ConversationSession(
         profile_id="profile_456...", conversation_id="conversation_789..."
     )
 

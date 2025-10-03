@@ -70,11 +70,11 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 - **`src/taf/core/`** - Core TAF class, configuration, and context models
   - `taf.py` - Main `TAF` class with `retrieve_memory()` and `on_memory_ready()` hook
   - `config.py` - `TAFConfig` Pydantic model for SDK configuration
-  - `context.py` - `SessionIdentity`, `Profile`, `Memory`, `ConversationContext` models
+  - `context.py` - `SessionIdentity`, `Profile`, `Memory`, `ConversationSession` models
 
 - **`src/taf/context/`** - Integration with Twilio Sierra primitives
-  - `memora.py` - `MemoraClient` for memory retrieval (traits, observations, sessions)
-  - `maestro.py` - `MaestroClient` for conversation/participant management
+  - `memory.py` - `MemoryClient` for memory retrieval (traits, observations, sessions)
+  - `conversation.py` - `ConversationClient` for conversation/participant management
 
 - **`src/taf/models/`** - Data models
   - `webhook.py` - `TwilioWebhookEvent` model for parsing Twilio webhook events
@@ -94,22 +94,22 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 
 2. **Conversation Management**: Channel handles conversation lifecycle:
    - `onConversationAdded`: Channel extracts `profile_id` from webhook → calls `_start_conversation(conv_id, profile_id)` → stores conversation session
-   - `onMessageAdded`: Channel validates message → auto-initializes conversation if needed → creates `ConversationContext` with all fields → calls `taf.retrieve_memory(conversation_context, query)`
+   - `onMessageAdded`: Channel validates message → auto-initializes conversation if needed → creates `ConversationSession` with all fields → calls `taf.retrieve_memory(conversation_context, query)`
    - `onConversationRemoved`: Channel calls `_end_conversation(conv_id)` → cleans up session
 
-3. **Memory Retrieval**: `TAF.retrieve_memory(conversation_context, query)` → retrieves memories from Memora using `conversation_context.profile_id` and `config.memory_service_sid` → triggers `on_memory_ready()` callback if registered → returns list of `MemoraMemory` objects
+3. **Memory Retrieval**: `TAF.retrieve_memory(conversation_context, query)` → retrieves memories from Memora using `conversation_context.profile_id` and `config.memory_service_sid` → triggers `on_memory_ready()` callback if registered → returns list of `TwilioMemory` objects
 
-4. **Memory Ready Hook**: Developers register callbacks via `taf.on_memory_ready(callback)` to receive `ConversationContext` and memories when ready (triggered automatically in `retrieve_memory()`)
+4. **Memory Ready Hook**: Developers register callbacks via `taf.on_memory_ready(callback)` to receive `ConversationSession` and memories when ready (triggered automatically in `retrieve_memory()`)
 
 ### API Clients
 
-**MemoraClient** (`src/taf/context/memora.py`):
+**MemoryClient** (`src/taf/context/memory.py`):
 - Endpoint: `POST /Services/{service_id}/Profiles/{profile_id}/Recall`
-- Returns: List of `MemoraMemory` objects (traits, observations, sessions)
+- Returns: List of `TwilioMemory` objects (traits, observations, sessions)
 - Auth: Uses `X-Pre-Auth-Context` header with auth token
 - Models: `TraitMemory`, `ObservationMemory`, `SessionMemory` with discriminated union on `memType`
 
-**MaestroClient** (`src/taf/context/maestro.py`):
+**ConversationClient** (`src/taf/context/conversation.py`):
 - `create_conversation()`: Creates new conversation, returns `ConversationResponse`
 - `add_participant(conversation_id, profile_id)`: Adds participant, returns `ParticipantResponse`
 - Auth: Uses `X-Twilio-Account-Sid` header
@@ -165,8 +165,8 @@ When initializing TAF, developers must provide:
 from typing import List
 from taf import TAF, TAFConfig
 from taf.channels import SMSChannel
-from taf.core.context import ConversationContext
-from taf.context.memora import MemoraMemory
+from taf.core.context import ConversationSession
+from taf.context.memory import TwilioMemory
 
 # 1. Setup TAF and SMS Channel
 config = TAFConfig(
@@ -181,7 +181,7 @@ taf = TAF(config)
 sms_channel = SMSChannel(taf)
 
 # 2. Register callback to handle memory-ready events
-def handle_memory(context: ConversationContext, memories: List[MemoraMemory]):
+def handle_memory(context: ConversationSession, memories: List[TwilioMemory]):
     """Called when memory retrieval completes."""
     print(f"Conversation {context.conversation_id} on channel {context.channel}")
     print(f"Profile: {context.profile_id}")
@@ -218,7 +218,7 @@ The SMS channel handles three webhook events:
 2. **`onMessageAdded`**: Processes incoming message
    - Validates message body (ignores empty/whitespace messages)
    - Auto-initializes conversation if not already started (extracts `profile_id` from webhook)
-   - Creates `ConversationContext` with `conversation_id`, `profile_id`, and `channel`
+   - Creates `ConversationSession` with `conversation_id`, `profile_id`, and `channel`
    - Calls `taf.retrieve_memory(conversation_context, query=message_body)`
    - This triggers `on_memory_ready` callback with full context and memories
 
