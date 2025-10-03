@@ -4,9 +4,9 @@ from typing import Any, Dict, List
 
 import requests
 
-from ..core.config import TAFConfig
-from ..core.context import SessionIdentity
-from .base import TAFTool, function_tool
+from taf.core.config import TAFConfig
+from taf.core.context import SessionIdentity
+from taf.tools.base import TAFTool, function_tool
 
 
 def create_memory_tools(config: TAFConfig, session: SessionIdentity) -> List[TAFTool]:

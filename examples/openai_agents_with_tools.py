@@ -4,9 +4,14 @@ import asyncio
 import json
 from typing import Any
 
+from dotenv import load_dotenv
+
 from taf import TAFConfig
 from taf.core.context import SessionIdentity
 from taf.tools.memory import create_memory_tools
+
+# Load environment variables from .env file
+load_dotenv(override=True)
 
 # This example requires: pip install openai-agents
 try:
@@ -37,12 +42,11 @@ async def main() -> None:
     # Initialize TAF
     config = TAFConfig(
         memora_base_url="https://memora.twilio.com/v1",
-        memora_auth_token="your_memora_token",
-        memory_service_sid="mem_service_123...",
         maestro_base_url="https://maestro.twilio.com/v1",
-        twilio_account_sid="AC123...",
-        twilio_auth_token="nope",
         conversation_service_sid="IS123...",
+        memory_service_sid="mem_service_123...",
+        twilio_account_sid="AC123...",
+        twilio_auth_token="auth_token",
     )
 
     # Create session context

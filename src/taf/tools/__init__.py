@@ -1,6 +1,6 @@
 """Tools and utilities for the Twilio Agentic Framework."""
 
-from .base import TAFTool, create_tool, function_tool
+from taf.tools.base import TAFTool, create_tool, function_tool
 
 __all__ = [
     "TAFTool",

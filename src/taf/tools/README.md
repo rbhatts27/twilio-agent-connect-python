@@ -73,11 +73,11 @@ result = memory_tools[0].implementation(query="user preferences about food")
 
 ### OpenAI Chat Completions API
 
-See: [`examples/openai_chat.py`](examples/openai_chat.py)
+See: [`examples/openai_chat.py`](../../../examples/openai_chat_with_tools.py)
 
 ### OpenAI Agents SDK
 
-See: [`examples/openai_agents.py`](examples/openai_agents.py)
+See: [`examples/openai_agents.py`](../../../examples/openai_agents_with_tools.py)
 
 ## Creating Custom Tools
 

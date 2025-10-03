@@ -100,7 +100,7 @@ result = memory_tools[0].implementation(query="user preferences about food")
 
 from typing import List, Optional
 
-from .base import function_tool
+from taf.tools.base import function_tool
 
 
 @function_tool()
