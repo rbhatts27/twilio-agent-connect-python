@@ -38,7 +38,7 @@ def create_memory_tools(
             Dictionary containing relevant memories, traits, and metadata
         """
         # Use injected config and session context
-        url = f"{config.memora_base_url}/services/{config.memory_service_sid}/Profiles/{session.profile_id}/Recall"
+        url = f"{config.memora_base_url}/Services/{config.memory_service_sid}/Profiles/{session.profile_id}/Recall"
         headers = {
             "Authorization": f"Bearer {config.twilio_auth_token}",
             "Content-Type": "application/json",
