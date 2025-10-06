@@ -9,7 +9,6 @@ Demonstrates SMS channel integration with memory retrieval.
 import json
 import os
 import sys
-import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import List
 
@@ -23,8 +22,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from taf import TAF, TAFConfig, get_logger
 from taf.channels.sms import SMSChannel
-from taf.context.memora import MemoraMemory
-from taf.core.context import ConversationContext
+from taf.context.memory import TwilioMemory
+from taf.core.context import ConversationSession
 
 
 class WebhookHandler(BaseHTTPRequestHandler):
@@ -45,25 +44,16 @@ class WebhookHandler(BaseHTTPRequestHandler):
             # Read the webhook payload
             post_data = self.rfile.read(content_length).decode("utf-8")
 
-            # Parse URL-encoded data (standard Twilio webhook format)
-            content_type = self.headers.get("Content-Type", "")
-            if content_type.startswith("application/x-www-form-urlencoded"):
-                parsed_data = urllib.parse.parse_qs(post_data)
-                # Convert from lists to single values
-                webhook_data = {k: v[0] if v else "" for k, v in parsed_data.items()}
-            else:
-                try:
-                    webhook_data = json.loads(post_data)
-                except json.JSONDecodeError:
-                    self.send_error(400, "Invalid JSON or form data")
-                    return
+            # Parse JSON data (expected format)
+            try:
+                webhook_data = json.loads(post_data)
+            except json.JSONDecodeError:
+                self.send_error(400, "Invalid JSON")
+                return
 
-            # Log essential webhook info
-            event_type = webhook_data.get("EventType", "Unknown")
-            body = webhook_data.get("Body", "")
-            self.logger.info(
-                f"Received {event_type} webhook with body: {body[:100]}{'...' if len(body) > 100 else ''}"
-            )
+            # Log event type
+            event_type = webhook_data.get("eventType", "Unknown")
+            self.logger.info(f"Received {event_type} webhook")
 
             try:
                 # Process webhook through SMS channel
@@ -106,7 +96,7 @@ def create_handler(taf_instance, sms_channel):
     return handler
 
 
-def handle_memory_ready(context: ConversationContext, memories: List[MemoraMemory]):
+def handle_memory_ready(context: ConversationSession, memories: List[TwilioMemory]):
     """
     Callback invoked when memory retrieval completes.
 

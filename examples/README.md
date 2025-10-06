@@ -91,9 +91,9 @@ HTTP server to receive and test actual Twilio webhooks with TAF processing.
 
 **Features:**
 - ✅ Receives POST requests with webhook data
-- ✅ Parses URL-encoded and JSON payloads
-- ✅ Processes with TAF and shows results
-- ✅ Web interface with testing instructions
+- ✅ Parses JSON payloads using ConversationEvent model
+- ✅ Processes with TAF and triggers memory callbacks
+- ✅ SMS channel integration with conversation lifecycle
 
 **Usage:**
 ```bash
@@ -103,15 +103,26 @@ python examples/webhook_server.py
 # Custom port
 python examples/webhook_server.py --port 3000
 
-# Test with curl
-curl --location 'http://localhost:8000' \
---header 'Content-Type: application/json' \
---data '{
-    "EventType": "onMessageAdded",
-    "ConversationSid": "conversation123",
-    "Body": "Hello, I am still facing issues with my wifi router",
-    "Author": "+1234567890"
-}'
+# Test with curl - onMessageAdded event
+curl -X POST http://localhost:8000 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "onMessageAdded",
+    "conversationId": "CHd151e6bcbe3643979a3f41f6d0da3b24",
+    "participantProfileId": "prof_123abc456def",
+    "communicationMessageBody": "Hello, I am still facing issues with my wifi router",
+    "communicationMessageAuthor": "+1234567890",
+    "communicationChannel": "sms"
+  }'
+
+# Test onConversationAdded event
+curl -X POST http://localhost:8000 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "onConversationAdded",
+    "conversationId": "CHd151e6bcbe3643979a3f41f6d0da3b24",
+    "participantProfileId": "prof_123abc456def"
+  }'
 ```
 
 

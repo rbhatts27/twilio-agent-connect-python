@@ -39,10 +39,9 @@ class TestSMSChannel:
         channel = SMSChannel(taf)
 
         webhook_data = {
-            "EventType": "onConversationAdded",
-            "ConversationSid": "CH123456",
-            "profile_id": "profile_test_123",
-            "Author": "+12345678901",
+            "eventType": "onConversationAdded",
+            "conversationId": "CH123456",
+            "participantProfileId": "profile_test_123",
         }
 
         channel.process_webhook(webhook_data)
@@ -70,13 +69,13 @@ class TestSMSChannel:
         taf.on_memory_ready(memory_callback)
 
         webhook_data = {
-            "EventType": "onMessageAdded",
-            "ConversationSid": "CH123456",
-            "Body": "Hello, I need help",
-            "Author": "+12345678901",
-            "profile_id": "profile_test_123",
-            "MessageSid": "IM123456",
-            "Source": "SMS",
+            "eventType": "onMessageAdded",
+            "conversationId": "CH123456",
+            "communicationMessageBody": "Hello, I need help",
+            "communicationMessageAuthor": "+12345678901",
+            "participantProfileId": "profile_test_123",
+            "communicationId": "IM123456",
+            "communicationChannel": "sms",
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -97,21 +96,20 @@ class TestSMSChannel:
 
         # Start conversation first
         start_webhook = {
-            "EventType": "onConversationAdded",
-            "ConversationSid": "CH123456",
-            "profile_id": "profile_test_123",
-            "Author": "+12345678901",
+            "eventType": "onConversationAdded",
+            "conversationId": "CH123456",
+            "participantProfileId": "profile_test_123",
         }
 
         channel.process_webhook(start_webhook)
 
         # Now process message
         message_webhook = {
-            "EventType": "onMessageAdded",
-            "ConversationSid": "CH123456",
-            "Body": "Test message",
-            "Author": "+12345678901",
-            "MessageSid": "IM123456",
+            "eventType": "onMessageAdded",
+            "conversationId": "CH123456",
+            "communicationMessageBody": "Test message",
+            "communicationMessageAuthor": "+12345678901",
+            "communicationId": "IM123456",
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -128,11 +126,11 @@ class TestSMSChannel:
         channel = SMSChannel(taf)
 
         webhook_data = {
-            "EventType": "onMessageAdded",
-            "ConversationSid": "CH123456",
-            "Body": "",
-            "Author": "+12345678901",
-            "profile_id": "profile_test_123",
+            "eventType": "onMessageAdded",
+            "conversationId": "CH123456",
+            "communicationMessageBody": "",
+            "communicationMessageAuthor": "+12345678901",
+            "participantProfileId": "profile_test_123",
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -148,18 +146,17 @@ class TestSMSChannel:
 
         # Start conversation
         start_webhook = {
-            "EventType": "onConversationAdded",
-            "ConversationSid": "CH123456",
-            "profile_id": "profile_test_123",
-            "Author": "+12345678901",
+            "eventType": "onConversationAdded",
+            "conversationId": "CH123456",
+            "participantProfileId": "profile_test_123",
         }
 
         channel.process_webhook(start_webhook)
 
         # End conversation
         end_webhook = {
-            "EventType": "onConversationRemoved",
-            "ConversationSid": "CH123456",
+            "eventType": "onConversationRemoved",
+            "conversationId": "CH123456",
         }
 
         # Should not raise
@@ -172,10 +169,9 @@ class TestSMSChannel:
 
         # Start conversation
         start_webhook = {
-            "EventType": "onConversationAdded",
-            "ConversationSid": "CH123456",
-            "profile_id": "profile_test_123",
-            "Author": "+12345678901",
+            "eventType": "onConversationAdded",
+            "conversationId": "CH123456",
+            "participantProfileId": "profile_test_123",
         }
 
         channel.process_webhook(start_webhook)
@@ -199,20 +195,18 @@ class TestSMSChannel:
         # Start first conversation
         channel.process_webhook(
             {
-                "EventType": "onConversationAdded",
-                "ConversationSid": "CH111",
-                "profile_id": "profile_1",
-                "Author": "+11111111111",
+                "eventType": "onConversationAdded",
+                "conversationId": "CH111",
+                "participantProfileId": "profile_1",
             }
         )
 
         # Start second conversation
         channel.process_webhook(
             {
-                "EventType": "onConversationAdded",
-                "ConversationSid": "CH222",
-                "profile_id": "profile_2",
-                "Author": "+22222222222",
+                "eventType": "onConversationAdded",
+                "conversationId": "CH222",
+                "participantProfileId": "profile_2",
             }
         )
 
@@ -223,8 +217,8 @@ class TestSMSChannel:
         # End first conversation (should not raise)
         channel.process_webhook(
             {
-                "EventType": "onConversationRemoved",
-                "ConversationSid": "CH111",
+                "eventType": "onConversationRemoved",
+                "conversationId": "CH111",
             }
         )
 
@@ -238,8 +232,8 @@ class TestSMSChannel:
         channel = SMSChannel(taf)
 
         webhook_data = {
-            "EventType": "onParticipantAdded",
-            "ConversationSid": "CH123456",
+            "eventType": "onParticipantAdded",
+            "conversationId": "CH123456",
         }
 
         # Should not raise, just log debug message

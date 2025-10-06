@@ -76,10 +76,9 @@ class TestTAFIntegration:
 
         # Simulate conversation started webhook
         conversation_started = {
-            "EventType": "onConversationAdded",
-            "ConversationSid": "CH123456",
-            "profile_id": "profile_test_123",
-            "Author": "+12345678901",
+            "eventType": "onConversationAdded",
+            "conversationId": "CH123456",
+            "participantProfileId": "profile_test_123",
         }
 
         channel.process_webhook(conversation_started)
@@ -90,11 +89,11 @@ class TestTAFIntegration:
 
         # Simulate message webhook
         message_webhook = {
-            "EventType": "onMessageAdded",
-            "ConversationSid": "CH123456",
-            "Body": "Hello, I need help with my order",
-            "Author": "+12345678901",
-            "MessageSid": "IM123456",
+            "eventType": "onMessageAdded",
+            "conversationId": "CH123456",
+            "communicationMessageBody": "Hello, I need help with my order",
+            "communicationMessageAuthor": "+12345678901",
+            "communicationId": "IM123456",
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -130,11 +129,11 @@ class TestTAFIntegration:
 
         # Send message without explicit conversation start
         message_webhook = {
-            "EventType": "onMessageAdded",
-            "ConversationSid": "CH999999",
-            "Body": "First message without conversation start",
-            "Author": "+19999999999",
-            "profile_id": "profile_999",
+            "eventType": "onMessageAdded",
+            "conversationId": "CH999999",
+            "communicationMessageBody": "First message without conversation start",
+            "communicationMessageAuthor": "+19999999999",
+            "participantProfileId": "profile_999",
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -164,19 +163,18 @@ class TestTAFIntegration:
         # Initialize conversation
         channel.process_webhook(
             {
-                "EventType": "onConversationAdded",
-                "ConversationSid": "CH111",
-                "profile_id": "profile_111",
-                "Author": "+11111111111",
+                "eventType": "onConversationAdded",
+                "conversationId": "CH111",
+                "participantProfileId": "profile_111",
             }
         )
 
         # Test empty message
         empty_message = {
-            "EventType": "onMessageAdded",
-            "ConversationSid": "CH111",
-            "Body": "",
-            "Author": "+11111111111",
+            "eventType": "onMessageAdded",
+            "conversationId": "CH111",
+            "communicationMessageBody": "",
+            "communicationMessageAuthor": "+11111111111",
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -186,10 +184,10 @@ class TestTAFIntegration:
 
         # Test whitespace message
         whitespace_message = {
-            "EventType": "onMessageAdded",
-            "ConversationSid": "CH111",
-            "Body": "   \n\t   ",
-            "Author": "+11111111111",
+            "eventType": "onMessageAdded",
+            "conversationId": "CH111",
+            "communicationMessageBody": "   \n\t   ",
+            "communicationMessageAuthor": "+11111111111",
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -205,10 +203,9 @@ class TestTAFIntegration:
         # Start conversation
         channel.process_webhook(
             {
-                "EventType": "onConversationAdded",
-                "ConversationSid": "CH222",
-                "profile_id": "profile_222",
-                "Author": "+22222222222",
+                "eventType": "onConversationAdded",
+                "conversationId": "CH222",
+                "participantProfileId": "profile_222",
             }
         )
 
@@ -216,7 +213,7 @@ class TestTAFIntegration:
 
         # End conversation
         channel.process_webhook(
-            {"EventType": "onConversationRemoved", "ConversationSid": "CH222"}
+            {"eventType": "onConversationRemoved", "conversationId": "CH222"}
         )
 
         assert "CH222" not in channel._conversations
@@ -243,10 +240,9 @@ class TestTAFIntegration:
             conv_id = f"CH{i:06d}"
             channel.process_webhook(
                 {
-                    "EventType": "onConversationAdded",
-                    "ConversationSid": conv_id,
-                    "profile_id": f"profile_{i}",
-                    "Author": f"+1{i:010d}",
+                    "eventType": "onConversationAdded",
+                    "conversationId": conv_id,
+                    "participantProfileId": f"profile_{i}",
                 }
             )
 
@@ -258,10 +254,10 @@ class TestTAFIntegration:
                 conv_id = f"CH{i:06d}"
                 channel.process_webhook(
                     {
-                        "EventType": "onMessageAdded",
-                        "ConversationSid": conv_id,
-                        "Body": f"Message {i}",
-                        "Author": f"+1{i:010d}",
+                        "eventType": "onMessageAdded",
+                        "conversationId": conv_id,
+                        "communicationMessageBody": f"Message {i}",
+                        "communicationMessageAuthor": f"+1{i:010d}",
                     }
                 )
 
@@ -288,21 +284,18 @@ class TestTAFIntegration:
 
         # Simulate real Twilio webhook with all fields
         real_webhook = {
-            "MessagingServiceSid": "MG3675a614bcfcfb1921727b0138617cdf",
-            "EventType": "onMessageAdded",
-            "Attributes": "{}",
-            "DateCreated": "2025-09-17T22:23:11.350Z",
-            "Index": "8",
-            "ChatServiceSid": "IS21622ffdbc4947a4a0c1abaa77dfd024",
-            "MessageSid": "IM40cb38d6045f4da195651b3e29cca1dc",
-            "AccountSid": "ACa0cec02523bd4da792b4bff42b77fc22",
-            "Source": "SMS",
-            "RetryCount": "0",
-            "Author": "+12162622233",
-            "ParticipantSid": "MB723da60623f74438acee5baafbd438f0",
-            "Body": "Hi, I'm having trouble with my account login. Can you help me reset my password?",
-            "ConversationSid": "CHd151e6bcbe3643979a3f41f6d0da3b24",
-            "profile_id": "profile_realworld_123",
+            "eventType": "onMessageAdded",
+            "eventTimestamp": "2025-09-17T22:23:11.350Z",
+            "accountId": "ACa0cec02523bd4da792b4bff42b77fc22",
+            "serviceId": "IS21622ffdbc4947a4a0c1abaa77dfd024",
+            "conversationId": "CHd151e6bcbe3643979a3f41f6d0da3b24",
+            "participantId": "MB723da60623f74438acee5baafbd438f0",
+            "participantProfileId": "profile_realworld_123",
+            "communicationId": "IM40cb38d6045f4da195651b3e29cca1dc",
+            "communicationChannel": "sms",
+            "communicationMessageBody": "Hi, I'm having trouble with my account login. Can you help me reset my password?",
+            "communicationMessageAuthor": "+12162622233",
+            "communicationChannelId": "MG3675a614bcfcfb1921727b0138617cdf",
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -336,10 +329,10 @@ class TestTAFIntegration:
 
         # Message without profile_id
         message_webhook = {
-            "EventType": "onMessageAdded",
-            "ConversationSid": "CH777",
-            "Body": "Message without profile",
-            "Author": "+17777777777",
+            "eventType": "onMessageAdded",
+            "conversationId": "CH777",
+            "communicationMessageBody": "Message without profile",
+            "communicationMessageAuthor": "+17777777777",
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:

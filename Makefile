@@ -14,7 +14,7 @@ install: ## Install the package in the current environment
 install-dev: ## Install development dependencies with uv
 	uv install
 
-test: ## Run tests
+test: ## Run tests with coverage
 	uv run pytest
 
 lint: ## Run linting (black and isort check)

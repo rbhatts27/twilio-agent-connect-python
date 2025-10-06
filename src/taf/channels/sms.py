@@ -4,8 +4,7 @@ from typing import Any, Dict
 
 from taf import TAF
 from taf.channels.base import BaseChannel
-from taf.core.context import ConversationSession
-from taf.models.webhook import TwilioWebhookEvent
+from taf.models.conversation_event import ConversationEvent
 
 
 class SMSChannel(BaseChannel):
@@ -38,22 +37,25 @@ class SMSChannel(BaseChannel):
             webhook_data: Raw webhook event data from Twilio
         """
         try:
-            event = TwilioWebhookEvent(**webhook_data)
+            event = ConversationEvent(**webhook_data)
         except Exception as e:
             self.logger.error(f"Failed to parse webhook event: {e}")
             return
 
-        conv_id = event.ConversationSid
+        conv_id = event.conversation_id
+        if not conv_id:
+            self.logger.error("No conversation_id in webhook event")
+            return
 
         # Handle conversation lifecycle events
-        if event.EventType == "onConversationAdded":
-            self._handle_conversation_started(conv_id, webhook_data)
-        elif event.EventType == "onMessageAdded":
-            self._handle_message(conv_id, event, webhook_data)
-        elif event.EventType == "onConversationRemoved":
+        if event.event_type == "onConversationAdded":
+            self._handle_conversation_started(conv_id, event)
+        elif event.event_type == "onMessageAdded":
+            self._handle_message(conv_id, event)
+        elif event.event_type == "onConversationRemoved":
             self._end_conversation(conv_id)
         else:
-            self.logger.debug(f"Ignoring event type: {event.EventType}")
+            self.logger.debug(f"Ignoring event type: {event.event_type}")
 
     def send_response(self, conversation_id: str, response: str) -> None:
         """
@@ -86,17 +88,17 @@ class SMSChannel(BaseChannel):
         return "sms"
 
     def _handle_conversation_started(
-        self, conv_id: str, webhook_data: Dict[str, Any]
+        self, conv_id: str, event: ConversationEvent
     ) -> None:
         """
         Handle conversation started event.
 
         Args:
             conv_id: Conversation ID
-            webhook_data: Raw webhook data containing profile_id
+            event: Parsed conversation event
         """
-        # Extract profile_id from webhook data
-        profile_id = webhook_data.get("profile_id") or webhook_data.get("ProfileId")
+        # Extract profile_id from event
+        profile_id = event.participant_profile_id
 
         if not profile_id:
             self.logger.error(
@@ -106,25 +108,23 @@ class SMSChannel(BaseChannel):
 
         self._start_conversation(conv_id, profile_id)
 
-    def _handle_message(
-        self, conv_id: str, event: TwilioWebhookEvent, webhook_data: Dict[str, Any]
-    ) -> None:
+    def _handle_message(self, conv_id: str, event: ConversationEvent) -> None:
         """
         Handle incoming message event.
 
         Args:
             conv_id: Conversation ID
-            event: Parsed webhook event
-            webhook_data: Raw webhook data
+            event: Parsed conversation event
         """
         # Validate message has content
-        if not event.Body or not event.Body.strip():
+        message_body = event.communication_message_body
+        if not message_body or not message_body.strip():
             self.logger.debug(f"Empty message in conversation {conv_id}, ignoring")
             return
 
         # Auto-initialize conversation if not already started
         if conv_id not in self._conversations:
-            profile_id = webhook_data.get("profile_id") or webhook_data.get("ProfileId")
+            profile_id = event.participant_profile_id
             if not profile_id:
                 self.logger.error(
                     f"No profile_id found for conversation {conv_id}, cannot process message"
@@ -135,4 +135,4 @@ class SMSChannel(BaseChannel):
         session = self._conversations[conv_id]
 
         # Retrieve memory and trigger callback using the session
-        self.taf.retrieve_memory(session, query=event.Body)
+        self.taf.retrieve_memory(session, query=message_body)
