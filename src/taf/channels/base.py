@@ -67,6 +67,7 @@ class BaseChannel(ABC):
         Returns:
             Channel name (e.g., 'sms', 'voice')
         """
+        # TODO: Parse Channel Type based on webhook data
         pass
 
     def _start_conversation(self, conv_id: str, profile_id: str) -> None:

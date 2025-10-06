@@ -43,6 +43,8 @@ class TAF:
         setup_logging(log_level=self.config.log_level)
         self.logger = get_logger(__name__)
 
+        # TODO comment here to change this to be f"{self.config.twilio_account_sid}:{self.config.twilio_auth_token}"
+        # when memora can support this properly
         self.memora_client = MemoryClient(
             base_url=self.config.memora_base_url,
             auth_token=self.config.twilio_auth_token,

@@ -51,10 +51,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 self.send_error(400, "Invalid JSON")
                 return
 
-            # Log event type
-            event_type = webhook_data.get("eventType", "Unknown")
-            self.logger.info(f"Received {event_type} webhook")
-
             try:
                 # Process webhook through SMS channel
                 self.sms_channel.process_webhook(webhook_data)

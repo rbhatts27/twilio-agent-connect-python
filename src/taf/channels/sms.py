@@ -48,6 +48,7 @@ class SMSChannel(BaseChannel):
             return
 
         # Handle conversation lifecycle events
+        # TODO: Check event_type based on actual webhook data
         if event.event_type == "onConversationAdded":
             self._handle_conversation_started(conv_id, event)
         elif event.event_type == "onMessageAdded":

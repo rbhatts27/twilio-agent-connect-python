@@ -100,29 +100,16 @@ HTTP server to receive and test actual Twilio webhooks with TAF processing.
 # Start server on localhost:8000
 python examples/webhook_server.py
 
-# Custom port
-python examples/webhook_server.py --port 3000
-
 # Test with curl - onMessageAdded event
-curl -X POST http://localhost:8000 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "eventType": "onMessageAdded",
-    "conversationId": "CHd151e6bcbe3643979a3f41f6d0da3b24",
-    "participantProfileId": "prof_123abc456def",
-    "communicationMessageBody": "Hello, I am still facing issues with my wifi router",
-    "communicationMessageAuthor": "+1234567890",
-    "communicationChannel": "sms"
-  }'
-
-# Test onConversationAdded event
-curl -X POST http://localhost:8000 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "eventType": "onConversationAdded",
-    "conversationId": "CHd151e6bcbe3643979a3f41f6d0da3b24",
-    "participantProfileId": "prof_123abc456def"
-  }'
+curl --location 'http://localhost:8000' \
+--header 'Content-Type: application/json' \
+--data '{
+    "eventType": "onMessageAdded",  
+    "conversationId": "CHd151e6bcbe3643979a3f41f6d0da3b24", 
+    "participantProfileId": "mem_profile_00000000000000000000000000",
+    "communicationChannel": "sms",
+    "communicationMessageBody": "wifi router issues"
+}'
 ```
 
 

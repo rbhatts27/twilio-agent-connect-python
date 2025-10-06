@@ -168,13 +168,16 @@ class MemoryClient:
             base_url: Base URL for the Memora data plane API. Defaults to production.
             auth_token: Authentication token for API requests.
         """
-        self.base_url = base_url or "https://memory.twilio.com/v1"
+        self.base_url = base_url
         self.auth_token = auth_token
         self.session = requests.Session()
         self.logger = get_logger(__name__)
 
         if self.auth_token:
-            self.session.headers.update({"X-Pre-Auth-Context": self.auth_token})
+            # todo: change this to use proper auth when Memora supports it
+            self.session.headers.update(
+                {"X-Pre-Auth-Context": "account_00000000000000000000000000"}
+            )
 
     def retrieve_memory(
         self, service_id: str, profile_id: str, query: Optional[str] = None
@@ -200,7 +203,7 @@ class MemoryClient:
         """
 
         # Use the correct endpoint from the API spec
-        endpoint = f"/Services/{service_id}/Profiles/{profile_id}/Recall"
+        endpoint = f"/v1/Services/{service_id}/Profiles/{profile_id}/Recall"
         url = f"{self.base_url}{endpoint}"
 
         # Create the request payload according to the API spec

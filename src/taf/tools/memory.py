@@ -38,12 +38,13 @@ def create_memory_tools(
             Dictionary containing relevant memories, traits, and metadata
         """
         # Use injected config and session context
-        url = f"{config.memora_base_url}/Services/{config.memory_service_sid}/Profiles/{session.profile_id}/Recall"
+        url = f"{config.memora_base_url}/v1/Services/{config.memory_service_sid}/Profiles/{session.profile_id}/Recall"
         headers = {
-            "Authorization": f"Bearer {config.twilio_auth_token}",
+            # TODO: Change this to use proper auth when Memora supports it
+            "X-Pre-Auth-Context": "account_00000000000000000000000000",
             "Content-Type": "application/json",
         }
-        payload = {"conversationId": session.conversation_id, "query": query}
+        payload = {"query": query}
 
         response = requests.post(url, json=payload, headers=headers)
         response.raise_for_status()
