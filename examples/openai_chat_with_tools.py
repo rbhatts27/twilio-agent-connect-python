@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -17,17 +18,19 @@ load_dotenv(override=True)
 async def main() -> None:
     # Initialize TAF
     config = TAFConfig(
-        memora_base_url="https://memora.twilio.com/v1",
-        memory_service_sid="mem_service_123...",
-        maestro_base_url="https://maestro.twilio.com/v1",
-        conversation_service_sid="IS123...",
-        twilio_account_sid="AC123...",
-        twilio_auth_token="auth_token",
+        memora_base_url=os.getenv("MEMORA_BASE_URL"),
+        memory_service_sid=os.getenv("MEMORY_SERVICE_SID"),
+        maestro_base_url=os.getenv("MAESTRO_BASE_URL"),
+        conversation_service_sid=os.getenv("CONVERSATION_SERVICE_SID"),
+        twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
+        twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN"),
     )
 
     # Create session context (from webhook or conversation flow)
     session = ConversationSession(
-        profile_id="profile_456...", conversation_id="conversation_789..."
+        profile_id="mem_profile_00000000000000000000000000",
+        conversation_id="conversation_789...",
+        channel="sms",
     )
 
     # Create TAF tools with injected config
@@ -42,7 +45,7 @@ async def main() -> None:
     # Initialize OpenAI client
     client = AsyncOpenAI()
 
-    messages = [{"role": "user", "content": "What are my food preferences?"}]
+    messages = [{"role": "user", "content": "Did I order a blue fleece? If so, when?"}]
 
     # First API call with tools
     response = await client.chat.completions.create(

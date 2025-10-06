@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 from typing import Any
 
 from dotenv import load_dotenv
@@ -14,11 +15,7 @@ from taf.tools.memory import create_memory_tools
 load_dotenv(override=True)
 
 # This example requires: pip install openai-agents
-try:
-    from agents import Agent, FunctionTool, Runner
-except ImportError:
-    print("This example requires OpenAI Agents SDK: pip install openai-agents")
-    exit(1)
+from agents import Agent, FunctionTool, Runner
 
 
 def taf_tool_to_openai_agents(taf_tool: Any) -> Any:
@@ -41,17 +38,19 @@ def taf_tool_to_openai_agents(taf_tool: Any) -> Any:
 async def main() -> None:
     # Initialize TAF
     config = TAFConfig(
-        memora_base_url="https://memora.twilio.com/v1",
-        maestro_base_url="https://maestro.twilio.com/v1",
-        conversation_service_sid="IS123...",
-        memory_service_sid="mem_service_123...",
-        twilio_account_sid="AC123...",
-        twilio_auth_token="auth_token",
+        memora_base_url=os.getenv("MEMORA_BASE_URL"),
+        memory_service_sid=os.getenv("MEMORY_SERVICE_SID"),
+        maestro_base_url=os.getenv("MAESTRO_BASE_URL"),
+        conversation_service_sid=os.getenv("CONVERSATION_SERVICE_SID"),
+        twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
+        twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN"),
     )
 
     # Create session context
     session = ConversationSession(
-        profile_id="profile_456...", conversation_id="conversation_789..."
+        profile_id="mem_profile_00000000000000000000000000",
+        conversation_id="conversation_789...",
+        channel="sms",
     )
 
     # Create TAF tools with injected config
@@ -71,7 +70,7 @@ async def main() -> None:
     )
 
     # Use the agent
-    response = await Runner.run(agent, "What did I say about my favorite restaurants?")
+    response = await Runner.run(agent, "Did I order a blue fleece? If so, when?")
     print(f"Agent response: {response}")
 
 

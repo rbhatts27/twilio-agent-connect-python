@@ -20,10 +20,10 @@ Demonstrates integrating TAF memory tools with OpenAI's Chat Completions API.
 **Usage:**
 ```bash
 # Install OpenAI SDK
-pip install openai-agents
+uv pip install openai-agents
 
 # Run example
-python examples/openai_chat_with_tools.py
+uv run python examples/openai_chat_with_tools.py
 ```
 
 **Key Code Pattern:**
@@ -57,10 +57,10 @@ Shows how to use TAF tools with the OpenAI Agents SDK for autonomous agent workf
 **Usage:**
 ```bash
 # Install OpenAI Agents SDK
-pip install openai-agents
+uv pip install openai-agents
 
 # Run example
-python examples/openai_agents_with_tools.py
+uv run python examples/openai_agents_with_tools.py
 ```
 
 **Key Code Pattern:**
