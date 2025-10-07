@@ -1,6 +1,6 @@
 """Models for Twilio Conversation Events."""
 
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -11,7 +11,7 @@ class TranscriptionWord(BaseModel):
     text: Optional[str] = None
     start_time: Optional[str] = Field(None, alias="startTime")
     end_time: Optional[str] = Field(None, alias="endTime")
-    alternates: Optional[List[str]] = None
+    alternates: Optional[list[str]] = None
 
     model_config = {"populate_by_name": True}
 
@@ -22,7 +22,7 @@ class TranscriptionMetadata(BaseModel):
     channel: Optional[int] = None
     confidence: Optional[float] = None
     end_time: Optional[str] = Field(None, alias="endTime")
-    words: Optional[List[TranscriptionWord]] = None
+    words: Optional[list[TranscriptionWord]] = None
 
     model_config = {"populate_by_name": True}
 
@@ -47,8 +47,8 @@ class ConversationEvent(BaseModel):
     conversation_id: Optional[str] = Field(None, alias="conversationId")
     conversation_name: Optional[str] = Field(None, alias="conversationName")
     conversation_status: Optional[str] = Field(None, alias="conversationStatus")
-    conversation_layers: Optional[List[str]] = Field(None, alias="conversationLayers")
-    conversation_intelligence_agents: Optional[List[str]] = Field(
+    conversation_layers: Optional[list[str]] = Field(None, alias="conversationLayers")
+    conversation_intelligence_agents: Optional[list[str]] = Field(
         None, alias="conversationIntelligenceAgents"
     )
     conversation_transcription_metadata: Optional[TranscriptionMetadata] = Field(
@@ -58,26 +58,18 @@ class ConversationEvent(BaseModel):
     participant_name: Optional[str] = Field(None, alias="participantName")
     participant_label: Optional[str] = Field(None, alias="participantLabel")
     participant_profile_id: Optional[str] = Field(None, alias="participantProfileId")
-    participant_profile_service_id: Optional[str] = Field(
-        None, alias="participantProfileServiceId"
-    )
+    participant_profile_service_id: Optional[str] = Field(None, alias="participantProfileServiceId")
     participant_status: Optional[str] = Field(None, alias="participantStatus")
     communication_id: Optional[str] = Field(None, alias="communicationId")
     communication_status: Optional[str] = Field(None, alias="communicationStatus")
     communication_channel: Optional[str] = Field(None, alias="communicationChannel")
-    communication_message_body: Optional[str] = Field(
-        None, alias="communicationMessageBody"
-    )
-    communication_message_author: Optional[str] = Field(
-        None, alias="communicationMessageAuthor"
-    )
-    communication_recipients: Optional[List[CommunicationRecipient]] = Field(
+    communication_message_body: Optional[str] = Field(None, alias="communicationMessageBody")
+    communication_message_author: Optional[str] = Field(None, alias="communicationMessageAuthor")
+    communication_recipients: Optional[list[CommunicationRecipient]] = Field(
         None, alias="communicationRecipients"
     )
-    communication_channel_id: Optional[str] = Field(
-        None, alias="communicationChannelId"
-    )
-    communication_reference_ids: Optional[List[str]] = Field(
+    communication_channel_id: Optional[str] = Field(None, alias="communicationChannelId")
+    communication_reference_ids: Optional[list[str]] = Field(
         None, alias="communicationReferenceIds"
     )
     communication_language: Optional[str] = Field(None, alias="communicationLanguage")

@@ -1,11 +1,8 @@
 """Tests for SMS Channel."""
 
-from typing import List
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
-
-from taf import TAF, TAFConfig
+from taf import TAF
 from taf.channels.sms import SMSChannel
 from taf.context.memory import TwilioMemory
 from taf.core.context import ConversationSession
@@ -59,9 +56,7 @@ class TestSMSChannel:
         captured_context = None
         captured_memories = None
 
-        def memory_callback(
-            context: ConversationSession, memories: List[TwilioMemory]
-        ) -> None:
+        def memory_callback(context: ConversationSession, memories: list[TwilioMemory]) -> None:
             nonlocal captured_context, captured_memories
             captured_context = context
             captured_memories = memories

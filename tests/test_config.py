@@ -127,6 +127,4 @@ class TestTAFConfig:
     def test_partial_config_fails(self):
         """Test that partial config raises validation error."""
         with pytest.raises(ValidationError):
-            TAFConfig(
-                twilio_auth_token="test_token_123"
-            )  # Missing other required fields
+            TAFConfig(twilio_auth_token="test_token_123")  # Missing other required fields

@@ -10,7 +10,6 @@ import json
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import List
 
 from dotenv import load_dotenv
 
@@ -68,9 +67,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 self.send_response(400)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
-                self.wfile.write(
-                    json.dumps({"status": "error", "message": str(e)}).encode()
-                )
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode())
 
         except Exception as e:
             self.logger.error(f"Server error processing request: {str(e)}")
@@ -85,14 +82,12 @@ def create_handler(taf_instance, sms_channel):
     """Create handler class with TAF and SMS channel instances."""
 
     def handler(*args, **kwargs):
-        return WebhookHandler(
-            *args, taf_instance=taf_instance, sms_channel=sms_channel, **kwargs
-        )
+        return WebhookHandler(*args, taf_instance=taf_instance, sms_channel=sms_channel, **kwargs)
 
     return handler
 
 
-def handle_memory_ready(context: ConversationSession, memories: List[TwilioMemory]):
+def handle_memory_ready(context: ConversationSession, memories: list[TwilioMemory]):
     """
     Callback invoked when memory retrieval completes.
 

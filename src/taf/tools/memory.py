@@ -1,6 +1,6 @@
 """Memory API tools for the Twilio Agentic Framework."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 import requests
 
@@ -9,9 +9,7 @@ from taf.core.context import ConversationSession
 from taf.tools.base import TAFTool, function_tool
 
 
-def create_memory_tools(
-    config: TAFConfig, session: ConversationSession
-) -> List[TAFTool]:
+def create_memory_tools(config: TAFConfig, session: ConversationSession) -> list[TAFTool]:
     """
     Create memory tools with injected configuration and session context.
 
@@ -24,7 +22,7 @@ def create_memory_tools(
     """
 
     @function_tool()
-    def retrieve_profile_memory(query: str) -> Dict[str, Any]:
+    def retrieve_profile_memory(query: str) -> dict[str, Any]:
         """
         Search and retrieve relevant memories for the current profile.
 
@@ -32,13 +30,17 @@ def create_memory_tools(
         and stored traits to find contextually relevant information.
 
         Args:
-            query: What to search for in the user's memory (e.g., "preferences about food", "previous complaints", "contact information")
+            query: What to search for in the user's memory (e.g., "preferences about food",
+                   "previous complaints", "contact information")
 
         Returns:
             Dictionary containing relevant memories, traits, and metadata
         """
         # Use injected config and session context
-        url = f"{config.memora_base_url}/v1/Services/{config.memory_service_sid}/Profiles/{session.profile_id}/Recall"
+        url = (
+            f"{config.memora_base_url}/v1/Services/{config.memory_service_sid}"
+            f"/Profiles/{session.profile_id}/Recall"
+        )
         headers = {
             # TODO: Change this to use proper auth when Memora supports it
             "X-Pre-Auth-Context": "account_00000000000000000000000000",

@@ -1,5 +1,3 @@
-import pytest
-
 from taf import TAF, TAFConfig, TwilioWebhookEvent, WebhookEventType, __version__
 
 

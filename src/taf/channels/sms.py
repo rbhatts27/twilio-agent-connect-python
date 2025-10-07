@@ -1,6 +1,6 @@
 """SMS Channel implementation for TAF."""
 
-from typing import Any, Dict
+from typing import Any
 
 from taf import TAF
 from taf.channels.base import BaseChannel
@@ -24,7 +24,7 @@ class SMSChannel(BaseChannel):
         """
         super().__init__(taf)
 
-    def process_webhook(self, webhook_data: Dict[str, Any]) -> None:
+    def process_webhook(self, webhook_data: dict[str, Any]) -> None:
         """
         Process SMS webhook event and manage conversation lifecycle.
 
@@ -71,26 +71,20 @@ class SMSChannel(BaseChannel):
             use the Twilio SMS API to send the actual message.
         """
         if conversation_id not in self._conversations:
-            self.logger.error(
-                f"Cannot send response: conversation {conversation_id} not found"
-            )
+            self.logger.error(f"Cannot send response: conversation {conversation_id} not found")
             return
 
         session = self._conversations[conversation_id]
 
         # TODO: Implement actual SMS sending via Twilio API
-        self.logger.info(
-            f"[SMS] Sending response to conversation {conversation_id}: {response}"
-        )
+        self.logger.info(f"[SMS] Sending response to conversation {conversation_id}: {response}")
         self.logger.debug(f"Profile: {session.profile_id}")
 
     def get_channel_name(self) -> str:
         """Get the channel name identifier."""
         return "sms"
 
-    def _handle_conversation_started(
-        self, conv_id: str, event: ConversationEvent
-    ) -> None:
+    def _handle_conversation_started(self, conv_id: str, event: ConversationEvent) -> None:
         """
         Handle conversation started event.
 
@@ -102,9 +96,7 @@ class SMSChannel(BaseChannel):
         profile_id = event.participant_profile_id
 
         if not profile_id:
-            self.logger.error(
-                f"No profile_id found in onConversationAdded event for {conv_id}"
-            )
+            self.logger.error(f"No profile_id found in onConversationAdded event for {conv_id}")
             return
 
         self._start_conversation(conv_id, profile_id)

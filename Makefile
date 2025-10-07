@@ -17,13 +17,12 @@ install-dev: ## Install development dependencies with uv
 test: ## Run tests with coverage
 	uv run pytest
 
-lint: ## Run linting (black and isort check)
-	uv run black --check .
-	uv run isort --check-only .
+lint: ## Run linting with ruff
+	uv run ruff check .
 
-format: ## Format code with black and isort
-	uv run black .
-	uv run isort .
+format: ## Format code with ruff
+	uv run ruff format .
+	uv run ruff check --fix .
 
 type-check: ## Run type checking with mypy
 	uv run mypy src/taf

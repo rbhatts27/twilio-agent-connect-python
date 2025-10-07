@@ -66,9 +66,7 @@ class TwilioWebhookEvent(BaseModel):
     ConversationSid: str = Field(..., description="Conversation SID")
     Body: Optional[str] = Field(None, description="Message body")
     Author: Optional[str] = Field(None, description="Message author")
-    MessagingServiceSid: Optional[str] = Field(
-        None, description="Messaging Service SID"
-    )
+    MessagingServiceSid: Optional[str] = Field(None, description="Messaging Service SID")
     Attributes: Optional[str] = Field(None, description="Event attributes")
     DateCreated: Optional[str] = Field(None, description="Event creation date")
     Index: Optional[str] = Field(None, description="Message index")
@@ -95,11 +93,7 @@ class TwilioWebhookEvent(BaseModel):
         Returns:
             True if should be processed by agent, False otherwise
         """
-        return (
-            self.is_message_event()
-            and self.Body is not None
-            and self.Body.strip() != ""
-        )
+        return self.is_message_event() and self.Body is not None and self.Body.strip() != ""
 
     class Config:
         populate_by_name = True

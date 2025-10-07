@@ -21,7 +21,7 @@ make dev-setup
 
 ### Code Quality
 ```bash
-# Format code with black and isort
+# Format code with ruff (includes linting fixes)
 make format
 
 # Run type checking with mypy (required: mypy >=1.0.0, strict mode)
@@ -129,9 +129,12 @@ This project uses **strict mypy configuration** (see pyproject.toml):
 - Use `.model_dump(by_alias=True, exclude_none=True)` for API request payloads
 
 **Code Formatting**:
-- Line length: 88 characters (black default)
-- Use black + isort with profile="black"
+- Line length: 100 characters
+- Use ruff for formatting and linting (black-compatible)
 - Known first party: `["taf"]`
+- Import combining: `combine-as-imports = true`
+- Enabled lint rules: pycodestyle (E/W), pyflakes (F), isort (I), flake8-bugbear (B), flake8-comprehensions (C4), pyupgrade (UP)
+- Per-file ignores: Examples allow E402 (import order) and E501 (line length)
 
 ## Testing
 
@@ -236,8 +239,7 @@ The SMS channel handles three webhook events:
 
 **Dev Dependencies**:
 - `pytest>=7.0.0,<8` - Testing framework
-- `black>=23.0.0,<24` - Code formatting
-- `isort>=5.12.0,<6` - Import sorting
+- `ruff>=0.8.0,<1` - Code formatting and linting (replaces black + isort + flake8)
 - `mypy>=1.0.0,<2` - Type checking
 - `types-requests>=2.31.0,<3` - Type stubs for requests
 

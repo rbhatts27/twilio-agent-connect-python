@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 import requests
 from pydantic import BaseModel, Field
@@ -9,10 +9,8 @@ from taf.core.logging import get_logger
 class TraitQuery(BaseModel):
     """Query specification for traits within a specific group."""
 
-    trait_group: str = Field(
-        ..., alias="traitGroup", description="The trait group name"
-    )
-    trait_names: List[str] = Field(
+    trait_group: str = Field(..., alias="traitGroup", description="The trait group name")
+    trait_names: list[str] = Field(
         ...,
         alias="traitNames",
         description="Array of trait names/keys within the specified group",
@@ -28,7 +26,7 @@ class MemoryRetrievalRequest(BaseModel):
     query: Optional[str] = Field(
         default=None, description="Semantic search query for finding relevant memories"
     )
-    traits: Optional[List[TraitQuery]] = Field(
+    traits: Optional[list[TraitQuery]] = Field(
         default=None, description="Array of specific traits to retrieve"
     )
     begin_date: Optional[str] = Field(
@@ -62,12 +60,10 @@ class TraitMemory(BaseModel):
     mem_type: Literal["TRAIT"] = Field(..., alias="memType")
     group: str = Field(..., description="The trait group name")
     name: str = Field(..., description="The trait name/key")
-    value: Union[str, int, float, bool, Dict[str, Any], List[Any]] = Field(
+    value: Union[str, int, float, bool, dict[str, Any], list[Any]] = Field(
         ..., description="The trait value"
     )
-    updated_at: str = Field(
-        ..., alias="updatedAt", description="When the trait was last updated"
-    )
+    updated_at: str = Field(..., alias="updatedAt", description="When the trait was last updated")
 
     model_config = {"populate_by_name": True}
 
@@ -79,24 +75,18 @@ class ObservationMemory(BaseModel):
     id: str = Field(..., description="Unique identifier for the observation")
     type: str = Field(..., description="Type of observation (OBSERVATION or SUMMARY)")
     content: str = Field(..., description="The observation content")
-    source: str = Field(
-        ..., description="Source system that generated this observation"
-    )
-    conversation_ids: Optional[List[str]] = Field(
+    source: str = Field(..., description="Source system that generated this observation")
+    conversation_ids: Optional[list[str]] = Field(
         None, alias="conversationIds", description="List of conversation IDs"
     )
     occurred_at: Optional[str] = Field(
         None, alias="occurredAt", description="When the observation occurred"
     )
-    created_at: str = Field(
-        ..., alias="createdAt", description="When the observation was created"
-    )
+    created_at: str = Field(..., alias="createdAt", description="When the observation was created")
     updated_at: str = Field(
         ..., alias="updatedAt", description="When the observation was last updated"
     )
-    score: Optional[float] = Field(
-        None, description="Relevance score for the observation"
-    )
+    score: Optional[float] = Field(None, description="Relevance score for the observation")
 
     model_config = {"populate_by_name": True}
 
@@ -105,9 +95,7 @@ class SessionMessage(BaseModel):
     """A message within a conversational session."""
 
     timestamp: str = Field(..., description="When the message was sent")
-    direction: Literal["inbound", "outbound"] = Field(
-        ..., description="Message direction"
-    )
+    direction: Literal["inbound", "outbound"] = Field(..., description="Message direction")
     channel: str = Field(..., description="Communication channel")
     from_address: str = Field(..., alias="from", description="Sender address")
     to_address: str = Field(..., alias="to", description="Recipient address")
@@ -120,12 +108,8 @@ class SessionMemory(BaseModel):
     """A conversational session memory from the API response."""
 
     mem_type: Literal["SESSION"] = Field(..., alias="memType")
-    conversation_id: str = Field(
-        ..., alias="conversationId", description="Conversation ID"
-    )
-    messages: List[SessionMessage] = Field(
-        ..., description="List of messages in the session"
-    )
+    conversation_id: str = Field(..., alias="conversationId", description="Conversation ID")
+    messages: list[SessionMessage] = Field(..., description="List of messages in the session")
 
     model_config = {"populate_by_name": True}
 
@@ -147,10 +131,8 @@ class MemoryRetrievalMeta(BaseModel):
 class MemoryRetrievalResponse(BaseModel):
     """Response from the memory retrieval API."""
 
-    memories: List[TwilioMemory] = Field(..., description="Retrieved memory results")
-    meta: MemoryRetrievalMeta = Field(
-        ..., description="Metadata about the retrieval operation"
-    )
+    memories: list[TwilioMemory] = Field(..., description="Retrieved memory results")
+    meta: MemoryRetrievalMeta = Field(..., description="Metadata about the retrieval operation")
 
     model_config = {"populate_by_name": True}
 
@@ -158,9 +140,7 @@ class MemoryRetrievalResponse(BaseModel):
 class MemoryClient:
     """Client for interacting with Twilio Memora data plane API."""
 
-    def __init__(
-        self, base_url: Optional[str] = None, auth_token: Optional[str] = None
-    ) -> None:
+    def __init__(self, base_url: Optional[str] = None, auth_token: Optional[str] = None) -> None:
         """
         Initialize the Memory client.
 
@@ -181,7 +161,7 @@ class MemoryClient:
 
     def retrieve_memory(
         self, service_id: str, profile_id: str, query: Optional[str] = None
-    ) -> List[TwilioMemory]:
+    ) -> list[TwilioMemory]:
         """
         Retrieve profile memories including observations, traits, and events.
         Supports hybrid semantic search, date ranges, trait filters,

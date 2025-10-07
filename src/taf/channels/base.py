@@ -1,7 +1,7 @@
 """Base channel interface for TAF channels."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any
 
 from taf import TAF
 from taf.core.context import ConversationSession
@@ -30,10 +30,10 @@ class BaseChannel(ABC):
         self.logger = get_logger(__name__)
 
         # Track active conversations (shared across all channel types)
-        self._conversations: Dict[str, ConversationSession] = {}
+        self._conversations: dict[str, ConversationSession] = {}
 
     @abstractmethod
-    def process_webhook(self, webhook_data: Dict[str, Any]) -> None:
+    def process_webhook(self, webhook_data: dict[str, Any]) -> None:
         """
         Process incoming webhook event from Twilio.
 
@@ -79,9 +79,7 @@ class BaseChannel(ABC):
             profile_id: Profile ID for the conversation
         """
         if conv_id in self._conversations:
-            self.logger.warning(
-                f"Conversation {conv_id} already exists, skipping initialization"
-            )
+            self.logger.warning(f"Conversation {conv_id} already exists, skipping initialization")
             return
 
         # Store conversation session

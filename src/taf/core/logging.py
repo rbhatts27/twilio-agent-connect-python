@@ -25,9 +25,7 @@ def setup_logging(log_level: str = "INFO") -> logging.Logger:
     logger.setLevel(numeric_level)
 
     # Create formatter with default format
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)

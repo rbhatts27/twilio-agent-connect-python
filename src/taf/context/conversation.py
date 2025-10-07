@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import requests
 from pydantic import BaseModel, Field
@@ -15,10 +15,8 @@ class ConversationResponse(BaseModel):
     name: Optional[str] = Field(None, description="Conversation name")
     created_at: str = Field(..., description="Creation timestamp")
     updated_at: str = Field(..., description="Last update timestamp")
-    layers: List[Any] = Field(default_factory=list, description="Conversation layers")
-    intelligence_agents: List[Any] = Field(
-        default_factory=list, description="Intelligence agents"
-    )
+    layers: list[Any] = Field(default_factory=list, description="Conversation layers")
+    intelligence_agents: list[Any] = Field(default_factory=list, description="Intelligence agents")
     status_callback: Optional[str] = Field(None, description="Status callback URL")
 
     model_config = {"populate_by_name": True}
@@ -42,9 +40,7 @@ class ParticipantResponse(BaseModel):
     label: Optional[str] = Field(None, description="Participant label")
     profile_id: str = Field(..., description="Profile ID")
     status: str = Field(..., description="Participant status")
-    addresses: List[Any] = Field(
-        default_factory=list, description="Participant addresses"
-    )
+    addresses: list[Any] = Field(default_factory=list, description="Participant addresses")
     created_at: str = Field(..., description="Creation timestamp")
     updated_at: str = Field(..., description="Last update timestamp")
 
@@ -54,9 +50,7 @@ class ParticipantResponse(BaseModel):
 class ConversationClient:
     """Client for interacting with Maestro API."""
 
-    def __init__(
-        self, base_url: Optional[str] = None, account_sid: Optional[str] = None
-    ) -> None:
+    def __init__(self, base_url: Optional[str] = None, account_sid: Optional[str] = None) -> None:
         """
         Initialize the Conversation client.
 
@@ -77,9 +71,7 @@ class ConversationClient:
                 }
             )
 
-    def add_participant(
-        self, conversation_id: str, profile_id: str
-    ) -> ParticipantResponse:
+    def add_participant(self, conversation_id: str, profile_id: str) -> ParticipantResponse:
         """
         Add a new participant to a conversation.
 

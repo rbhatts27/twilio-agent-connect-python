@@ -83,9 +83,7 @@ async def main() -> None:
                 )
 
         # Second API call with tool results
-        final_response = await client.chat.completions.create(
-            model="gpt-4", messages=messages
-        )
+        final_response = await client.chat.completions.create(model="gpt-4", messages=messages)
 
         print(f"Assistant: {final_response.choices[0].message.content}")
     else:

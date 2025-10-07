@@ -46,7 +46,5 @@ class TestTAF:
 
     def test_init_with_invalid_config_type(self):
         """Test TAF initialization with invalid configuration type."""
-        with pytest.raises(
-            ValueError, match="Config must be TAFConfig instance or dictionary"
-        ):
+        with pytest.raises(ValueError, match="Config must be TAFConfig instance or dictionary"):
             TAF("invalid_config")

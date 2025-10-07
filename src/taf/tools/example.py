@@ -81,24 +81,22 @@ config = TAFConfig(
     memory_service_sid="mem_service_123...",
     # ... other config
 )
-session = ConversationSession(
-    profile_id="profile_456...",
-    conversation_id="conversation_789..."
-)
+session = ConversationSession(profile_id="profile_456...", conversation_id="conversation_789...")
 
 # Create tools with injected config
 memory_tools = create_memory_tools(config, session)
 
 # LLM only sees the query parameter
 tool_schemas = [tool.to_openai_format() for tool in memory_tools]
-# Result: [{"type": "function", "function": {"name": "retrieve_profile_memory", "parameters": {"query": {...}}}}]
+# Result: [{"type": "function", "function": {"name": "retrieve_profile_memory",
+#          "parameters": {"query": {...}}}}]
 
 # Execute tool (config/auth handled automatically)
 result = memory_tools[0].implementation(query="user preferences about food")
 ```
 """
 
-from typing import List, Optional
+from typing import Optional
 
 from taf.tools.base import function_tool
 
@@ -108,7 +106,7 @@ def example_tool(
     required_text: str,
     optional_number: Optional[int] = None,
     default_boolean: bool = True,
-    items_list: Optional[List[str]] = None,
+    items_list: Optional[list[str]] = None,
 ) -> dict:
     """
     Example function showing parameter mapping.

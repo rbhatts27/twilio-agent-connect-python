@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from typing import (
     Any,
     Callable,
-    Dict,
     Optional,
     Union,
     get_args,
@@ -30,10 +29,10 @@ class TAFTool:
 
     name: str
     description: str
-    params_json_schema: Dict[str, Any]
+    params_json_schema: dict[str, Any]
     implementation: Callable
 
-    def to_openai_format(self) -> Dict[str, Any]:
+    def to_openai_format(self) -> dict[str, Any]:
         """
         Get tool schema in OpenAI function calling format.
 
@@ -49,7 +48,7 @@ class TAFTool:
             },
         }
 
-    def to_anthropic_format(self) -> Dict[str, Any]:
+    def to_anthropic_format(self) -> dict[str, Any]:
         """
         Get tool schema in Anthropic tool calling format.
 
@@ -67,7 +66,7 @@ class TAFTool:
         return json.dumps(self.to_openai_format(), indent=2)
 
 
-def _extract_schema_from_function(func: Callable) -> Dict[str, Any]:
+def _extract_schema_from_function(func: Callable) -> dict[str, Any]:
     """
     Extract JSON schema from function signature and type hints.
 
@@ -105,7 +104,7 @@ def _extract_schema_from_function(func: Callable) -> Dict[str, Any]:
     }
 
 
-def _type_to_json_schema(param_type: Any) -> Dict[str, Any]:
+def _type_to_json_schema(param_type: Any) -> dict[str, Any]:
     """Convert Python type to JSON schema."""
     origin = get_origin(param_type)
     args = get_args(param_type)
@@ -174,9 +173,7 @@ def function_tool(
         tool_description = description or (func.__doc__ or "").strip()
 
         if not tool_description:
-            raise ValueError(
-                f"Function {func.__name__} must have a docstring or description"
-            )
+            raise ValueError(f"Function {func.__name__} must have a docstring or description")
 
         schema = _extract_schema_from_function(func)
 
@@ -193,7 +190,7 @@ def function_tool(
 def create_tool(
     name: str,
     description: str,
-    params_json_schema: Dict[str, Any],
+    params_json_schema: dict[str, Any],
     implementation: Callable,
 ) -> TAFTool:
     """
