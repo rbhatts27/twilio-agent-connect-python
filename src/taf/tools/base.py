@@ -17,6 +17,8 @@ from typing import (
     get_type_hints,
 )
 
+from pydantic import TypeAdapter
+
 
 @dataclass
 class TAFTool:
@@ -105,41 +107,39 @@ def _extract_schema_from_function(func: Callable) -> dict[str, Any]:
 
 
 def _type_to_json_schema(param_type: Any) -> dict[str, Any]:
-    """Convert Python type to JSON schema."""
+    """
+    Convert Python type to JSON schema using Pydantic TypeAdapter.
+
+    This leverages Pydantic's robust type system to handle all type annotations
+    including Literal, Enum, complex Unions, nested models, and more.
+
+    For Optional[T] types, we unwrap to the base type since optionality is
+    tracked separately via the 'required' array in the parent schema.
+    """
     origin = get_origin(param_type)
     args = get_args(param_type)
 
-    # Handle Optional[T] (Union[T, None])
+    # Handle Optional[T] (Union[T, None]) by unwrapping to base type
+    # Optionality is tracked via 'required' array, so we want clean base schemas
     if origin is Union:
         if len(args) == 2 and type(None) in args:
-            # Optional type - get the non-None type
+            # Optional type - get the non-None type and continue processing
             non_none_type = args[0] if args[1] is type(None) else args[1]
-            return _type_to_json_schema(non_none_type)
+            param_type = non_none_type
 
-    # Handle List[T]
-    if origin is list or param_type is list:
-        if args:
-            item_type = args[0]
-            return {"type": "array", "items": _type_to_json_schema(item_type)}
-        else:
-            return {"type": "array"}
+    # Use Pydantic TypeAdapter to generate JSON schema
+    try:
+        adapter = TypeAdapter(param_type)
+        schema = adapter.json_schema(mode="validation")
 
-    # Handle Dict[str, T]
-    if origin is dict or param_type is dict:
-        return {"type": "object"}
+        # Remove Pydantic-specific metadata fields that aren't needed for LLM tools
+        schema.pop("title", None)
+        schema.pop("$defs", None)  # Definitions for nested models
 
-    # Basic types
-    if param_type is str:
+        return schema
+    except Exception:
+        # Fallback for unsupported types
         return {"type": "string"}
-    elif param_type is int:
-        return {"type": "integer"}
-    elif param_type is float:
-        return {"type": "number"}
-    elif param_type is bool:
-        return {"type": "boolean"}
-
-    # Default fallback
-    return {"type": "string"}
 
 
 def _is_optional(param_type: Any) -> bool:
@@ -154,7 +154,7 @@ def _is_optional(param_type: Any) -> bool:
 def function_tool(
     name: Optional[str] = None,
     description: Optional[str] = None,
-) -> Callable:
+) -> Callable[[Callable[..., Any]], TAFTool]:
     """
     Decorator to create a TAF tool from a function.
 
