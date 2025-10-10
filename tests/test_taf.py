@@ -14,6 +14,7 @@ def get_test_config():
         "maestro_base_url": "https://maestro.twilio.com/v1",
         "twilio_account_sid": "ACtest123",
         "conversation_service_sid": "IS123test",
+        "twilio_phone_number": "+15551234567",
     }
 
 

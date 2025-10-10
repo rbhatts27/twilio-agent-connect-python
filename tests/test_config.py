@@ -18,6 +18,7 @@ class TestTAFConfig:
             maestro_base_url="https://maestro.twilio.com/v1",
             twilio_account_sid="ACtest123",
             conversation_service_sid="IS123test",
+            twilio_phone_number="+15551234567",
         )
         assert config.twilio_auth_token == "test_token_123"
         assert config.memora_base_url == "https://memory.twilio.com/v1"
@@ -34,6 +35,7 @@ class TestTAFConfig:
             maestro_base_url="https://maestro.twilio.com/v1",
             twilio_account_sid="ACtest123",
             conversation_service_sid="IS123test",
+            twilio_phone_number="+15551234567",
             log_level="DEBUG",
         )
         assert config.twilio_auth_token == "test_token_123"
@@ -51,6 +53,7 @@ class TestTAFConfig:
             maestro_base_url="https://maestro.twilio.com/v1",
             twilio_account_sid="ACtest123",
             conversation_service_sid="IS123test",
+            twilio_phone_number="+15551234567",
         )
         config_dict = config.model_dump()
 
@@ -69,6 +72,7 @@ class TestTAFConfig:
             "maestro_base_url": "https://maestro.twilio.com/v1",
             "twilio_account_sid": "ACtest123",
             "conversation_service_sid": "IS123test",
+            "twilio_phone_number": "+15551234567",
         }
         config = TAFConfig(**config_data)
         assert config.twilio_auth_token == "test_token_123"
@@ -83,6 +87,7 @@ class TestTAFConfig:
         assert "memora_base_url" in schema["properties"]
         assert "maestro_base_url" in schema["properties"]
         assert "twilio_account_sid" in schema["properties"]
+        assert "twilio_phone_number" in schema["properties"]
         assert "log_level" in schema["properties"]
 
         # Check required fields
@@ -102,6 +107,7 @@ class TestTAFConfig:
             "maestro_base_url": "https://maestro.twilio.com/v1",
             "twilio_account_sid": "ACtest123",
             "conversation_service_sid": "IS123test",
+            "twilio_phone_number": "+15551234567",
         }
         config1 = TAFConfig(**base_config)
         config2 = TAFConfig(**base_config)

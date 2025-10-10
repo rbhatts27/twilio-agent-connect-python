@@ -14,6 +14,8 @@ class TAFConfig(BaseModel):
     twilio_account_sid: str = Field(description="Twilio Account SID")
     twilio_auth_token: str = Field(description="Twilio Auth Token from Twilio Console")
 
+    twilio_phone_number: str = Field(description="Twilio Phone Number to use for sending messages")
+
     log_level: str = Field(
         default="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
@@ -29,6 +31,7 @@ class TAFConfig(BaseModel):
                 "conversation_service_sid": "ISxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "twilio_account_sid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "twilio_auth_token": "your_auth_token_here",
+                "twilio_phone_number": "your_phone_number_here",
             }
         },
     )

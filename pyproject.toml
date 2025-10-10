@@ -24,6 +24,7 @@ dependencies = [
     "pydantic>=2.0.0,<3",
     "requests>=2.31.0,<3",
     "python-dotenv>=1.0.0,<2",
+    "twilio>=9.8.3,<10",
 ]
 
 [project.optional-dependencies]
@@ -104,7 +105,7 @@ exclude = [
 
 # Specify the paths to type check
 [[tool.mypy.overrides]]
-module = "src.taf.*"
+module = ["src.taf.*", "twilio.*"]  # twilio.* added to ignore missing type stubs
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

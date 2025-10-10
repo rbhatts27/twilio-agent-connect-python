@@ -86,6 +86,49 @@ agent = Agent(
 response = await Runner.run(agent, "What are my preferences?")
 ```
 
+### `messaging.py` - OpenAI Agents SDK with TAF Messaging Tools
+Demonstrates integrating TAF messaging tools with the OpenAI Agents SDK for automated message sending.
+
+**Features:**
+- ✅ TAF messaging tools integrated as OpenAI Agent FunctionTools
+- ✅ Agent can send SMS messages through Twilio
+- ✅ Converter function for TAF → OpenAI Agents format
+- ✅ Natural language to SMS automation
+
+**Usage:**
+```bash
+# Install OpenAI Agents SDK
+uv pip install openai-agents
+
+# Run example
+uv run python examples/messaging.py
+```
+
+**Key Code Pattern:**
+```python
+from agents import Agent, FunctionTool, Runner
+from taf.tools.messaging import create_messaging_tools
+
+# Create TAF messaging tools
+messaging_tools = create_messaging_tools(config)
+
+# Convert to OpenAI Agents format
+agent_tools = [taf_tool_to_agent_tool(tool) for tool in messaging_tools]
+
+# Create agent with messaging capabilities
+agent = Agent(
+    name="messaging agent",
+    model="gpt-4o",
+    tools=agent_tools,
+    instructions="You are a helpful assistant"
+)
+
+# Agent can now send messages via natural language
+response = await Runner.run(
+    agent, "Send a message to +12345678900 saying 'Hello from TAF agent!'"
+)
+```
+
 ### `webhook_server.py` - Real Webhook Testing Server
 HTTP server to receive and test actual Twilio webhooks with TAF processing.
 

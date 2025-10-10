@@ -443,6 +443,7 @@ class TestMemoryTools:
             memory_service_sid="MGtest",
             maestro_base_url="https://maestro.twilio.com/v1",
             conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
         )
         session = ConversationSession(
             profile_id="prof_123", conversation_id="conv_123", channel="sms"
@@ -463,6 +464,7 @@ class TestMemoryTools:
             memory_service_sid="MGtest",
             maestro_base_url="https://maestro.twilio.com/v1",
             conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
         )
         session = ConversationSession(
             profile_id="prof_123", conversation_id="conv_123", channel="sms"
@@ -490,6 +492,7 @@ class TestMemoryTools:
             memory_service_sid="MGtest",
             maestro_base_url="https://maestro.twilio.com/v1",
             conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
         )
         session = ConversationSession(
             profile_id="prof_123", conversation_id="conv_123", channel="sms"
@@ -517,6 +520,7 @@ class TestMemoryTools:
             memory_service_sid="MGtest1",
             maestro_base_url="https://maestro.twilio.com/v1",
             conversation_service_sid="IStest1",
+            twilio_phone_number="+15551234567",
         )
         session1 = ConversationSession(profile_id="prof_1", conversation_id="conv_1", channel="sms")
 
@@ -527,6 +531,7 @@ class TestMemoryTools:
             memory_service_sid="MGtest2",
             maestro_base_url="https://maestro.twilio.com/v1",
             conversation_service_sid="IStest2",
+            twilio_phone_number="+15551234567",
         )
         session2 = ConversationSession(profile_id="prof_2", conversation_id="conv_2", channel="sms")
 
