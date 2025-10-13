@@ -4,6 +4,12 @@ This directory contains examples for the Twilio Agentic Framework (TAF).
 
 ## Quick Start
 
+0. Install dev dependencies (includes OpenAI and other required packages):
+   ```bash
+   make sync
+   # or
+   uv sync --extra dev
+   ```
 1. Copy `.env.example` to `.env` and fill in your Twilio and OpenAI credentials.
 2. **(Optional)** Create knowledge resources using the Knowledge API (see below) and add their IDs to `.env` as `KNOWLEDGE_IDS=KN123,KN456`.
 
@@ -91,10 +97,6 @@ Demonstrates integrating TAF memory and knowledge tools with OpenAI's Chat Compl
 
 **Usage:**
 ```bash
-# Install OpenAI SDK
-uv pip install openai-agents
-
-# Run example
 uv run python examples/openai_chat_with_tools.py
 ```
 
@@ -143,10 +145,6 @@ Shows how to use TAF memory and knowledge tools with the OpenAI Agents SDK for a
 
 **Usage:**
 ```bash
-# Install OpenAI Agents SDK
-uv pip install openai-agents
-
-# Run example
 uv run python examples/openai_agents_with_tools.py
 ```
 
@@ -198,10 +196,6 @@ Demonstrates integrating TAF messaging tools with the OpenAI Agents SDK for auto
 
 **Usage:**
 ```bash
-# Install OpenAI Agents SDK
-uv pip install openai-agents
-
-# Run example
 uv run python examples/messaging.py
 ```
 
@@ -242,14 +236,17 @@ HTTP server to receive and test actual Twilio webhooks with TAF processing.
 **Usage:**
 ```bash
 # Start server on localhost:8000
-python examples/webhook_server.py
+uv run python examples/webhook_server.py
+
+# Or use the Makefile
+make server
 
 # Test with curl - onMessageAdded event
 curl --location 'http://localhost:8000' \
 --header 'Content-Type: application/json' \
 --data '{
-    "eventType": "onMessageAdded",  
-    "conversationId": "CHd151e6bcbe3643979a3f41f6d0da3b24", 
+    "eventType": "onMessageAdded",
+    "conversationId": "CHd151e6bcbe3643979a3f41f6d0da3b24",
     "participantProfileId": "mem_profile_00000000000000000000000000",
     "communicationChannel": "sms",
     "communicationMessageBody": "wifi router issues"

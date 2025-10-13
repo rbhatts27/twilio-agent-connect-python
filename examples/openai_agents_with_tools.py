@@ -15,7 +15,6 @@ from taf.tools.memory import create_memory_tools
 # Load environment variables from .env file
 load_dotenv(override=True)
 
-# This example requires: pip install openai-agents
 from agents import Agent, FunctionTool, Runner
 
 
@@ -40,11 +39,12 @@ async def main() -> None:
     # Initialize TAF
     config = TAFConfig(
         memora_base_url=os.getenv("MEMORA_BASE_URL"),
-        memory_service_sid=os.getenv("MEMORY_SERVICE_SID"),
         maestro_base_url=os.getenv("MAESTRO_BASE_URL"),
         conversation_service_sid=os.getenv("CONVERSATION_SERVICE_SID"),
+        memory_service_sid=os.getenv("MEMORY_SERVICE_SID"),
         twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
         twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN"),
+        twilio_phone_number=os.getenv("TWILIO_PHONE_NUMBER"),
     )
 
     # Create session context

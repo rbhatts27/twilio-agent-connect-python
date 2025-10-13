@@ -5,7 +5,7 @@ steps:
       pip install uv
       uv venv || exit 1
       . .venv/bin/activate
-      uv pip install -e .
+      uv sync --extra dev
       uv run ruff check .
       uv run ruff format --check .
     plugins:
@@ -18,7 +18,7 @@ steps:
       pip install uv
       uv venv || exit 1
       . .venv/bin/activate
-      uv pip install -e .
+      uv sync --extra dev
       PYTHONPATH=. uv run mypy src/taf
     plugins:
       - docker#v3.8.0:
@@ -30,7 +30,7 @@ steps:
       pip install uv
       uv venv || exit 1
       . .venv/bin/activate
-      uv sync --group dev
+      uv sync --extra dev
       uv run pytest
     plugins:
       - docker#v3.8.0:
@@ -42,7 +42,7 @@ steps:
       pip install uv
       uv venv || exit 1
       . .venv/bin/activate
-      uv sync --group dev
+      uv sync --extra dev
       uv run pytest
     plugins:
       - docker#v3.8.0:
@@ -54,7 +54,7 @@ steps:
       pip install uv
       uv venv || exit 1
       . .venv/bin/activate
-      uv sync --group dev
+      uv sync --extra dev
       uv run pytest
     plugins:
       - docker#v3.8.0:
@@ -66,7 +66,7 @@ steps:
       pip install uv
       uv venv || exit 1
       . .venv/bin/activate
-      uv sync --group dev
+      uv sync --extra dev
       uv run pytest
     plugins:
       - docker#v3.8.0:

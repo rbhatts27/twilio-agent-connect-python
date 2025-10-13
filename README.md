@@ -23,21 +23,29 @@ Explore the [examples](examples) directory to see the SDK in action.
 
 To get started, set up your Python environment (Python 3.9 or newer required), and then install TAF SDK package.
 
-### venv
+### uv (Recommended)
+
+We recommend using [uv](https://docs.astral.sh/uv/) for the best development experience:
+
+```bash
+uv init
+uv add git+https://github.com/twilio-internal/twilio-agentic-framework-python.git
+
+# Install with voice support (includes websockets)
+uv add git+https://github.com/twilio-internal/twilio-agentic-framework-python.git --extra voice
+```
+
+### pip/venv (Alternative)
+
+If you prefer using pip and venv:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install git+https://github.com/twilio-internal/twilio-agentic-framework-python.git
-```
 
-### uv
-
-If you're familiar with [uv](https://docs.astral.sh/uv/), using the tool would be even simpler:
-
-```bash
-uv init
-uv add git+https://github.com/twilio-internal/twilio-agentic-framework-python.git
+# Install with voice support
+pip install "git+https://github.com/twilio-internal/twilio-agentic-framework-python.git[voice]"
 ```
 
 ## Quick Example: SMS Channel with Memory
@@ -117,20 +125,37 @@ Check out the [examples](examples) directory for complete working examples:
 
 # TAF Development / Contribution
 
-0. Ensure you have [`uv`](https://docs.astral.sh/uv/) installed.
+TAF uses [`uv`](https://docs.astral.sh/uv/) for package management. Ensure you have it installed:
 
 ```bash
 uv --version
 ```
 
-1. Install dependencies
+### Setup Development Environment
 
 ```bash
+# Install all dependencies (including dev tools)
 make sync
+
+# Or manually with uv
+uv sync --all-extras --all-packages
 ```
 
-2. (After making changes) lint/test
+### Running Tests and Checks
 
-```
-make format # run tests linter and typechecker
+```bash
+# Format code
+make format
+
+# Run linting
+make lint
+
+# Run type checking
+make type-check
+
+# Run tests
+make test
+
+# Run all checks at once
+make check
 ```

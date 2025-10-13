@@ -78,13 +78,20 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 
 - **`src/taf/models/`** - Data models
   - `webhook.py` - `TwilioWebhookEvent` model for parsing Twilio webhook events
+  - `conversation_event.py` - `ConversationEvent` model with comprehensive event fields (transcription metadata, communication recipients, profile IDs, etc.)
 
 - **`src/taf/channels/`** - Channel-specific orchestration and conversation lifecycle management
   - `base.py` - `BaseChannel` abstract class with conversation session management (`_start_conversation`, `_end_conversation`)
   - `sms.py` - `SMSChannel` implementation handling webhook events, message validation, and memory retrieval
   - Future: `voice.py` for Voice/ConversationRelay
+
+- **`src/taf/tools/`** - LLM tool integration for Sierra primitives
+  - `base.py` - `TAFTool` dataclass with `to_openai_format()` and `to_anthropic_format()` methods; `function_tool` decorator for creating tools from functions
+  - `messaging.py` - `create_messaging_tools(config)` factory returning `send_message` tool
+  - `memory.py` - `create_memory_tools(config, session)` factory returning `retrieve_profile_memory` tool
+  - `example.py` - Example tool implementations
+
 - **`src/taf/adapters/`** - Runtime-specific adapters (future: OpenAI, Bedrock, etc.)
-- **`src/taf/tools/`** - LLM tools for Sierra primitives (future)
 
 ### Critical Workflow
 
@@ -143,6 +150,9 @@ Tests are located in `tests/` directory:
 - `test_webhook.py` - Webhook event parsing tests
 - `test_config.py` - Configuration tests
 - `test_integration.py` - Integration tests
+- `test_tools.py` - Tools module tests (function_tool decorator, TAFTool format conversions)
+- `test_sms_channel.py` - SMS channel specific tests
+- `test_init.py` - Package initialization tests
 
 Test requirements (pytest.ini_options in pyproject.toml):
 - Test files: `test_*.py` or `*_test.py`
@@ -154,6 +164,7 @@ Test requirements (pytest.ini_options in pyproject.toml):
 When initializing TAF, developers must provide:
 - `twilio_account_sid` - From Twilio Console
 - `twilio_auth_token` - From Twilio Console
+- `twilio_phone_number` - Twilio Phone Number to use for sending messages (required for messaging tools)
 - `memora_base_url` - Memora API base URL (e.g., `https://memory.twilio.com/v1`)
 - `memory_service_sid` - Memora service ID for memory retrieval (starts with `MG`)
 - `maestro_base_url` - Maestro API base URL (e.g., `https://maestro.twilio.com/v1`)
@@ -175,6 +186,7 @@ from taf.context.memory import TwilioMemory
 config = TAFConfig(
     twilio_account_sid="AC...",
     twilio_auth_token="...",
+    twilio_phone_number="+1234567890",
     memora_base_url="https://memory.twilio.com/v1",
     memory_service_sid="MG...",
     maestro_base_url="https://maestro.twilio.com/v1",
@@ -236,19 +248,100 @@ The SMS channel handles three webhook events:
 - `pydantic>=2.0.0,<3` - Data validation
 - `requests>=2.31.0,<3` - HTTP client
 - `python-dotenv>=1.0.0,<2` - Environment variable loading
+- `twilio>=9.8.3,<10` - Twilio Python SDK for messaging and other APIs
 
-**Dev Dependencies**:
-- `pytest>=7.0.0,<8` - Testing framework
-- `ruff>=0.8.0,<1` - Code formatting and linting (replaces black + isort + flake8)
-- `mypy>=1.0.0,<2` - Type checking
-- `types-requests>=2.31.0,<3` - Type stubs for requests
+**Optional Dependencies**:
+- `voice` - Voice channel support: `websockets>=13.0,<16`
+- `dev` - Development tools: `pytest>=7.0.0,<8`, `pytest-cov>=5.0.0,<6`, `ruff>=0.8.0,<1`, `mypy>=1.0.0,<2`, `types-requests>=2.31.0,<3`, `openai>=1.0.0,<2`, `openai-agents>=0.1.0`
+
+## Tools Integration
+
+The tools module provides LLM-compatible tool definitions for integrating Twilio Sierra primitives with LLM runtimes:
+
+### TAFTool Class (`tools/base.py`)
+
+The `TAFTool` dataclass represents a tool/function for LLM integration:
+- `name` - Function name
+- `description` - What the tool does
+- `params_json_schema` - JSON Schema for parameters (auto-generated from type hints)
+- `implementation` - The actual function to execute
+
+**Format Conversions**:
+- `to_openai_format()` - Returns `{"type": "function", "function": {...}}` for OpenAI API
+- `to_anthropic_format()` - Returns `{"name": "...", "description": "...", "input_schema": {...}}` for Anthropic API
+- `to_json()` - JSON string representation (OpenAI format by default)
+
+### Creating Tools
+
+**Using `@function_tool()` decorator** (recommended):
+```python
+from taf.tools import function_tool
+
+@function_tool()
+def send_message(phone_number: str, message: str) -> bool:
+    """
+    Sends a message to a user.
+
+    Args:
+        phone_number: The phone number to send to
+        message: The message content
+
+    Returns:
+        True on success, False on failure
+    """
+    # Implementation here
+    return True
+```
+
+The decorator automatically:
+- Extracts function name and docstring
+- Generates JSON Schema from type hints (supports `str`, `int`, `bool`, `float`, `Optional`, `Literal`, `list`, `dict`, etc.)
+- Tracks required vs optional parameters
+- Creates TAFTool instance
+
+**Using `create_tool()` function**:
+```python
+from taf.tools import create_tool
+
+tool = create_tool(
+    name="send_message",
+    description="Sends a message to a user",
+    params_json_schema={
+        "type": "object",
+        "properties": {
+            "phone_number": {"type": "string"},
+            "message": {"type": "string"}
+        },
+        "required": ["phone_number", "message"]
+    },
+    implementation=my_function
+)
+```
+
+### Built-in Tool Factories
+
+**Messaging Tools** (`tools/messaging.py`):
+```python
+from taf.tools.messaging import create_messaging_tools
+
+tools = create_messaging_tools(config)  # Returns [send_message]
+```
+
+**Memory Tools** (`tools/memory.py`):
+```python
+from taf.tools.memory import create_memory_tools
+
+tools = create_memory_tools(config, session)  # Returns [retrieve_profile_memory]
+```
+
+Both factories return lists of `TAFTool` objects configured with your TAF settings.
 
 ## Future Enhancements
 
 Based on TAF.md architecture, these modules are planned but not yet implemented:
-- **Channels**: Voice channel with ConversationRelay websocket handling, SMS channel
+- **Channels**: Voice channel with ConversationRelay websocket handling
 - **Adapters**: Runtime-specific adapters for OpenAI, Bedrock, Azure AI, LangChain (with `toOpenAiMessages()`, `toBedrockMessages()` formatting)
-- **Tools**: LLM tools for `twilio.memory.fetch`, `twilio.knowledge.fetch`, `twilio.escalate-to-human`, `twilio.session-memory.fetch`
+- **Additional Tools**: `twilio.knowledge.fetch`, `twilio.escalate-to-human`, `twilio.session-memory.fetch`
 - **Server**: Webhook + websocket server package for "batteries included" setup
 - **Analytics**: Integration with Twilio workbench observability
 

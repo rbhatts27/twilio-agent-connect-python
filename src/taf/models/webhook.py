@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class WebhookEventType(str, Enum):
@@ -53,8 +53,7 @@ class TwilioSMSWebhookEvent(BaseModel):
         """
         return self.Body is not None and self.Body.strip() != ""
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class TwilioWebhookEvent(BaseModel):
@@ -95,9 +94,9 @@ class TwilioWebhookEvent(BaseModel):
         """
         return self.is_message_event() and self.Body is not None and self.Body.strip() != ""
 
-    class Config:
-        populate_by_name = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
             "example": {
                 "EventType": "onMessageAdded",
                 "ConversationSid": "CHd151e6bcbe3643979a3f41f6d0da3b24",
@@ -110,4 +109,5 @@ class TwilioWebhookEvent(BaseModel):
                 "ParticipantSid": "MB723da60623f74438acee5baafbd438f0",
                 "ChatServiceSid": "IS21622ffdbc4947a4a0c1abaa77dfd024",
             }
-        }
+        },
+    )

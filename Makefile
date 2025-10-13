@@ -1,7 +1,7 @@
-.PHONY: help install install-dev test lint format type-check pre-commit clean build publish example server ngrok sync
+.PHONY: help install test lint format type-check pre-commit clean build server ngrok sync dev-setup ci check install-pre-commit
 
 sync:
-	uv sync --all-extras --all-packages --group dev
+	uv sync --all-extras --all-packages
 
 # Default target
 help: ## Show this help message
@@ -10,9 +10,6 @@ help: ## Show this help message
 
 install: ## Install the package in the current environment
 	pip install -e .
-
-install-dev: ## Install development dependencies with uv
-	uv install
 
 test: ## Run tests with coverage
 	uv run pytest
@@ -47,15 +44,12 @@ clean: ## Clean up cache and build artifacts
 build: ## Build the package
 	uv build
 
-example: ## Run the basic usage example
-	python examples/basic_usage.py
-
 server: ## Start the webhook test server on port 8000
 	python examples/webhook_server.py --port 8000
 
 ngrok: ## Start ngrok tunnel to local server with custom domain
 	ngrok http 8000 --domain=taf-voice-local.ngrok.dev
 
-dev-setup: install-dev install-pre-commit ## Complete development environment setup
+dev-setup: sync install-pre-commit ## Complete development environment setup
 
 ci: check ## Run CI checks locally
