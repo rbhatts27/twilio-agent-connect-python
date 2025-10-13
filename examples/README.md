@@ -4,17 +4,89 @@ This directory contains examples for the Twilio Agentic Framework (TAF).
 
 ## Quick Start
 
-Copy `.env.example` to `.env` and fill in your Twilio and OpenAI credentials.
+1. Copy `.env.example` to `.env` and fill in your Twilio and OpenAI credentials.
+2. **(Optional)** Create knowledge resources using the Knowledge API (see below) and add their IDs to `.env` as `KNOWLEDGE_IDS=KN123,KN456`.
+
+## Creating Knowledge Resources (Optional)
+
+If you want to use knowledge tools in the examples, you'll need to create knowledge resources using Twilio's Knowledge API. You can create three types of knowledge:
+
+### Text Knowledge (Direct Content)
+
+Create knowledge from plain text content:
+
+```bash
+curl -X POST https://knowledge.twilio.com/v1/Knowledge \
+  -H "Content-Type: application/json" \
+  -u "YOUR_TWILIO_ACCOUNT_SID:YOUR_TWILIO_AUTH_TOKEN" \
+  -d '{
+    "type": "Text",
+    "name": "Product FAQ",
+    "description": "Frequently asked questions about our products",
+    "knowledge_source_details": {
+      "content": "Q: What is the return policy?\nA: You can return items within 30 days...\n\nQ: How long does shipping take?\nA: Standard shipping takes 3-5 business days..."
+    }
+  }'
+```
+
+### Web Knowledge (URL Crawling)
+
+Create knowledge by crawling a website:
+
+```bash
+curl -X POST https://knowledge.twilio.com/v1/Knowledge \
+  -H "Content-Type: application/json" \
+  -u "YOUR_TWILIO_ACCOUNT_SID:YOUR_TWILIO_AUTH_TOKEN" \
+  -d '{
+    "type": "Web",
+    "name": "Company Documentation",
+    "description": "Official product documentation",
+    "knowledge_source_details": {
+      "source": "https://example.com/docs",
+      "crawl_depth": 3,
+      "crawl_period_min": 1440
+    }
+  }'
+```
+
+**Parameters:**
+- `source`: The URL to crawl
+- `crawl_depth`: How many levels deep to crawl (optional, default: 1)
+- `crawl_period_min`: How often to re-crawl in minutes (optional)
+
+### File Knowledge (Document Upload)
+
+Create knowledge by uploading a file (PDF, DOCX, TXT, etc.):
+
+```bash
+curl -X POST https://knowledge.twilio.com/v1/Knowledge/Upload \
+  -H "Content-Type: multipart/form-data" \
+  -u "YOUR_TWILIO_ACCOUNT_SID:YOUR_TWILIO_AUTH_TOKEN" \
+  -F 'type=File' \
+  -F 'name=Employee Handbook' \
+  -F 'description=Company policies and procedures' \
+  -F 'file_name=file_0' \
+  -F 'file_0=@/path/to/handbook.pdf'
+```
+
+**Response:**
+
+All API calls return a knowledge object with an `id` field (e.g., `KN123abc`). Copy these IDs and add them to your `.env` file:
+
+```bash
+KNOWLEDGE_IDS=KN123abc,KN456def,KN789ghi
+```
 
 ## Available Examples
 
 ### `openai_chat_with_tools.py` - OpenAI Chat Completions with TAF Tools
-Demonstrates integrating TAF memory tools with OpenAI's Chat Completions API.
+Demonstrates integrating TAF memory and knowledge tools with OpenAI's Chat Completions API.
 
 **Features:**
-- ✅ TAF memory tools in OpenAI function calling format
+- ✅ TAF memory tools for personalized context
+- ✅ TAF knowledge tools for searching documentation
 - ✅ Automatic tool execution and result handling
-- ✅ Memory retrieval using `twilio.memory.search` tool
+- ✅ Custom tool configuration (name, description, top-K)
 - ✅ Async/await pattern for OpenAI API
 
 **Usage:**
@@ -29,12 +101,26 @@ uv run python examples/openai_chat_with_tools.py
 **Key Code Pattern:**
 ```python
 from taf.tools.memory import create_memory_tools
+from taf.tools.knowledge import create_knowledge_tools_from_ids, KnowledgeToolConfig
 
-# Create TAF tools with config and session context
+# Create memory tools with session context
 memory_tools = create_memory_tools(config, session)
 
-# Convert to OpenAI format
-openai_tools = [tool.to_openai_format() for tool in memory_tools]
+# Create knowledge tools from environment variable
+# Set KNOWLEDGE_IDS in .env as comma-separated list (e.g., "KN123,KN456")
+knowledge_ids_str = os.getenv("KNOWLEDGE_IDS", "")
+knowledge_tools = []
+if knowledge_ids_str:
+    knowledge_ids = [k_id.strip() for k_id in knowledge_ids_str.split(",")]
+    # Optional: Customize specific tools via tool_configs
+    tool_configs = {
+        "KN456": KnowledgeToolConfig(name="search_return_policy", top_k=3),
+    }
+    knowledge_tools = create_knowledge_tools_from_ids(config, knowledge_ids, tool_configs)
+
+# Combine and convert to OpenAI format
+all_tools = memory_tools + knowledge_tools
+openai_tools = [tool.to_openai_format() for tool in all_tools]
 
 # Use in chat completions
 response = await client.chat.completions.create(
@@ -46,12 +132,13 @@ response = await client.chat.completions.create(
 ```
 
 ### `openai_agents_with_tools.py` - OpenAI Agents SDK with TAF Tools
-Shows how to use TAF tools with the OpenAI Agents SDK for autonomous agent workflows.
+Shows how to use TAF memory and knowledge tools with the OpenAI Agents SDK for autonomous agent workflows.
 
 **Features:**
-- ✅ TAF tools integrated as OpenAI Agent FunctionTools
+- ✅ TAF memory and knowledge tools as OpenAI Agent FunctionTools
 - ✅ Agent automatically invokes tools as needed
-- ✅ Memory search capabilities in agent context
+- ✅ Memory search for personalized responses
+- ✅ Knowledge search for documentation lookup
 - ✅ Converter function for TAF → OpenAI Agents format
 
 **Usage:**
@@ -67,23 +154,37 @@ uv run python examples/openai_agents_with_tools.py
 ```python
 from agents import Agent, FunctionTool, Runner
 from taf.tools.memory import create_memory_tools
+from taf.tools.knowledge import create_knowledge_tools_from_ids, KnowledgeToolConfig
 
-# Create TAF tools
+# Create memory tools
 memory_tools = create_memory_tools(config, session)
 
-# Convert to OpenAI Agents format
-openai_agent_tools = [taf_tool_to_openai_agents(tool) for tool in memory_tools]
+# Create knowledge tools from environment variable
+# Set KNOWLEDGE_IDS in .env as comma-separated list (e.g., "KN123,KN456")
+knowledge_ids_str = os.getenv("KNOWLEDGE_IDS", "")
+knowledge_tools = []
+if knowledge_ids_str:
+    knowledge_ids = [k_id.strip() for k_id in knowledge_ids_str.split(",")]
+    # Optional: Customize specific tools via tool_configs
+    tool_configs = {
+        "KN456": KnowledgeToolConfig(name="search_return_policy", top_k=3),
+    }
+    knowledge_tools = create_knowledge_tools_from_ids(config, knowledge_ids, tool_configs)
+
+# Combine and convert to OpenAI Agents format
+all_tools = memory_tools + knowledge_tools
+openai_agent_tools = [taf_tool_to_openai_agents(tool) for tool in all_tools]
 
 # Create agent with tools
 agent = Agent(
-    name="memory_agent",
+    name="support_agent",
     model="gpt-4",
     tools=openai_agent_tools,
-    instructions="You are a helpful assistant..."
+    instructions="You are a helpful customer support assistant..."
 )
 
 # Run agent
-response = await Runner.run(agent, "What are my preferences?")
+response = await Runner.run(agent, "Did I order a blue fleece?")
 ```
 
 ### `messaging.py` - OpenAI Agents SDK with TAF Messaging Tools

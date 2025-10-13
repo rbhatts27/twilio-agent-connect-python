@@ -9,6 +9,7 @@ from openai import AsyncOpenAI
 
 from taf import TAFConfig
 from taf.core.context import ConversationSession
+from taf.tools.knowledge import create_knowledge_tools_from_ids
 from taf.tools.memory import create_memory_tools
 
 # Load environment variables from .env file
@@ -33,14 +34,30 @@ async def main() -> None:
         channel="sms",
     )
 
-    # Create TAF tools with injected config
+    # Create memory tools with injected config and session
     memory_tools = create_memory_tools(config, session)
 
+    # Create knowledge tools from environment variable
+    # KNOWLEDGE_IDS should be a comma-separated list of knowledge IDs (e.g., "KN123,KN456")
+    knowledge_ids_str = os.getenv("KNOWLEDGE_IDS", "")
+    knowledge_tools = []
+    if knowledge_ids_str:
+        knowledge_ids = [kid.strip() for kid in knowledge_ids_str.split(",")]
+        # Optional: Customize specific tools via tool_configs
+        tool_configs = {
+            # Example: Override tool name and top_k for specific knowledge
+            # "KN456": KnowledgeToolConfig(name="search_return_policy", top_k=3),
+        }
+        knowledge_tools = create_knowledge_tools_from_ids(config, knowledge_ids, tool_configs)
+
+    # Combine all tools
+    all_tools = memory_tools + knowledge_tools
+
     # Convert TAF tools to OpenAI format
-    openai_tools = [tool.to_openai_format() for tool in memory_tools]
+    openai_tools = [tool.to_openai_format() for tool in all_tools]
 
     # Create tool lookup for execution
-    tool_lookup = {tool.name: tool for tool in memory_tools}
+    tool_lookup = {tool.name: tool for tool in all_tools}
 
     # Initialize OpenAI client
     client = AsyncOpenAI()

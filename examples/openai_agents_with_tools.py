@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from taf import TAFConfig
 from taf.core.context import ConversationSession
+from taf.tools.knowledge import create_knowledge_tools_from_ids
 from taf.tools.memory import create_memory_tools
 
 # Load environment variables from .env file
@@ -53,20 +54,43 @@ async def main() -> None:
         channel="sms",
     )
 
-    # Create TAF tools with injected config
+    # Create memory tools with injected config and session
     memory_tools = create_memory_tools(config, session)
     print(f"memory_tools: {memory_tools}")
 
+    # Create knowledge tools from environment variable
+    # KNOWLEDGE_IDS should be a comma-separated list of knowledge IDs (e.g., "KN123,KN456")
+    knowledge_ids_str = os.getenv("KNOWLEDGE_IDS", "")
+    knowledge_tools = []
+    if knowledge_ids_str:
+        knowledge_ids = [kid.strip() for kid in knowledge_ids_str.split(",")]
+        # Optional: Customize specific tools via tool_configs
+        tool_configs = {
+            # Example: Override tool name and top_k for specific knowledge
+            # "KN456": KnowledgeToolConfig(name="search_return_policy", top_k=3),
+        }
+        knowledge_tools = create_knowledge_tools_from_ids(config, knowledge_ids, tool_configs)
+    print(f"knowledge_tools: {knowledge_tools}")
+
+    # Combine all tools
+    all_tools = memory_tools + knowledge_tools
+    print(f"all_tools: {all_tools}")
+
     # Convert TAF tools to OpenAI Agents SDK format
-    openai_agent_tools = [taf_tool_to_openai_agents(tool) for tool in memory_tools]
+    openai_agent_tools = [taf_tool_to_openai_agents(tool) for tool in all_tools]
     print(f"openai_agent_tools: {openai_agent_tools}")
 
-    # Create agent with TAF tools
+    # Create agent with TAF tools (memory + knowledge)
     agent = Agent(
-        name="memory_agent",
+        name="support_agent",
         model="gpt-4",
         tools=openai_agent_tools,
-        instructions="You are a helpful assistant that can search user memories to provide personalized responses.",
+        instructions=(
+            "You are a helpful customer support assistant. "
+            "You can search the user's conversation history and preferences using memory tools, "
+            "and answer questions using our product documentation and policies via knowledge tools. "
+            "Provide personalized and accurate responses."
+        ),
     )
 
     # Use the agent

@@ -8,6 +8,7 @@ import pytest
 
 from taf.core.config import TAFConfig
 from taf.core.context import ConversationSession
+from taf.models.knowledge import Knowledge
 from taf.tools.base import (
     TAFTool,
     _extract_schema_from_function,
@@ -15,6 +16,11 @@ from taf.tools.base import (
     _type_to_json_schema,
     create_tool,
     function_tool,
+)
+from taf.tools.knowledge import (
+    KnowledgeToolConfig,
+    create_knowledge_tool,
+    create_knowledge_tools,
 )
 from taf.tools.memory import create_memory_tools
 
@@ -541,3 +547,384 @@ class TestMemoryTools:
         # Tools should have different implementations based on injected config
         assert tools1[0].name == tools2[0].name  # Same tool name
         assert tools1[0].implementation != tools2[0].implementation  # Different closures
+
+
+class TestKnowledgeTools:
+    """Test create_knowledge_tool function."""
+
+    def test_create_knowledge_tool_returns_taf_tool(self):
+        """Test that create_knowledge_tool returns a TAFTool."""
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge = Knowledge(
+            id="KN123",
+            name="Product FAQ",
+            description="Frequently asked questions about products",
+            type="Web",
+        )
+
+        tool = create_knowledge_tool(config, knowledge)
+
+        assert isinstance(tool, TAFTool)
+
+    def test_knowledge_tool_default_name_and_description(self):
+        """Test that knowledge tool has correct default name and description."""
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge = Knowledge(
+            id="KN123",
+            name="Product FAQ",
+            description="Frequently asked questions about products",
+            type="Web",
+        )
+
+        tool = create_knowledge_tool(config, knowledge)
+
+        assert tool.name == "Knowledge: Product FAQ"
+        assert "Frequently asked questions about products" in tool.description
+        assert "The input MUST be a question in the form of a string." in tool.description
+
+    def test_knowledge_tool_custom_name_and_description(self):
+        """Test that knowledge tool respects custom name and description."""
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge = Knowledge(
+            id="KN123",
+            name="Product FAQ",
+            description="Frequently asked questions about products",
+            type="Web",
+        )
+        tool_config = KnowledgeToolConfig(
+            name="custom_product_search", description="Search product documentation"
+        )
+
+        tool = create_knowledge_tool(config, knowledge, tool_config)
+
+        assert tool.name == "custom_product_search"
+        assert tool.description == "Search product documentation"
+
+    def test_knowledge_tool_custom_top_k(self):
+        """Test that knowledge tool respects custom top-K value."""
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge = Knowledge(
+            id="KN123",
+            name="Product FAQ",
+            description="Frequently asked questions about products",
+            type="Web",
+        )
+        tool_config = KnowledgeToolConfig(top_k=10)
+
+        tool = create_knowledge_tool(config, knowledge, tool_config)
+
+        # We can't directly access tool_config.top_k from outside,
+        # but we can verify it's used in the API call via mocking
+        assert isinstance(tool, TAFTool)
+
+    def test_knowledge_tool_has_correct_schema(self):
+        """Test that knowledge tool has correct parameter schema."""
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge = Knowledge(
+            id="KN123",
+            name="Product FAQ",
+            description="Frequently asked questions about products",
+            type="Web",
+        )
+
+        tool = create_knowledge_tool(config, knowledge)
+
+        assert "query" in tool.params_json_schema["properties"]
+        assert tool.params_json_schema["properties"]["query"]["type"] == "string"
+        assert "query" in tool.params_json_schema["required"]
+
+    @patch("taf.tools.knowledge.requests.post")
+    def test_knowledge_tool_makes_api_call(self, mock_post):
+        """Test that knowledge tool makes correct API call."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "chunks": [
+                {"content": "Answer 1", "score": 0.95},
+                {"content": "Answer 2", "score": 0.87},
+            ]
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge = Knowledge(
+            id="KN123",
+            name="Product FAQ",
+            description="Frequently asked questions about products",
+            type="Web",
+        )
+
+        tool = create_knowledge_tool(config, knowledge)
+        result = tool.implementation(query="What is the return policy?")
+
+        # Verify API call
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        assert call_args[0][0] == "https://knowledge.twilio.com/v1/Knowledge/Search"
+        assert call_args[1]["json"]["query"] == "What is the return policy?"
+        assert call_args[1]["json"]["knowledge_ids"] == ["KN123"]
+        assert call_args[1]["json"]["top"] == 5  # Default value
+        assert call_args[1]["auth"] == ("ACtest", "test_token")  # HTTP Basic Auth
+        assert call_args[1]["headers"]["Content-Type"] == "application/json"
+
+        # Verify result
+        assert result == [
+            {"content": "Answer 1", "score": 0.95},
+            {"content": "Answer 2", "score": 0.87},
+        ]
+
+    @patch("taf.tools.knowledge.requests.post")
+    def test_knowledge_tool_uses_custom_top_k(self, mock_post):
+        """Test that knowledge tool uses custom top-K value in API call."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"chunks": []}
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge = Knowledge(
+            id="KN123",
+            name="Product FAQ",
+            description="Frequently asked questions about products",
+            type="Web",
+        )
+        tool_config = KnowledgeToolConfig(top_k=10)
+
+        tool = create_knowledge_tool(config, knowledge, tool_config)
+        tool.implementation(query="test query")
+
+        # Verify top-K value
+        call_args = mock_post.call_args
+        assert call_args[1]["json"]["top"] == 10
+
+    def test_knowledge_tool_uses_injected_config(self):
+        """Test that knowledge tools use injected config."""
+        config1 = TAFConfig(
+            twilio_account_sid="ACtest1",
+            twilio_auth_token="token1",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest1",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest1",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge1 = Knowledge(id="KN123", name="FAQ 1", description="First FAQ", type="Web")
+
+        config2 = TAFConfig(
+            twilio_account_sid="ACtest2",
+            twilio_auth_token="token2",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest2",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest2",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge2 = Knowledge(id="KN456", name="FAQ 2", description="Second FAQ", type="Web")
+
+        tool1 = create_knowledge_tool(config1, knowledge1)
+        tool2 = create_knowledge_tool(config2, knowledge2)
+
+        # Tools should have different implementations based on injected config
+        assert tool1.implementation != tool2.implementation  # Different closures
+
+    def test_knowledge_types(self):
+        """Test that all knowledge types are supported."""
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+
+        for knowledge_type in ["Web", "File", "Text", "DB"]:
+            knowledge = Knowledge(
+                id=f"KN{knowledge_type}",
+                name=f"{knowledge_type} Knowledge",
+                description=f"Knowledge of type {knowledge_type}",
+                type=knowledge_type,
+            )
+            tool = create_knowledge_tool(config, knowledge)
+            assert isinstance(tool, TAFTool)
+
+    def test_create_knowledge_tools_returns_list(self):
+        """Test that create_knowledge_tools returns a list of tools."""
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge_list = [
+            Knowledge(id="KN1", name="FAQ", description="FAQs", type="Web"),
+            Knowledge(id="KN2", name="Docs", description="Documentation", type="Text"),
+            Knowledge(id="KN3", name="Policies", description="Policies", type="File"),
+        ]
+
+        tools = create_knowledge_tools(config, knowledge_list)
+
+        assert isinstance(tools, list)
+        assert len(tools) == 3
+        assert all(isinstance(tool, TAFTool) for tool in tools)
+
+    def test_create_knowledge_tools_with_configs(self):
+        """Test create_knowledge_tools with custom configurations."""
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge_list = [
+            Knowledge(id="KN1", name="FAQ", description="FAQs", type="Web"),
+            Knowledge(id="KN2", name="Docs", description="Documentation", type="Text"),
+        ]
+        tool_configs = {
+            "KN1": KnowledgeToolConfig(name="search_faq", top_k=3),
+            "KN2": KnowledgeToolConfig(description="Custom docs description"),
+        }
+
+        tools = create_knowledge_tools(config, knowledge_list, tool_configs)
+
+        assert len(tools) == 2
+        assert tools[0].name == "search_faq"
+        assert tools[1].description == "Custom docs description"
+
+    def test_create_knowledge_tools_empty_list(self):
+        """Test create_knowledge_tools with empty list."""
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+
+        tools = create_knowledge_tools(config, [])
+
+        assert isinstance(tools, list)
+        assert len(tools) == 0
+
+    def test_create_knowledge_tools_partial_configs(self):
+        """Test create_knowledge_tools with partial tool_configs."""
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge_list = [
+            Knowledge(id="KN1", name="FAQ", description="FAQs", type="Web"),
+            Knowledge(id="KN2", name="Docs", description="Documentation", type="Text"),
+            Knowledge(id="KN3", name="Policies", description="Policies", type="File"),
+        ]
+        # Only configure the first knowledge
+        tool_configs = {"KN1": KnowledgeToolConfig(name="custom_faq")}
+
+        tools = create_knowledge_tools(config, knowledge_list, tool_configs)
+
+        assert len(tools) == 3
+        assert tools[0].name == "custom_faq"  # Custom config
+        assert tools[1].name == "Knowledge: Docs"  # Default
+        assert tools[2].name == "Knowledge: Policies"  # Default
+
+    @patch("taf.tools.knowledge.requests.post")
+    @patch.dict("os.environ", {"KNOWLEDGE_BASE_URL": "http://localhost:8080"})
+    def test_knowledge_tool_respects_env_variable(self, mock_post):
+        """Test that knowledge tool respects KNOWLEDGE_BASE_URL environment variable."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"chunks": []}
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        config = TAFConfig(
+            twilio_account_sid="ACtest",
+            twilio_auth_token="test_token",
+            memora_base_url="https://memory.twilio.com/v1",
+            memory_service_sid="MGtest",
+            maestro_base_url="https://maestro.twilio.com/v1",
+            conversation_service_sid="IStest",
+            twilio_phone_number="+15551234567",
+        )
+        knowledge = Knowledge(
+            id="KN123",
+            name="Product FAQ",
+            description="Frequently asked questions about products",
+            type="Web",
+        )
+
+        tool = create_knowledge_tool(config, knowledge)
+        tool.implementation(query="test query")
+
+        # Verify that custom base URL from environment variable is used
+        call_args = mock_post.call_args
+        assert call_args[0][0] == "http://localhost:8080/v1/Knowledge/Search"
