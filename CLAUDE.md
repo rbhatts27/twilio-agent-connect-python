@@ -117,9 +117,19 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 - Models: `TraitMemory`, `ObservationMemory`, `SessionMemory` with discriminated union on `memType`
 
 **ConversationClient** (`src/taf/context/conversation.py`):
-- `create_conversation()`: Creates new conversation, returns `ConversationResponse`
-- `add_participant(conversation_id, profile_id)`: Adds participant, returns `ParticipantResponse`
-- Auth: Uses `X-Twilio-Account-Sid` header
+- Constructor: `ConversationClient(base_url, account_sid, service_id)` - Service ID is required for API paths
+- `create_conversation(name, layers, intelligence_agents)`: Creates new conversation with optional parameters, returns `ConversationResponse`
+  - Endpoint: `POST /Services/{service_id}/Conversations`
+  - Parameters: All fields (name, layers, intelligence_agents) are Optional
+- `add_participant(conversation_id, name, label, profile_id)`: Adds participant with optional fields, returns `ParticipantResponse`
+  - Endpoint: `POST /Services/{service_id}/Conversations/{conversation_id}/Participants`
+  - Parameters: All fields (name, label, profile_id) are Optional
+- Auth: Uses `X-Twilio-Account-Sid` header for session and `I-Twilio-Auth-Account` header for requests
+- Models:
+  - `ConversationRequest`: Request payload with optional `name`, `layers`, and `intelligence_agents` fields
+  - `ConversationResponse`: `account_id` (was `account_sid`), `service_id`, optional status/timestamps, `layers` and `intelligence_agents` as `list[str]`
+  - `ParticipantRequest`: Supports `name`, `label`, `profile_id` (all optional), and `addresses` fields
+  - `ParticipantResponse`: `account_id` (was `account_sid`), includes `service_id` field; `profile_id`, `status`, `created_at`, and `updated_at` are optional
 
 ## Type Checking and Code Style
 

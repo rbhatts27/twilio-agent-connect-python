@@ -52,6 +52,7 @@ class TAF:
         self.maestro_client = ConversationClient(
             base_url=self.config.maestro_base_url,
             account_sid=self.config.twilio_account_sid,
+            service_id=self.config.conversation_service_sid,
         )
 
         # Callback for when memory is ready
