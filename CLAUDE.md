@@ -106,7 +106,7 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 
 3. **Memory Retrieval**: `TAF.retrieve_memory(conversation_context, query)` → retrieves memories from Memora using `conversation_context.profile_id` and `config.memory_service_sid` → triggers `on_memory_ready()` callback if registered → returns list of `TwilioMemory` objects
 
-4. **Memory Ready Hook**: Developers register callbacks via `taf.on_memory_ready(callback)` to receive `ConversationSession` and memories when ready (triggered automatically in `retrieve_memory()`)
+4. **Memory Ready Hook**: Developers register callbacks via `taf.on_memory_ready(callback)` to receive `ConversationSession`, memories, and user message when ready (triggered automatically in `retrieve_memory()`, with `query` parameter passed as `user_message`)
 
 ### API Clients
 
@@ -206,18 +206,23 @@ taf = TAF(config)
 sms_channel = SMSChannel(taf)
 
 # 2. Register callback to handle memory-ready events
-def handle_memory(context: ConversationSession, memories: List[TwilioMemory]):
+def handle_memory(
+    context: ConversationSession,
+    memories: List[TwilioMemory],
+    user_message: str
+):
     """Called when memory retrieval completes."""
     print(f"Conversation {context.conversation_id} on channel {context.channel}")
     print(f"Profile: {context.profile_id}")
+    print(f"User message: {user_message}")
 
     # Process memories with type narrowing
     for memory in memories:
         if memory.mem_type == 'TRAIT':
             print(f"Trait: {memory.name} = {memory.value}")
 
-    # Call your LLM here with conversation context
-    llm_response = call_your_llm(memories)
+    # Call your LLM here with user message and conversation context
+    llm_response = call_your_llm(user_message, memories)
 
     # Send response back through SMS channel
     sms_channel.send_response(context.conversation_id, llm_response)

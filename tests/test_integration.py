@@ -64,7 +64,9 @@ class TestTAFIntegration:
         received_context = None
         received_memories = None
 
-        def memory_ready_callback(context: ConversationSession, memories: list[TwilioMemory]):
+        def memory_ready_callback(
+            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+        ):
             nonlocal callback_invoked, received_context, received_memories
             callback_invoked = True
             received_context = context
@@ -117,7 +119,9 @@ class TestTAFIntegration:
 
         callback_invoked = False
 
-        def memory_ready_callback(context: ConversationSession, memories: list[TwilioMemory]):
+        def memory_ready_callback(
+            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+        ):
             nonlocal callback_invoked
             callback_invoked = True
 
@@ -148,7 +152,9 @@ class TestTAFIntegration:
 
         callback_invoked = False
 
-        def memory_ready_callback(context: ConversationSession, memories: list[TwilioMemory]):
+        def memory_ready_callback(
+            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+        ):
             nonlocal callback_invoked
             callback_invoked = True
 
@@ -218,7 +224,9 @@ class TestTAFIntegration:
         callback_count = 0
         conversation_ids = set()
 
-        def memory_ready_callback(context: ConversationSession, memories: list[TwilioMemory]):
+        def memory_ready_callback(
+            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+        ):
             nonlocal callback_count
             callback_count += 1
             conversation_ids.add(context.conversation_id)
@@ -263,7 +271,9 @@ class TestTAFIntegration:
         callback_invoked = False
         received_context = None
 
-        def memory_ready_callback(context: ConversationSession, memories: list[TwilioMemory]):
+        def memory_ready_callback(
+            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+        ):
             nonlocal callback_invoked, received_context
             callback_invoked = True
             received_context = context
@@ -307,7 +317,9 @@ class TestTAFIntegration:
 
         callback_invoked = False
 
-        def memory_ready_callback(context: ConversationSession, memories: list[TwilioMemory]):
+        def memory_ready_callback(
+            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+        ):
             nonlocal callback_invoked
             callback_invoked = True
 

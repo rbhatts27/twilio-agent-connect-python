@@ -54,13 +54,14 @@ pip install "git+https://github.com/twilio-internal/twilio-agentic-framework-pyt
 from typing import List
 from taf import TAF, TAFConfig
 from taf.channels.sms import SMSChannel
-from taf.core.context import ConversationContext
-from taf.context.memora import MemoraMemory
+from taf.core.context import ConversationSession
+from taf.context.memory import TwilioMemory
 
 # 1. Configure TAF with your Twilio credentials
 config = TAFConfig(
     twilio_account_sid="ACxxxxx...",
     twilio_auth_token="your_auth_token",
+    twilio_phone_number="+1234567890",
     memora_base_url="https://memory.twilio.com/v1",
     memory_service_sid="MGxxxxx...",
     maestro_base_url="https://maestro.twilio.com/v1",
@@ -70,14 +71,19 @@ config = TAFConfig(
 taf = TAF(config)
 
 # 2. Register callback for when memories are retrieved
-def handle_memory_ready(context: ConversationContext, memories: List[MemoraMemory]):
+def handle_memory_ready(
+    context: ConversationSession,
+    memories: List[TwilioMemory],
+    user_message: str
+):
     """Called when memory retrieval completes"""
     print(f"Conversation: {context.conversation_id}")
     print(f"Profile: {context.profile_id}")
+    print(f"User message: {user_message}")
     print(f"Memories: {len(memories)}")
 
-    # Process memories and call your LLM
-    # llm_response = your_llm.generate(memories)
+    # Process memories and call your LLM with user message
+    # llm_response = your_llm.generate(user_message, memories)
     # sms_channel.send_response(context.conversation_id, llm_response)
 
 taf.on_memory_ready(handle_memory_ready)
@@ -88,7 +94,7 @@ sms_channel = SMSChannel(taf)
 # 4. In your webhook handler (Flask example)
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    webhook_data = request.form.to_dict()
+    webhook_data = request.json
     sms_channel.process_webhook(webhook_data)
     return {"status": "ok"}
 ```

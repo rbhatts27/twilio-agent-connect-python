@@ -57,7 +57,9 @@ class TestSMSChannel:
         captured_context = None
         captured_memories = None
 
-        def memory_callback(context: ConversationSession, memories: list[TwilioMemory]) -> None:
+        def memory_callback(
+            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+        ) -> None:
             nonlocal captured_context, captured_memories
             captured_context = context
             captured_memories = memories

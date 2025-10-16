@@ -160,7 +160,11 @@ class MemoryClient:
             )
 
     def retrieve_memory(
-        self, service_id: str, profile_id: str, query: Optional[str] = None
+        self,
+        service_id: str,
+        profile_id: str,
+        query: Optional[str] = None,
+        traits: Optional[list[TraitQuery]] = None,
     ) -> list[TwilioMemory]:
         """
         Retrieve profile memories including observations, traits, and events.
@@ -173,6 +177,7 @@ class MemoryClient:
             service_id: Memory service ID (e.g., 'mem_service_01hz123456789abcdefghijkl')
             profile_id: Profile ID to retrieve memories for
             query: Optional search query to filter memories
+            traits: Optional list of specific traits to retrieve (trait group + names)
 
         Returns:
             List of TwilioMemory objects (TraitMemory, ObservationMemory, or SessionMemory)
@@ -187,7 +192,7 @@ class MemoryClient:
         url = f"{self.base_url}{endpoint}"
 
         # Create the request payload according to the API spec
-        request_data = MemoryRetrievalRequest(query=query)
+        request_data = MemoryRetrievalRequest(query=query, traits=traits)
         request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
 
         try:

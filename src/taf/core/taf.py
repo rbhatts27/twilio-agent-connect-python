@@ -5,7 +5,7 @@ from typing import Any, Callable, Optional, Union
 from pydantic import ValidationError
 
 from taf.context.conversation import ConversationClient
-from taf.context.memory import MemoryClient, TwilioMemory
+from taf.context.memory import MemoryClient, TraitQuery, TwilioMemory
 from taf.core.config import TAFConfig
 from taf.core.context import ConversationSession
 from taf.core.logging import get_logger, setup_logging
@@ -57,20 +57,22 @@ class TAF:
 
         # Callback for when memory is ready
         self._memory_ready_callback: Optional[
-            Callable[[ConversationSession, list[TwilioMemory]], None]
+            Callable[[ConversationSession, list[TwilioMemory], str], None]
         ] = None
 
     def retrieve_memory(
         self,
         conversation_context: ConversationSession,
         query: Optional[str] = None,
+        traits: Optional[list[TraitQuery]] = None,
     ) -> list[TwilioMemory]:
         """
         Retrieve memories from Memora and trigger callback with conversation context.
 
         Args:
             conversation_context: Conversation context containing profile_id and other info
-            query: Optional query string for memory retrieval
+            query: Optional query string for memory retrieval (typically the user's message)
+            traits: Optional list of specific traits to retrieve (trait group + names)
 
         Returns:
             List of TwilioMemory objects (TraitMemory, ObservationMemory, or SessionMemory)
@@ -80,11 +82,13 @@ class TAF:
                 service_id=self.config.memory_service_sid,
                 profile_id=conversation_context.profile_id,
                 query=query,
+                traits=traits,
             )
 
             # Trigger the memory ready callback if registered
             if self._memory_ready_callback:
-                self._memory_ready_callback(conversation_context, memories)
+                # Pass query (user message) to callback, defaulting to empty string if not provided
+                self._memory_ready_callback(conversation_context, memories, query or "")
 
             return memories
         except Exception as e:
@@ -92,18 +96,20 @@ class TAF:
             raise
 
     def on_memory_ready(
-        self, callback: Callable[[ConversationSession, list[TwilioMemory]], None]
+        self, callback: Callable[[ConversationSession, list[TwilioMemory], str], None]
     ) -> None:
         """
         Register a callback to be invoked when memory context is ready.
 
         The callback will be triggered after memory retrieval is complete
-        (after retrieve_memory on MemoryClient) and will receive both the
-        conversation context and the retrieved memory data as typed Pydantic models.
+        (after retrieve_memory on MemoryClient) and will receive the conversation context,
+        retrieved memory data, and the user's message that triggered the retrieval.
 
         Args:
-            callback: A callable that accepts a ConversationSession and a list of TwilioMemory.
-                     The ConversationSession contains conversation_id, profile_id for responses.
+            callback: A callable that accepts:
+                     - ConversationSession: Contains conversation_id, profile_id for responses
+                     - list[TwilioMemory]: Retrieved memories (traits, observations, sessions)
+                     - str: The user's message (query) that triggered memory retrieval
 
         Example:
             ```python
@@ -111,13 +117,19 @@ class TAF:
             from taf.context.memory import TwilioMemory
 
 
-            def handle_memory(context: ConversationSession, memories: List[TwilioMemory]):
+            def handle_memory(
+                context: ConversationSession, memories: List[TwilioMemory], user_message: str
+            ):
                 print(f"Conversation {context.conversation_id} on {context.channel}")
+                print(f"User message: {user_message}")
                 print(f"Received {len(memories)} memory items")
 
                 for memory in memories:
                     if memory.mem_type == "TRAIT":
                         print(f"Trait: {memory.name} = {memory.value}")
+
+                # Process user message with LLM using memories
+                # llm_response = llm.process(user_message, memories)
 
                 # Send response back through the channel
                 # channel.send_response(context.conversation_id, llm_response)

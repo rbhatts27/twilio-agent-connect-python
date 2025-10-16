@@ -87,12 +87,19 @@ def create_handler(taf_instance, sms_channel):
     return handler
 
 
-def handle_memory_ready(context: ConversationSession, memories: list[TwilioMemory]):
+def handle_memory_ready(
+    context: ConversationSession, memories: list[TwilioMemory], user_message: str
+):
     """
     Callback invoked when memory retrieval completes.
 
     This demonstrates how to process memories and respond to messages.
     In a production app, you would call your LLM here.
+
+    Args:
+        context: Conversation session context
+        memories: Retrieved memories (traits, observations, sessions)
+        user_message: The user's message that triggered memory retrieval
     """
     logger = get_logger(__name__)
 
@@ -100,6 +107,7 @@ def handle_memory_ready(context: ConversationSession, memories: list[TwilioMemor
         f"Memory ready for conversation {context.conversation_id} on channel {context.channel}"
     )
     logger.info(f"Profile ID: {context.profile_id}")
+    logger.info(f"User message: {user_message}")
     logger.info(f"Retrieved {len(memories)} memories")
 
     # Log memory details
@@ -111,9 +119,9 @@ def handle_memory_ready(context: ConversationSession, memories: list[TwilioMemor
         elif memory.mem_type == "SESSION":
             logger.info(f"  - Session memory: {memory.content}")
 
-    # TODO: In production, call your LLM with the memories and context
+    # TODO: In production, call your LLM with the memories, context, and user_message
     # Example:
-    # llm_response = call_your_llm(memories)
+    # llm_response = call_your_llm(user_message, memories)
     # sms_channel.send_response(context.conversation_id, llm_response)
 
 
