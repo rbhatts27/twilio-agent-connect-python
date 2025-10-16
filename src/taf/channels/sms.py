@@ -1,6 +1,6 @@
 """SMS Channel implementation for TAF."""
 
-from typing import Any
+from typing import Any, Optional
 
 from taf import TAF
 from taf.channels.base import BaseChannel
@@ -58,13 +58,16 @@ class SMSChannel(BaseChannel):
         else:
             self.logger.debug(f"Ignoring event type: {event.event_type}")
 
-    def send_response(self, conversation_id: str, response: str) -> None:
+    async def send_response(
+        self, conversation_id: str, response: str, role: Optional[str] = None
+    ) -> None:
         """
         Send SMS response for a conversation.
 
         Args:
             conversation_id: Conversation ID to send response to
             response: Message content to send
+            role: Optional message role (not used in SMS channel)
 
         Note:
             This is a placeholder implementation. In production, this would

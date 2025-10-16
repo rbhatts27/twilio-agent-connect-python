@@ -81,9 +81,9 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
   - `conversation_event.py` - `ConversationEvent` model with comprehensive event fields (transcription metadata, communication recipients, profile IDs, etc.)
 
 - **`src/taf/channels/`** - Channel-specific orchestration and conversation lifecycle management
-  - `base.py` - `BaseChannel` abstract class with conversation session management (`_start_conversation`, `_end_conversation`)
+  - `base.py` - `BaseChannel` abstract class with conversation session management (`_start_conversation`, `_end_conversation`); `send_response()` with optional `role` parameter
   - `sms.py` - `SMSChannel` implementation handling webhook events, message validation, and memory retrieval
-  - Future: `voice.py` for Voice/ConversationRelay
+  - `voice.py` - `VoiceChannel` for Voice/ConversationRelay WebSocket protocol handling (protocol layer only, no built-in server)
 
 - **`src/taf/tools/`** - LLM tool integration for Sierra primitives
   - `base.py` - `TAFTool` dataclass with `to_openai_format()` and `to_anthropic_format()` methods; `function_tool` decorator for creating tools from functions
@@ -257,6 +257,101 @@ The SMS channel handles three webhook events:
 
 **Important**: Profile ID must be included in webhook data as `profile_id` or `ProfileId` field.
 
+### Voice Channel Usage
+
+The Voice channel provides WebSocket protocol handling for Twilio ConversationRelay. Unlike SMS, it does not include a built-in server - developers create their own FastAPI application:
+
+```python
+from fastapi import FastAPI, WebSocket
+from fastapi.responses import Response
+from taf import TAF, TAFConfig
+from taf.channels.voice import VoiceChannel
+from taf.context.memory import TwilioMemory
+from taf.core.context import ConversationSession
+
+# 1. Setup TAF and Voice Channel
+config = TAFConfig(
+    twilio_account_sid="AC...",
+    twilio_auth_token="...",
+    memora_base_url="https://memory.twilio.com/v1",
+    memory_service_sid="MG...",
+    maestro_base_url="https://maestro.twilio.com/v1",
+    conversation_service_sid="IS..."
+)
+taf = TAF(config)
+
+# Voice channel is protocol handler only (no server)
+voice_channel = VoiceChannel(taf)
+
+# 2. Register callback to handle memory-ready events
+async def handle_memory(
+    context: ConversationSession,
+    memories: list[TwilioMemory],
+    user_message: str
+):
+    """Called when memory retrieval completes."""
+    # Call your LLM with user message and conversation context
+    llm_response = await call_your_llm(user_message, memories)
+
+    # Send response with proper role for LLM context
+    await voice_channel.send_response(
+        context.conversation_id, llm_response, role="assistant"
+    )
+
+taf.on_memory_ready(handle_memory)
+
+# 3. Create FastAPI app with TwiML and WebSocket endpoints
+app = FastAPI()
+
+@app.get("/twiml")
+async def get_twiml():
+    """Generate TwiML for incoming calls"""
+    conversation = taf.maestro_client.create_conversation()
+    websocket_url = f"wss://your-domain.ngrok.io/ws"
+
+    twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Connect>
+        <ConversationRelay url="{websocket_url}" welcomeGreeting="Hello!">
+            <Parameter name="conversationId" value="{conversation.id}" />
+        </ConversationRelay>
+    </Connect>
+</Response>'''
+    return Response(content=twiml, media_type="application/xml")
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """Handle WebSocket connection"""
+    await voice_channel.handle_websocket(websocket)
+
+# 4. Run server
+import uvicorn
+uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+### Voice Channel Architecture
+
+The Voice channel follows a layered architecture:
+
+**Protocol Layer** (`VoiceChannel`):
+- Handles WebSocket lifecycle via `handle_websocket(websocket)`
+- Processes ConversationRelay messages (setup, prompt, interrupt)
+- Manages conversation state and memory retrieval
+- Sends responses through WebSocket with optional `role` parameter
+
+**Application Layer** (User's FastAPI app):
+- Creates FastAPI application
+- Generates TwiML with conversation ID
+- Defines `/twiml` endpoint for incoming calls
+- Defines `/ws` endpoint that calls `voice_channel.handle_websocket()`
+- Configures server (host, port, domain)
+
+**Benefits**:
+- **Separation of concerns**: Protocol vs. application logic
+- **Flexibility**: Integrate into existing FastAPI apps
+- **No forced dependencies**: FastAPI only required for voice examples, not core TAF
+- **Full control**: Customize TwiML generation and server configuration
+
 ## Dependencies
 
 **Core Dependencies**:
@@ -266,8 +361,10 @@ The SMS channel handles three webhook events:
 - `twilio>=9.8.3,<10` - Twilio Python SDK for messaging and other APIs
 
 **Optional Dependencies**:
-- `voice` - Voice channel support: `websockets>=13.0,<16`
-- `dev` - Development tools: `pytest>=7.0.0,<8`, `pytest-cov>=5.0.0,<6`, `ruff>=0.8.0,<1`, `mypy>=1.0.0,<2`, `types-requests>=2.31.0,<3`, `openai>=1.0.0,<2`, `openai-agents>=0.1.0`
+- `voice` - Voice channel support: `fastapi>=0.115.0,<1`, `uvicorn>=0.32.0,<1` (WebSocket support built-in to FastAPI)
+- `dev` - Development tools: `pytest>=7.0.0,<8`, `pytest-cov>=5.0.0,<6`, `ruff>=0.8.0,<1`, `mypy>=1.0.0,<2`, `types-requests>=2.31.0,<3`, `openai>=1.0.0,<2`, `openai-agents>=0.1.0`, `fastapi`, `uvicorn`
+
+**Note**: FastAPI and uvicorn are only required if using the Voice channel. The core TAF package does not depend on them.
 
 ## Tools Integration
 
@@ -354,10 +451,9 @@ Both factories return lists of `TAFTool` objects configured with your TAF settin
 ## Future Enhancements
 
 Based on TAF.md architecture, these modules are planned but not yet implemented:
-- **Channels**: Voice channel with ConversationRelay websocket handling
 - **Adapters**: Runtime-specific adapters for OpenAI, Bedrock, Azure AI, LangChain (with `toOpenAiMessages()`, `toBedrockMessages()` formatting)
-- **Additional Tools**: `twilio.knowledge.fetch`, `twilio.escalate-to-human`, `twilio.session-memory.fetch`
-- **Server**: Webhook + websocket server package for "batteries included" setup
+- **Additional Tools**: `twilio.escalate-to-human`, `twilio.session-memory.fetch`
+- **Server**: Standalone server package for "batteries included" setup (separate from core to avoid forcing FastAPI dependency)
 - **Analytics**: Integration with Twilio workbench observability
 
 When implementing these features, refer to the detailed architecture diagrams and sequence flows in TAF.md.

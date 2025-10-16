@@ -36,9 +36,12 @@ dev = [
     "types-requests>=2.31.0,<3",
     "openai>=1.0.0,<2",
     "openai-agents>=0.1.0",
+    "fastapi>=0.115.0,<1",
+    "uvicorn[standard]>=0.32.0,<1",
 ]
 voice = [
-    "websockets>=13.0,<16",
+    "fastapi>=0.115.0,<1",
+    "uvicorn[standard]>=0.32.0,<1",
 ]
 
 [tool.uv.workspace]
@@ -111,6 +114,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "asyncio: mark test as an asyncio test",
+]
 
 [tool.coverage.run]
 source = ["src/taf"]

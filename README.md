@@ -13,6 +13,7 @@ Explore the [examples](examples) directory to see the SDK in action.
 ## Key Features
 
 - **SMS Channel Support**: Built-in webhook handling for Twilio SMS conversations
+- **Voice Channel Support**: WebSocket protocol handling for Twilio Voice with ConversationRelay
 - **Memory Management**: Automatic integration with Twilio Memora for persistent user context
 - **Conversation Lifecycle**: Automatic tracking of conversation sessions and state
 - **Type-Safe**: Full type hints and Pydantic models throughout
@@ -126,6 +127,7 @@ TAF requires the following configuration parameters:
 Check out the [examples](examples) directory for complete working examples:
 
 - **`webhook_server.py`**: Full webhook server with SMS channel integration
+- **`voice_server.py`**: Voice server with FastAPI, TwiML generation, and WebSocket handling
 
 ---
 

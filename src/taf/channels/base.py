@@ -1,7 +1,7 @@
 """Base channel interface for TAF channels."""
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 from taf import TAF
 from taf.core.context import ConversationSession
@@ -49,13 +49,16 @@ class BaseChannel(ABC):
         pass
 
     @abstractmethod
-    def send_response(self, conversation_id: str, response: str) -> None:
+    async def send_response(
+        self, conversation_id: str, response: str, role: Optional[str] = None
+    ) -> None:
         """
         Send response back through the channel.
 
         Args:
             conversation_id: Conversation ID to send response to
             response: Message content to send
+            role: Optional message role (e.g., 'assistant', 'user', 'system')
         """
         pass
 
@@ -70,7 +73,9 @@ class BaseChannel(ABC):
         # TODO: Parse Channel Type based on webhook data
         pass
 
-    def _start_conversation(self, conv_id: str, profile_id: str) -> None:
+    def _start_conversation(
+        self, conv_id: str, profile_id: str, init_messages: Optional[list[dict]] = None
+    ) -> None:
         """
         Initialize new conversation session.
 
@@ -87,6 +92,7 @@ class BaseChannel(ABC):
             conversation_id=conv_id,
             profile_id=profile_id,
             channel=self.get_channel_name(),
+            messages=init_messages or [],
         )
 
         self.logger.info(f"Started conversation {conv_id} for profile {profile_id}")

@@ -253,5 +253,92 @@ curl --location 'http://localhost:8000' \
 }'
 ```
 
+### `voice_server.py` - Voice Server with ConversationRelay
+Complete voice server implementation with FastAPI, TwiML generation, and WebSocket handling for Twilio Voice ConversationRelay.
+
+**Features:**
+- ✅ FastAPI server with `/twiml` and `/ws` endpoints
+- ✅ TwiML generation for incoming voice calls
+- ✅ WebSocket connection management via `VoiceChannel.handle_websocket()`
+- ✅ Memory retrieval and LLM integration (OpenAI)
+- ✅ Proper message role handling (`role="assistant"`) for LLM context
+- ✅ Conversation lifecycle management
+
+**Architecture:**
+- **VoiceChannel**: Protocol handler only (no built-in server)
+- **Application Layer**: Creates FastAPI app, handles TwiML generation
+- **RelayConfiguration**: Configures public domain, host, port, greeting
+
+**Usage:**
+```bash
+# 1. Set up environment variables in .env
+VOICE_PUBLIC_DOMAIN=your-domain.ngrok.io  # Your ngrok or public domain
+MEMORA_BASE_URL=https://memory.twilio.com/v1
+MEMORY_SERVICE_SID=MGxxxxx...
+MAESTRO_BASE_URL=https://maestro.twilio.com/v1
+CONVERSATION_SERVICE_SID=ISxxxxx...
+TWILIO_ACCOUNT_SID=ACxxxxx...
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_PHONE_NUMBER=+1234567890
+OPENAI_API_KEY=sk-xxxxx...
+
+# 2. Start ngrok tunnel (in separate terminal)
+ngrok http 8000
+
+# 3. Update VOICE_PUBLIC_DOMAIN in .env with ngrok domain (e.g., abc123.ngrok.io)
+
+# 4. Run voice server
+uv run python examples/voice_server.py
+
+# 5. Configure Twilio phone number webhook to point to:
+#    https://your-domain.ngrok.io/twiml
+```
+
+**Key Code Pattern:**
+```python
+from fastapi import FastAPI, WebSocket
+from fastapi.responses import Response
+from taf.channels.voice import VoiceChannel
+
+# Initialize TAF and Voice channel
+taf = TAF(config)
+voice_channel = VoiceChannel(taf)
+
+# Register memory callback
+async def handle_memory_ready(context, memories, user_message):
+    # Call your LLM
+    response = await openai_client.chat.completions.create(...)
+
+    # Send response with role for proper LLM context
+    await voice_channel.send_response(
+        context.conversation_id, response, role="assistant"
+    )
+
+taf.on_memory_ready(handle_memory_ready)
+
+# Create FastAPI app
+app = FastAPI()
+
+@app.get("/twiml")
+async def get_twiml():
+    """Generate TwiML for incoming calls"""
+    conversation = taf.maestro_client.create_conversation()
+    # Return TwiML with ConversationRelay pointing to /ws endpoint
+    ...
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """Handle WebSocket connection"""
+    await voice_channel.handle_websocket(websocket)
+
+# Run with uvicorn
+uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+**Why This Architecture?**
+- **Separation of Concerns**: VoiceChannel handles protocol, you handle TwiML/server
+- **Flexibility**: Easy to integrate into existing FastAPI applications
+- **Customization**: Full control over TwiML generation and server configuration
+
 
 Happy building! 🚀

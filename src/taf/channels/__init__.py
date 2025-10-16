@@ -2,5 +2,6 @@
 
 from taf.channels.base import BaseChannel
 from taf.channels.sms import SMSChannel
+from taf.channels.voice import VoiceChannel
 
-__all__ = ["BaseChannel", "SMSChannel"]
+__all__ = ["BaseChannel", "SMSChannel", "VoiceChannel"]

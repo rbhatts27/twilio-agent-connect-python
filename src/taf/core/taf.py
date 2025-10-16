@@ -1,6 +1,9 @@
 """Core TAF (Twilio Agentic Framework) class for processing events and configuration."""
 
-from typing import Any, Callable, Optional, Union
+import asyncio
+import inspect
+from collections.abc import Awaitable, Callable
+from typing import Any, Optional, Union
 
 from pydantic import ValidationError
 
@@ -55,9 +58,12 @@ class TAF:
             service_id=self.config.conversation_service_sid,
         )
 
-        # Callback for when memory is ready
+        # Callback for when memory is ready (supports both sync and async)
         self._memory_ready_callback: Optional[
-            Callable[[ConversationSession, list[TwilioMemory], str], None]
+            Union[
+                Callable[[ConversationSession, list[TwilioMemory], str], None],
+                Callable[[ConversationSession, list[TwilioMemory], str], Awaitable[None]],
+            ]
         ] = None
 
     def retrieve_memory(
@@ -87,8 +93,22 @@ class TAF:
 
             # Trigger the memory ready callback if registered
             if self._memory_ready_callback:
-                # Pass query (user message) to callback, defaulting to empty string if not provided
-                self._memory_ready_callback(conversation_context, memories, query or "")
+                # Check if callback is async
+                if inspect.iscoroutinefunction(self._memory_ready_callback):
+                    # Schedule async callback as a background task
+                    try:
+                        asyncio.create_task(
+                            self._memory_ready_callback(conversation_context, memories, query or "")
+                        )
+                    except RuntimeError:
+                        # No event loop running, log warning
+                        self.logger.warning(
+                            "Async callback registered but no event loop running. "
+                            "Callback will not be executed."
+                        )
+                else:
+                    # Call sync callback directly
+                    self._memory_ready_callback(conversation_context, memories, query or "")
 
             return memories
         except Exception as e:
@@ -96,7 +116,11 @@ class TAF:
             raise
 
     def on_memory_ready(
-        self, callback: Callable[[ConversationSession, list[TwilioMemory], str], None]
+        self,
+        callback: Union[
+            Callable[[ConversationSession, list[TwilioMemory], str], None],
+            Callable[[ConversationSession, list[TwilioMemory], str], Awaitable[None]],
+        ],
     ) -> None:
         """
         Register a callback to be invoked when memory context is ready.
@@ -105,13 +129,16 @@ class TAF:
         (after retrieve_memory on MemoryClient) and will receive the conversation context,
         retrieved memory data, and the user's message that triggered the retrieval.
 
+        Supports both synchronous and asynchronous callbacks. Async callbacks
+        will be scheduled as background tasks using asyncio.create_task().
+
         Args:
             callback: A callable that accepts:
                      - ConversationSession: Contains conversation_id, profile_id for responses
                      - list[TwilioMemory]: Retrieved memories (traits, observations, sessions)
                      - str: The user's message (query) that triggered memory retrieval
 
-        Example:
+        Example (Synchronous):
             ```python
             from taf.core.context import ConversationSession
             from taf.context.memory import TwilioMemory
@@ -138,6 +165,19 @@ class TAF:
             taf = TAF(config)
             taf.on_memory_ready(handle_memory)
             ```
+
+        Example (Asynchronous):
+            ```python
+            async def handle_memory(context: ConversationSession, memories: list[TwilioMemory]):
+                print(f"Conversation {context.conversation_id} on {context.channel}")
+
+                # Call async operations directly
+                response = await call_llm(context.messages)
+                await voice_channel.send_response(context.conversation_id, response)
+
+
+            taf = TAF(config)
+            taf.on_memory_ready(handle_memory)
+            ```
         """
         self._memory_ready_callback = callback
-        self.logger.info("Memory ready callback registered.")
