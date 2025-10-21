@@ -1,4 +1,4 @@
-from typing import Any, Literal, Optional, Union
+from typing import Literal, Optional
 
 import requests
 from pydantic import BaseModel, Field
@@ -6,87 +6,212 @@ from pydantic import BaseModel, Field
 from taf.core.logging import get_logger
 
 
-class TraitQuery(BaseModel):
-    """Query specification for traits within a specific group."""
-
-    trait_group: str = Field(..., alias="traitGroup", description="The trait group name")
-    trait_names: list[str] = Field(
-        ...,
-        alias="traitNames",
-        description="Array of trait names/keys within the specified group",
-    )
-
-
 class MemoryRetrievalRequest(BaseModel):
-    """Request payload for retrieving profile memories."""
+    """Request payload for retrieving conversation memories."""
 
     conversation_id: Optional[str] = Field(
-        default=None, alias="conversationId", description="Conversation ID for context"
+        default=None,
+        alias="conversationId",
+        description="A unique identifier for the conversation using Twilio Type ID (TTID) format",
+        json_schema_extra={"example": "comms_conversation_00000000000000000000000000"},
     )
     query: Optional[str] = Field(
-        default=None, description="Semantic search query for finding relevant memories"
-    )
-    traits: Optional[list[TraitQuery]] = Field(
-        default=None, description="Array of specific traits to retrieve"
+        default=None,
+        min_length=1,
+        max_length=1024,
+        description="Semantic search query for finding relevant memories",
+        json_schema_extra={"example": "customer satisfaction feedback"},
     )
     begin_date: Optional[str] = Field(
-        default=None, alias="beginDate", description="Start date for filtering memories"
+        default=None,
+        alias="beginDate",
+        max_length=30,
+        description="Start date for filtering memories (inclusive)",
+        json_schema_extra={"example": "2025-01-01T00:00:00Z"},
     )
     end_date: Optional[str] = Field(
-        default=None, alias="endDate", description="End date for filtering memories"
+        default=None,
+        alias="endDate",
+        max_length=30,
+        description="End date for filtering memories (exclusive)",
+        json_schema_extra={"example": "2025-01-31T23:59:59Z"},
     )
-    session_limit: Optional[int] = Field(
+    sessions_limit: Optional[int] = Field(
         default=10,
-        alias="sessionLimit",
-        description="Maximum number of conversational session memories",
+        alias="sessionsLimit",
+        ge=1,
+        le=100,
+        description="Maximum number of conversational session memories to return",
+        json_schema_extra={"example": 10},
     )
-    longterm_limit: Optional[int] = Field(
+    observations_limit: Optional[int] = Field(
         default=20,
-        alias="longtermLimit",
-        description="Maximum number of observational and trait memories",
+        alias="observationsLimit",
+        ge=1,
+        le=100,
+        description="Maximum number of observation memories to return",
+        json_schema_extra={"example": 20},
     )
-    traits_limit: Optional[int] = Field(
-        default=10,
-        alias="traitsLimit",
-        description="Maximum number of traits to return",
+    summaries_limit: Optional[int] = Field(
+        default=5,
+        alias="summariesLimit",
+        ge=1,
+        le=100,
+        description="Maximum number of summary memories to return",
+        json_schema_extra={"example": 5},
     )
 
     model_config = {"populate_by_name": True}
 
 
-class TraitMemory(BaseModel):
-    """A trait memory from the API response."""
+class CiOperator(BaseModel):
+    """Information about the Conversational Intelligence operator."""
 
-    mem_type: Literal["TRAIT"] = Field(..., alias="memType")
-    group: str = Field(..., description="The trait group name")
-    name: str = Field(..., description="The trait name/key")
-    value: Union[str, int, float, bool, dict[str, Any], list[Any]] = Field(
-        ..., description="The trait value"
+    ci_service_id: str = Field(
+        ...,
+        alias="ciServiceId",
+        max_length=34,
+        description="SID of the Conversational Intelligence Service",
+        json_schema_extra={"example": "GA00000000000000000000000000000000"},
     )
-    updated_at: str = Field(..., alias="updatedAt", description="When the trait was last updated")
+    id: str = Field(
+        ...,
+        max_length=34,
+        description="ID of the language operator that extracted this observation",
+        json_schema_extra={"example": "LY00000000000000000000000000000000"},
+    )
+    version: str = Field(
+        ...,
+        min_length=5,
+        max_length=50,
+        description="Version of the language operator that extracted this observation",
+        json_schema_extra={"example": "1.2.3"},
+    )
 
     model_config = {"populate_by_name": True}
 
 
-class ObservationMemory(BaseModel):
+class ObservationInfo(BaseModel):
     """An observation memory from the API response."""
 
-    mem_type: Literal["OBSERVATION"] = Field(..., alias="memType")
-    id: str = Field(..., description="Unique identifier for the observation")
-    type: str = Field(..., description="Type of observation (OBSERVATION or SUMMARY)")
-    content: str = Field(..., description="The observation content")
-    source: str = Field(..., description="Source system that generated this observation")
-    conversation_ids: Optional[list[str]] = Field(
-        None, alias="conversationIds", description="List of conversation IDs"
+    content: str = Field(
+        ...,
+        min_length=1,
+        max_length=4096,
+        description="The main content of the observation",
+        json_schema_extra={
+            "example": "Customer expressed satisfaction with recent product update."
+        },
+    )
+    source: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Source system that generated this observation",
+        json_schema_extra={"example": "conversational-intelligence"},
+    )
+    id: str = Field(
+        ...,
+        description="Unique identifier for the observation using Twilio Type ID (TTID) format",
+        json_schema_extra={"example": "mem_observation_00000000000000000000000000"},
+    )
+    created_at: str = Field(
+        ...,
+        alias="createdAt",
+        max_length=30,
+        description="Timestamp when the observation was created",
+        json_schema_extra={"example": "2025-01-15T10:30:45Z"},
+    )
+    updated_at: str = Field(
+        ...,
+        alias="updatedAt",
+        max_length=30,
+        description="Timestamp when the observation was last updated",
+        json_schema_extra={"example": "2025-01-15T10:30:45Z"},
     )
     occurred_at: Optional[str] = Field(
-        None, alias="occurredAt", description="When the observation occurred"
+        default=None,
+        alias="occurredAt",
+        max_length=30,
+        description="Timestamp when the observation originally occurred",
+        json_schema_extra={"example": "2025-01-15T10:15:30Z"},
     )
-    created_at: str = Field(..., alias="createdAt", description="When the observation was created")
+    conversation_ids: Optional[list[str]] = Field(
+        default=None,
+        alias="conversationIds",
+        max_length=10,
+        description="Array of conversation IDs associated with this observation",
+        json_schema_extra={"example": ["comms_conversation_00000000000000000000000000"]},
+    )
+    ci_operator: Optional[CiOperator] = Field(
+        default=None,
+        alias="ciOperator",
+        description="Information about the CI operator that extracted this observation",
+    )
+    confidence: Optional[Literal["HIGH", "MEDIUM", "LOW"]] = Field(
+        default=None,
+        description="Confidence level for the observation extraction",
+        json_schema_extra={"example": "HIGH"},
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class SummaryInfo(BaseModel):
+    """A summary memory derived from observations at the end of conversations."""
+
+    content: str = Field(
+        ...,
+        min_length=1,
+        max_length=4096,
+        description="The main content of the summary",
+        json_schema_extra={
+            "example": "Customer discussed billing concerns and was satisfied with resolution."
+        },
+    )
+    conversation_id: str = Field(
+        ...,
+        alias="conversationId",
+        description="Unique identifier for the conversation using Twilio Type ID (TTID) format",
+        json_schema_extra={"example": "comms_conversation_00000000000000000000000000"},
+    )
+    id: str = Field(
+        ...,
+        description="Unique identifier for the summary using Twilio Type ID (TTID) format",
+        json_schema_extra={"example": "mem_summary_00000000000000000000000000"},
+    )
+    created_at: str = Field(
+        ...,
+        alias="createdAt",
+        max_length=30,
+        description="Timestamp when the summary was created",
+        json_schema_extra={"example": "2025-01-15T10:30:45Z"},
+    )
     updated_at: str = Field(
-        ..., alias="updatedAt", description="When the observation was last updated"
+        ...,
+        alias="updatedAt",
+        max_length=30,
+        description="Timestamp when the summary was last updated",
+        json_schema_extra={"example": "2025-01-15T10:30:45Z"},
     )
-    score: Optional[float] = Field(None, description="Relevance score for the observation")
+    source: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Source system that generated the summary",
+        json_schema_extra={"example": "conversations"},
+    )
+    occurred_at: Optional[str] = Field(
+        default=None,
+        alias="occurredAt",
+        max_length=30,
+        description="Timestamp when the summary was originally created",
+        json_schema_extra={"example": "2025-01-15T10:15:30Z"},
+    )
+    ci_operator: Optional[CiOperator] = Field(
+        default=None,
+        alias="ciOperator",
+        description="Information about the CI operator that extracted this observation",
+    )
 
     model_config = {"populate_by_name": True}
 
@@ -94,35 +219,74 @@ class ObservationMemory(BaseModel):
 class SessionMessage(BaseModel):
     """A message within a conversational session."""
 
-    timestamp: str = Field(..., description="When the message was sent")
-    direction: Literal["inbound", "outbound"] = Field(..., description="Message direction")
-    channel: str = Field(..., description="Communication channel")
-    from_address: str = Field(..., alias="from", description="Sender address")
-    to_address: str = Field(..., alias="to", description="Recipient address")
-    content: str = Field(..., description="Message content")
+    timestamp: str = Field(
+        ...,
+        max_length=30,
+        description="When the message was sent",
+        json_schema_extra={"example": "2025-01-15T15:58:10Z"},
+    )
+    direction: Literal["inbound", "outbound"] = Field(
+        ..., description="Message direction relative to the profile"
+    )
+    channel: str = Field(
+        ...,
+        max_length=30,
+        description="Communication channel (case-insensitive)",
+        json_schema_extra={"example": "sms"},
+    )
+    from_address: str = Field(
+        ...,
+        alias="from",
+        max_length=128,
+        description="Sender address (phone number or identifier)",
+        json_schema_extra={"example": "+15551234567"},
+    )
+    to_address: str = Field(
+        ...,
+        alias="to",
+        max_length=128,
+        description="Recipient address (phone number or identifier)",
+        json_schema_extra={"example": "+15557654321"},
+    )
+    content: str = Field(
+        ...,
+        max_length=4096,
+        description="Message body content (may be truncated)",
+        json_schema_extra={"example": "Thanks for checking in."},
+    )
 
     model_config = {"populate_by_name": True}
 
 
-class SessionMemory(BaseModel):
-    """A conversational session memory from the API response."""
+class SessionInfo(BaseModel):
+    """A session memory containing recent conversation context."""
 
-    mem_type: Literal["SESSION"] = Field(..., alias="memType")
-    conversation_id: str = Field(..., alias="conversationId", description="Conversation ID")
-    messages: list[SessionMessage] = Field(..., description="List of messages in the session")
+    conversation_id: str = Field(
+        ...,
+        alias="conversationId",
+        description="Unique identifier for the conversation using Twilio Type ID (TTID) format",
+        json_schema_extra={"example": "comms_conversation_00000000000000000000000000"},
+    )
+    messages: list[SessionMessage] = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Chronologically ordered list of recent messages (oldest first)",
+    )
 
     model_config = {"populate_by_name": True}
-
-
-# Union type for all memory types
-TwilioMemory = Union[TraitMemory, ObservationMemory, SessionMemory]
 
 
 class MemoryRetrievalMeta(BaseModel):
     """Metadata about the memory retrieval operation."""
 
     query_time: int = Field(
-        ..., alias="queryTime", description="Query execution time in milliseconds"
+        ...,
+        alias="queryTime",
+        ge=0,
+        le=600000,
+        description="Query execution time in milliseconds",
+        json_schema_extra={"example": 156},
     )
 
     model_config = {"populate_by_name": True}
@@ -131,7 +295,17 @@ class MemoryRetrievalMeta(BaseModel):
 class MemoryRetrievalResponse(BaseModel):
     """Response from the memory retrieval API."""
 
-    memories: list[TwilioMemory] = Field(..., description="Retrieved memory results")
+    observations: list[ObservationInfo] = Field(
+        ..., max_length=100, description="Array of observation memories"
+    )
+    summaries: list[SummaryInfo] = Field(
+        ..., max_length=100, description="Array of summary memories from end of conversations"
+    )
+    sessions: list[SessionInfo] = Field(
+        ...,
+        max_length=100,
+        description="Array of session memories with recent conversation context",
+    )
     meta: MemoryRetrievalMeta = Field(..., description="Metadata about the retrieval operation")
 
     model_config = {"populate_by_name": True}
@@ -162,25 +336,21 @@ class MemoryClient:
     def retrieve_memory(
         self,
         service_id: str,
-        profile_id: str,
+        conversation_id: Optional[str] = None,
         query: Optional[str] = None,
-        traits: Optional[list[TraitQuery]] = None,
-    ) -> list[TwilioMemory]:
+    ) -> MemoryRetrievalResponse:
         """
-        Retrieve profile memories including observations, traits, and events.
-        Supports hybrid semantic search, date ranges, trait filters,
-        and configurable result limits for different memory types.
+        Retrieve conversation memories including observations, sessions, and summaries.
+        Supports semantic search and uses default limits for different memory types.
         This endpoint is optimized for conversational AI and memory retrieval use cases.
-        If a query is not specified then one is inferred from the conversation context.
 
         Args:
             service_id: Memory service ID (e.g., 'mem_service_01hz123456789abcdefghijkl')
-            profile_id: Profile ID to retrieve memories for
-            query: Optional search query to filter memories
-            traits: Optional list of specific traits to retrieve (trait group + names)
+            conversation_id: Optional conversation ID using Twilio Type ID (TTID) format
+            query: Optional semantic search query for finding relevant memories (1-1024 characters)
 
         Returns:
-            List of TwilioMemory objects (TraitMemory, ObservationMemory, or SessionMemory)
+            MemoryRetrievalResponse containing observations, summaries, sessions, and metadata
 
         Raises:
             requests.RequestException: If the API request fails
@@ -188,11 +358,14 @@ class MemoryClient:
         """
 
         # Use the correct endpoint from the API spec
-        endpoint = f"/v1/Services/{service_id}/Profiles/{profile_id}/Recall"
+        endpoint = f"/v1/Services/{service_id}/Profiles/{conversation_id}/Recall"
         url = f"{self.base_url}{endpoint}"
 
-        # Create the request payload according to the API spec
-        request_data = MemoryRetrievalRequest(query=query, traits=traits)
+        # Create the request payload with default values
+        request_data = MemoryRetrievalRequest(
+            conversationId=conversation_id,
+            query=query,
+        )
         request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
 
         try:
@@ -209,16 +382,25 @@ class MemoryClient:
             data = response.json()
             memory_response = MemoryRetrievalResponse(**data)
 
-            # Return typed Pydantic models
-            return memory_response.memories
+            # Return full response with observations, summaries, sessions, and metadata
+            return memory_response
 
         except requests.RequestException as e:
             self.logger.error(f"Failed to retrieve context from Memora: {e}")
-            # For now, return empty list on API errors
-            # In production, you might want to log this or handle differently
-            return []
+            # Return empty response on API errors
+            return MemoryRetrievalResponse(
+                observations=[],
+                summaries=[],
+                sessions=[],
+                meta=MemoryRetrievalMeta(queryTime=0),
+            )
 
         except Exception as e:
             self.logger.error(f"Failed to parse Memora response: {e}")
-            # Handle parsing errors
-            return []
+            # Return empty response on parsing errors
+            return MemoryRetrievalResponse(
+                observations=[],
+                summaries=[],
+                sessions=[],
+                meta=MemoryRetrievalMeta(queryTime=0),
+            )

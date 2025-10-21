@@ -6,7 +6,7 @@ import pytest
 
 from taf import TAF
 from taf.channels.voice import VoiceChannel
-from taf.context.memory import TwilioMemory
+from taf.context.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
 from taf.core.context import ConversationSession
 
 
@@ -69,7 +69,10 @@ class TestVoiceChannel:
 
         # Mock memory retrieval
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            mock_retrieve.return_value = []
+            empty_response = MemoryRetrievalResponse(
+                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
+            )
+            mock_retrieve.return_value = empty_response
 
             # Handle prompt message
             prompt_data = {"type": "prompt", "voicePrompt": "Hello, I need help"}
@@ -192,7 +195,10 @@ class TestVoiceChannel:
 
         # Mock memory retrieval
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            mock_retrieve.return_value = []
+            empty_response = MemoryRetrievalResponse(
+                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
+            )
+            mock_retrieve.return_value = empty_response
 
             # Handle prompt message
             prompt_data = {"type": "prompt", "voicePrompt": "First message"}
@@ -221,11 +227,13 @@ class TestVoiceChannel:
         captured_user_message = None
 
         async def memory_callback(
-            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+            context: ConversationSession,
+            memory_response: MemoryRetrievalResponse,
+            user_message: str,
         ) -> None:
             nonlocal captured_context, captured_memories, captured_user_message
             captured_context = context
-            captured_memories = memories
+            captured_memories = memory_response
             captured_user_message = user_message
 
         taf.on_memory_ready(memory_callback)
@@ -236,7 +244,10 @@ class TestVoiceChannel:
 
         # Mock memory retrieval
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            mock_retrieve.return_value = []
+            empty_response = MemoryRetrievalResponse(
+                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
+            )
+            mock_retrieve.return_value = empty_response
 
             # Handle prompt message
             prompt_data = {"type": "prompt", "voicePrompt": "Test message"}

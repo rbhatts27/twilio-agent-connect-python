@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from taf import TAF
 from taf.channels.sms import SMSChannel
-from taf.context.memory import TwilioMemory
+from taf.context.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
 from taf.core.context import ConversationSession
 
 
@@ -58,11 +58,13 @@ class TestSMSChannel:
         captured_memories = None
 
         def memory_callback(
-            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+            context: ConversationSession,
+            memory_response: MemoryRetrievalResponse,
+            user_message: str,
         ) -> None:
             nonlocal captured_context, captured_memories
             captured_context = context
-            captured_memories = memories
+            captured_memories = memory_response
 
         taf.on_memory_ready(memory_callback)
 
@@ -77,7 +79,10 @@ class TestSMSChannel:
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            mock_retrieve.return_value = []
+            empty_response = MemoryRetrievalResponse(
+                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
+            )
+            mock_retrieve.return_value = empty_response
 
             channel.process_webhook(webhook_data)
 
@@ -111,7 +116,10 @@ class TestSMSChannel:
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            mock_retrieve.return_value = []
+            empty_response = MemoryRetrievalResponse(
+                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
+            )
+            mock_retrieve.return_value = empty_response
 
             channel.process_webhook(message_webhook)
 

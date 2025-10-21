@@ -8,7 +8,7 @@ from typing import Any, Optional, Union
 from pydantic import ValidationError
 
 from taf.context.conversation import ConversationClient
-from taf.context.memory import MemoryClient, TraitQuery, TwilioMemory
+from taf.context.memory import MemoryClient, MemoryRetrievalResponse
 from taf.core.config import TAFConfig
 from taf.core.context import ConversationSession
 from taf.core.logging import get_logger, setup_logging
@@ -61,8 +61,8 @@ class TAF:
         # Callback for when memory is ready (supports both sync and async)
         self._memory_ready_callback: Optional[
             Union[
-                Callable[[ConversationSession, list[TwilioMemory], str], None],
-                Callable[[ConversationSession, list[TwilioMemory], str], Awaitable[None]],
+                Callable[[ConversationSession, MemoryRetrievalResponse, str], None],
+                Callable[[ConversationSession, MemoryRetrievalResponse, str], Awaitable[None]],
             ]
         ] = None
 
@@ -70,25 +70,22 @@ class TAF:
         self,
         conversation_context: ConversationSession,
         query: Optional[str] = None,
-        traits: Optional[list[TraitQuery]] = None,
-    ) -> list[TwilioMemory]:
+    ) -> MemoryRetrievalResponse:
         """
         Retrieve memories from Memora and trigger callback with conversation context.
 
         Args:
             conversation_context: Conversation context containing profile_id and other info
             query: Optional query string for memory retrieval (typically the user's message)
-            traits: Optional list of specific traits to retrieve (trait group + names)
 
         Returns:
-            List of TwilioMemory objects (TraitMemory, ObservationMemory, or SessionMemory)
+            MemoryRetrievalResponse containing observations, summaries, sessions, and metadata
         """
         try:
-            memories = self.memora_client.retrieve_memory(
+            memory_response = self.memora_client.retrieve_memory(
                 service_id=self.config.memory_service_sid,
-                profile_id=conversation_context.profile_id,
+                conversation_id=conversation_context.conversation_id,
                 query=query,
-                traits=traits,
             )
 
             # Trigger the memory ready callback if registered
@@ -98,7 +95,9 @@ class TAF:
                     # Schedule async callback as a background task
                     try:
                         asyncio.create_task(
-                            self._memory_ready_callback(conversation_context, memories, query or "")
+                            self._memory_ready_callback(
+                                conversation_context, memory_response, query or ""
+                            )
                         )
                     except RuntimeError:
                         # No event loop running, log warning
@@ -108,9 +107,9 @@ class TAF:
                         )
                 else:
                     # Call sync callback directly
-                    self._memory_ready_callback(conversation_context, memories, query or "")
+                    self._memory_ready_callback(conversation_context, memory_response, query or "")
 
-            return memories
+            return memory_response
         except Exception as e:
             self.logger.error(f"Failed to retrieve memory: {e}")
             raise
@@ -118,8 +117,8 @@ class TAF:
     def on_memory_ready(
         self,
         callback: Union[
-            Callable[[ConversationSession, list[TwilioMemory], str], None],
-            Callable[[ConversationSession, list[TwilioMemory], str], Awaitable[None]],
+            Callable[[ConversationSession, MemoryRetrievalResponse, str], None],
+            Callable[[ConversationSession, MemoryRetrievalResponse, str], Awaitable[None]],
         ],
     ) -> None:
         """
@@ -135,28 +134,33 @@ class TAF:
         Args:
             callback: A callable that accepts:
                      - ConversationSession: Contains conversation_id, profile_id for responses
-                     - list[TwilioMemory]: Retrieved memories (traits, observations, sessions)
+                     - MemoryRetrievalResponse: Retrieved memory data with observations,
+                       summaries, and sessions
                      - str: The user's message (query) that triggered memory retrieval
 
         Example (Synchronous):
             ```python
             from taf.core.context import ConversationSession
-            from taf.context.memory import TwilioMemory
+            from taf.context.memory import MemoryRetrievalResponse
 
 
             def handle_memory(
-                context: ConversationSession, memories: List[TwilioMemory], user_message: str
+                context: ConversationSession,
+                memory_response: MemoryRetrievalResponse,
+                user_message: str,
             ):
                 print(f"Conversation {context.conversation_id} on {context.channel}")
                 print(f"User message: {user_message}")
-                print(f"Received {len(memories)} memory items")
+                print(f"Observations: {len(memory_response.observations)}")
+                print(f"Summaries: {len(memory_response.summaries)}")
+                print(f"Sessions: {len(memory_response.sessions)}")
 
-                for memory in memories:
-                    if memory.mem_type == "TRAIT":
-                        print(f"Trait: {memory.name} = {memory.value}")
+                # Access observations
+                for obs in memory_response.observations:
+                    print(f"Observation: {obs.content}")
 
                 # Process user message with LLM using memories
-                # llm_response = llm.process(user_message, memories)
+                # llm_response = llm.process(user_message, memory_response)
 
                 # Send response back through the channel
                 # channel.send_response(context.conversation_id, llm_response)
@@ -168,11 +172,15 @@ class TAF:
 
         Example (Asynchronous):
             ```python
-            async def handle_memory(context: ConversationSession, memories: list[TwilioMemory]):
+            async def handle_memory(
+                context: ConversationSession,
+                memory_response: MemoryRetrievalResponse,
+                user_message: str,
+            ):
                 print(f"Conversation {context.conversation_id} on {context.channel}")
 
                 # Call async operations directly
-                response = await call_llm(context.messages)
+                response = await call_llm(user_message, memory_response)
                 await voice_channel.send_response(context.conversation_id, response)
 
 

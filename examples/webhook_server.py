@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from taf import TAF, TAFConfig, get_logger
 from taf.channels.sms import SMSChannel
-from taf.context.memory import TwilioMemory
+from taf.context.memory import MemoryRetrievalResponse
 from taf.core.context import ConversationSession
 
 
@@ -88,7 +88,7 @@ def create_handler(taf_instance, sms_channel):
 
 
 def handle_memory_ready(
-    context: ConversationSession, memories: list[TwilioMemory], user_message: str
+    context: ConversationSession, memory_response: MemoryRetrievalResponse, user_message: str
 ):
     """
     Callback invoked when memory retrieval completes.
@@ -98,7 +98,7 @@ def handle_memory_ready(
 
     Args:
         context: Conversation session context
-        memories: Retrieved memories (traits, observations, sessions)
+        memory_response: Retrieved memory response with observations, summaries, and sessions
         user_message: The user's message that triggered memory retrieval
     """
     logger = get_logger(__name__)
@@ -108,20 +108,23 @@ def handle_memory_ready(
     )
     logger.info(f"Profile ID: {context.profile_id}")
     logger.info(f"User message: {user_message}")
-    logger.info(f"Retrieved {len(memories)} memories")
+    logger.info(f"Retrieved {len(memory_response.observations)} observations")
+    logger.info(f"Retrieved {len(memory_response.summaries)} summaries")
+    logger.info(f"Retrieved {len(memory_response.sessions)} sessions")
 
     # Log memory details
-    for memory in memories:
-        if memory.mem_type == "TRAIT":
-            logger.info(f"  - Trait: {memory.name} = {memory.value}")
-        elif memory.mem_type == "OBSERVATION":
-            logger.info(f"  - Observation: {memory.content}")
-        elif memory.mem_type == "SESSION":
-            logger.info(f"  - Session memory: {memory.content}")
+    for obs in memory_response.observations:
+        logger.info(f"  - Observation: {obs.content[:100]}...")  # Truncate for readability
+
+    for summary in memory_response.summaries:
+        logger.info(f"  - Summary: {summary.content[:100]}...")  # Truncate for readability
+
+    for session in memory_response.sessions:
+        logger.info(f"  - Session memory: {len(session.messages)} messages")
 
     # TODO: In production, call your LLM with the memories, context, and user_message
     # Example:
-    # llm_response = call_your_llm(user_message, memories)
+    # llm_response = call_your_llm(user_message, memory_response)
     # sms_channel.send_response(context.conversation_id, llm_response)
 
 

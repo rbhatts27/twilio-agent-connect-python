@@ -21,7 +21,7 @@ from llm_service import LLMService
 
 from taf import TAF, TAFConfig
 from taf.channels.sms import SMSChannel
-from taf.context.memory import TraitQuery, TwilioMemory
+from taf.context.memory import MemoryRetrievalResponse
 from taf.core.context import ConversationSession
 
 # Load environment variables
@@ -57,67 +57,10 @@ class TAFWebhookHandler:
         self.llm_service = llm_service
         self.sms_channel = SMSChannel(taf)
 
-        # Cache for account traits per profile (profile_id -> List[TwilioMemory])
-        self._account_traits_cache: dict = {}
-
         # Register memory ready callback
         self.taf.on_memory_ready(self._handle_memory_ready)
 
         logger.info("TAF webhook handler initialized")
-
-    def _get_account_traits(self, profile_id: str) -> list[TwilioMemory]:
-        """
-        Retrieve account-related traits for a profile.
-
-        These traits include: name, plan_name, account_status, loyalty_tier,
-        customer_since, communication_preference.
-        Results are cached to avoid repeated API calls for the same profile.
-
-        Args:
-            profile_id: Customer profile ID
-
-        Returns:
-            List of trait memories for account information
-        """
-        # Check cache first
-        if profile_id in self._account_traits_cache:
-            logger.debug(f"Using cached account traits for profile: {profile_id}")
-            return self._account_traits_cache[profile_id]
-
-        try:
-            logger.info(f"Fetching account traits for profile: {profile_id}")
-
-            # Define account traits to query
-            account_traits = [
-                TraitQuery(
-                    trait_group="account",
-                    trait_names=[
-                        "name",
-                        "plan_name",
-                        "account_status",
-                        "loyalty_tier",
-                        "customer_since",
-                        "communication_preference",
-                    ],
-                )
-            ]
-
-            # Retrieve traits from Memora
-            traits = self.taf.memora_client.retrieve_memory(
-                service_id=self.taf.config.memory_service_sid,
-                profile_id=profile_id,
-                traits=account_traits,
-            )
-
-            # Cache the results
-            self._account_traits_cache[profile_id] = traits
-
-            logger.info(f"Retrieved {len(traits)} account traits for profile: {profile_id}")
-            return traits
-
-        except Exception as e:
-            logger.error(f"Error fetching account traits: {e}", exc_info=True)
-            return []
 
     def process_webhook(self, webhook_data: dict) -> None:
         """
@@ -141,21 +84,22 @@ class TAFWebhookHandler:
             raise
 
     async def _handle_memory_ready(
-        self, context: ConversationSession, memories: list[TwilioMemory], user_message: str
+        self,
+        context: ConversationSession,
+        memory_response: MemoryRetrievalResponse,
+        user_message: str,
     ) -> None:
         """
         Callback invoked when TAF memory retrieval completes.
 
         This is where we:
         1. Receive the conversation context, memories, and user message from TAF
-        2. Fetch account traits as base memory for this profile
-        3. Merge account traits with conversation memories
-        4. Process the user message with LLM using combined memory context
-        5. Send the response back through SMS channel
+        2. Process the user message with LLM using memory context
+        3. Send the response back through SMS channel
 
         Args:
             context: Conversation session context from TAF
-            memories: Retrieved memories (traits, observations, sessions)
+            memory_response: Retrieved memory response with observations, summaries, and sessions
             user_message: The user's message that triggered memory retrieval
         """
         try:
@@ -164,29 +108,24 @@ class TAFWebhookHandler:
                 f"(profile: {context.profile_id}, channel: {context.channel})"
             )
             logger.info(f"User message: {user_message}")
-            logger.info(f"Retrieved {len(memories)} conversation memories from TAF")
+            logger.info(f"Retrieved {len(memory_response.observations)} observations")
+            logger.info(f"Retrieved {len(memory_response.summaries)} summaries")
+            logger.info(f"Retrieved {len(memory_response.sessions)} sessions")
 
-            # Fetch account traits as base memory
-            account_traits = self._get_account_traits(context.profile_id)
-            logger.info(f"Retrieved {len(account_traits)} account traits")
+            # Log memory details for debugging
+            logger.debug("Memory breakdown:")
+            for obs in memory_response.observations:
+                logger.debug(f"  Observation: {obs.content[:50]}...")
+            for summary in memory_response.summaries:
+                logger.debug(f"  Summary: {summary.content[:50]}...")
+            for session in memory_response.sessions:
+                logger.debug(f"  Session: {len(session.messages)} messages")
 
-            # Merge account traits with conversation memories
-            # Account traits come first as base context, then conversation memories
-            combined_memories = account_traits + memories
-
-            # Log combined memory details for debugging
-            logger.debug("Combined memory breakdown:")
-            for memory in combined_memories:
-                if memory.mem_type == "TRAIT":
-                    logger.debug(f"  Trait [{memory.group}]: {memory.name} = {memory.value}")
-                elif memory.mem_type == "OBSERVATION":
-                    logger.debug(f"  Observation: {memory.content[:50]}...")
-                elif memory.mem_type == "SESSION":
-                    logger.debug(f"  Session: {len(memory.messages)} messages")
-
-            # Process with LLM using combined memories (account traits + conversation context)
+            # Process with LLM using memories
             llm_response = await self.llm_service.process_message(
-                user_message=user_message, memories=combined_memories, profile_id=context.profile_id
+                user_message=user_message,
+                memory_response=memory_response,
+                profile_id=context.profile_id,
             )
 
             logger.info(f"Generated LLM response: {llm_response[:100]}...")

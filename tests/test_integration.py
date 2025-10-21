@@ -6,7 +6,7 @@ import pytest
 
 from taf import TAF, TAFConfig
 from taf.channels.sms import SMSChannel
-from taf.context.memory import TwilioMemory
+from taf.context.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
 from taf.core.context import ConversationSession
 
 
@@ -65,12 +65,14 @@ class TestTAFIntegration:
         received_memories = None
 
         def memory_ready_callback(
-            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+            context: ConversationSession,
+            memory_response: MemoryRetrievalResponse,
+            user_message: str,
         ):
             nonlocal callback_invoked, received_context, received_memories
             callback_invoked = True
             received_context = context
-            received_memories = memories
+            received_memories = memory_response
 
         taf.on_memory_ready(memory_ready_callback)
 
@@ -97,7 +99,10 @@ class TestTAFIntegration:
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            mock_retrieve.return_value = []
+            empty_response = MemoryRetrievalResponse(
+                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
+            )
+            mock_retrieve.return_value = empty_response
 
             channel.process_webhook(message_webhook)
 
@@ -110,7 +115,10 @@ class TestTAFIntegration:
             assert received_context.conversation_id == "CH123456"
             assert received_context.profile_id == "profile_test_123"
             assert received_context.channel == "sms"
-            assert received_memories == []
+            assert received_memories == empty_response
+            assert len(received_memories.observations) == 0
+            assert len(received_memories.summaries) == 0
+            assert len(received_memories.sessions) == 0
 
     def test_sms_channel_auto_initialize_conversation(self):
         """Test SMS channel auto-initializes conversation on first message."""
@@ -120,7 +128,9 @@ class TestTAFIntegration:
         callback_invoked = False
 
         def memory_ready_callback(
-            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+            context: ConversationSession,
+            memory_response: MemoryRetrievalResponse,
+            user_message: str,
         ):
             nonlocal callback_invoked
             callback_invoked = True
@@ -137,7 +147,10 @@ class TestTAFIntegration:
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            mock_retrieve.return_value = []
+            empty_response = MemoryRetrievalResponse(
+                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
+            )
+            mock_retrieve.return_value = empty_response
 
             channel.process_webhook(message_webhook)
 
@@ -153,7 +166,9 @@ class TestTAFIntegration:
         callback_invoked = False
 
         def memory_ready_callback(
-            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+            context: ConversationSession,
+            memory_response: MemoryRetrievalResponse,
+            user_message: str,
         ):
             nonlocal callback_invoked
             callback_invoked = True
@@ -225,7 +240,9 @@ class TestTAFIntegration:
         conversation_ids = set()
 
         def memory_ready_callback(
-            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+            context: ConversationSession,
+            memory_response: MemoryRetrievalResponse,
+            user_message: str,
         ):
             nonlocal callback_count
             callback_count += 1
@@ -246,7 +263,10 @@ class TestTAFIntegration:
 
         # Send messages to each conversation
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            mock_retrieve.return_value = []
+            empty_response = MemoryRetrievalResponse(
+                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
+            )
+            mock_retrieve.return_value = empty_response
 
             for i in range(3):
                 conv_id = f"CH{i:06d}"
@@ -272,7 +292,9 @@ class TestTAFIntegration:
         received_context = None
 
         def memory_ready_callback(
-            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+            context: ConversationSession,
+            memory_response: MemoryRetrievalResponse,
+            user_message: str,
         ):
             nonlocal callback_invoked, received_context
             callback_invoked = True
@@ -299,7 +321,10 @@ class TestTAFIntegration:
         }
 
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            mock_retrieve.return_value = []
+            empty_response = MemoryRetrievalResponse(
+                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
+            )
+            mock_retrieve.return_value = empty_response
 
             channel.process_webhook(real_webhook)
 
@@ -318,7 +343,9 @@ class TestTAFIntegration:
         callback_invoked = False
 
         def memory_ready_callback(
-            context: ConversationSession, memories: list[TwilioMemory], user_message: str
+            context: ConversationSession,
+            memory_response: MemoryRetrievalResponse,
+            user_message: str,
         ):
             nonlocal callback_invoked
             callback_invoked = True

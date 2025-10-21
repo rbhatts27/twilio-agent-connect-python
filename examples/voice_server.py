@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from taf import TAF, TAFConfig, get_logger
 from taf.channels.voice import VoiceChannel
-from taf.context.memory import TwilioMemory
+from taf.context.memory import MemoryRetrievalResponse
 from taf.core.context import ConversationSession
 
 
@@ -58,7 +58,7 @@ system_prompt = "You're a helpful assistant that helps users over the phone."
 
 
 async def handle_memory_ready(
-    context: ConversationSession, memories: list[TwilioMemory], user_message: str
+    context: ConversationSession, memory_response: MemoryRetrievalResponse, user_message: str
 ) -> None:
     """
     Callback invoked when memory retrieval completes.
@@ -71,16 +71,19 @@ async def handle_memory_ready(
     )
     logger.info(f"Profile ID: {context.profile_id}")
     logger.info(f"User message: {user_message}")
-    logger.info(f"Retrieved {len(memories)} memories")
+    logger.info(f"Retrieved {len(memory_response.observations)} observations")
+    logger.info(f"Retrieved {len(memory_response.summaries)} summaries")
+    logger.info(f"Retrieved {len(memory_response.sessions)} sessions")
 
     # Log memory details
-    for memory in memories:
-        if memory.mem_type == "TRAIT":
-            logger.info(f"  - Trait: {memory.name} = {memory.value}")
-        elif memory.mem_type == "OBSERVATION":
-            logger.info(f"  - Observation: {memory.content}")
-        elif memory.mem_type == "SESSION":
-            logger.info(f"  - Session memory: {len(memory.messages)} messages")
+    for obs in memory_response.observations:
+        logger.info(f"  - Observation: {obs.content[:100]}...")  # Truncate for readability
+
+    for summary in memory_response.summaries:
+        logger.info(f"  - Summary: {summary.content[:100]}...")  # Truncate for readability
+
+    for session in memory_response.sessions:
+        logger.info(f"  - Session memory: {len(session.messages)} messages")
 
     # Build messages array with system prompt and conversation history
     messages: list[ChatCompletionMessageParam] = [
