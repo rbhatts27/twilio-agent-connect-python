@@ -15,7 +15,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import Response
 from openai.types.chat import ChatCompletionMessageParam
-from pydantic import BaseModel, Field
 
 # Load environment variables from .env file
 load_dotenv()
@@ -28,32 +27,11 @@ from taf.channels.voice import VoiceChannel
 from taf.context.memory import MemoryRetrievalResponse
 from taf.core.context import ConversationSession
 
-
-class RelayConfiguration(BaseModel):
-    """
-    Configuration for Voice channel ConversationRelay server.
-
-    Attributes:
-        public_domain: Public domain for TwiML (required, e.g., "abc123.ngrok.io")
-        host: Host to bind server (default: "0.0.0.0")
-        port: Port for server (default: 8000)
-        welcome_greeting: Greeting message for incoming calls
-    """
-
-    public_domain: str = Field(..., description="Public domain for TwiML (e.g., 'abc123.ngrok.io')")
-    host: str = Field(default="0.0.0.0", description="Host to bind server")
-    port: int = Field(default=8000, description="Port for server", gt=0, lt=65536)
-    welcome_greeting: str = Field(
-        default="Hello! How can I assist you today?",
-        description="Greeting message for incoming calls",
-    )
-
-
 # Initialize logger
 logger = get_logger(__name__)
 
 # Global variables
-voice_channel = None
+voice_channel: VoiceChannel
 system_prompt = "You're a helpful assistant that helps users over the phone."
 
 
@@ -66,24 +44,7 @@ async def handle_memory_ready(
     This demonstrates how to process memories and respond to messages.
     Uses openai-agents SDK for agent-based responses.
     """
-    logger.info(
-        f"Memory ready for conversation {context.conversation_id} on channel {context.channel}"
-    )
-    logger.info(f"Profile ID: {context.profile_id}")
     logger.info(f"User message: {user_message}")
-    logger.info(f"Retrieved {len(memory_response.observations)} observations")
-    logger.info(f"Retrieved {len(memory_response.summaries)} summaries")
-    logger.info(f"Retrieved {len(memory_response.sessions)} sessions")
-
-    # Log memory details
-    for obs in memory_response.observations:
-        logger.info(f"  - Observation: {obs.content[:100]}...")  # Truncate for readability
-
-    for summary in memory_response.summaries:
-        logger.info(f"  - Summary: {summary.content[:100]}...")  # Truncate for readability
-
-    for session in memory_response.sessions:
-        logger.info(f"  - Session memory: {len(session.messages)} messages")
 
     # Build messages array with system prompt and conversation history
     messages: list[ChatCompletionMessageParam] = [
@@ -100,7 +61,7 @@ async def handle_memory_ready(
     response = completion.choices[0].message.content
 
     # Send response through the voice channel
-    if response and voice_channel:
+    if response:
         await voice_channel.send_response(context.conversation_id, response, role="assistant")
 
 
@@ -124,39 +85,15 @@ if __name__ == "__main__":
     # Create voice channel (protocol handler only, no server)
     voice_channel = VoiceChannel(taf=taf)
 
-    # Create relay configuration
-    relay_config = RelayConfiguration(
-        public_domain=os.environ["VOICE_PUBLIC_DOMAIN"],
-        host="0.0.0.0",
-        port=8000,
-        welcome_greeting="Hello! How can I assist you today?",
-    )
-
     # Create FastAPI app
     app = FastAPI(title="TAF Voice Server")
 
     @app.get("/twiml")
     async def get_twiml() -> Response:
         """Generate TwiML for Twilio voice calls."""
-        # Create conversation for this call
-        conversation = taf.maestro_client.create_conversation()
-
-        # Build websocket URL using public domain
-        websocket_url = f"wss://{relay_config.public_domain}/ws"
-
-        # Generate TwiML response
-        twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-    <Connect>
-        <ConversationRelay
-            url="{websocket_url}"
-            welcomeGreeting="{relay_config.welcome_greeting}"
-            debug="debugging">
-            <Parameter name="conversationId" value="{conversation.id}" />
-        </ConversationRelay>
-    </Connect>
-</Response>"""
-
+        public_domain = os.environ.get("VOICE_PUBLIC_DOMAIN", "")
+        websocket_url = f"wss://{public_domain}/ws"
+        twiml = voice_channel.handle_incoming_call(websocket_url=websocket_url)
         return Response(content=twiml, media_type="application/xml")
 
     @app.websocket("/ws")
@@ -165,9 +102,6 @@ if __name__ == "__main__":
         await voice_channel.handle_websocket(websocket)
 
     # Start the server
-    logger.info(f"Starting TAF Voice Server on {relay_config.host}:{relay_config.port}")
-    logger.info("Available routes:")
-    logger.info(f"  GET  http://{relay_config.host}:{relay_config.port}/twiml")
-    logger.info(f"  WS   ws://{relay_config.host}:{relay_config.port}/ws")
+    logger.info("Starting TAF Voice Server on 0.0.0.0:8000")
 
-    uvicorn.run(app, host=relay_config.host, port=relay_config.port, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

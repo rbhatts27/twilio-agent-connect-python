@@ -66,6 +66,14 @@ class TAF:
             ]
         ] = None
 
+        # Callback for when user interrupts the agent (supports both sync and async)
+        self._interrupt_callback: Optional[
+            Union[
+                Callable[[ConversationSession, Any], None],
+                Callable[[ConversationSession, Any], Awaitable[None]],
+            ]
+        ] = None
+
     def retrieve_memory(
         self,
         conversation_context: ConversationSession,
@@ -189,3 +197,102 @@ class TAF:
             ```
         """
         self._memory_ready_callback = callback
+
+    def on_interrupt(
+        self,
+        callback: Union[
+            Callable[[ConversationSession, Any], None],
+            Callable[[ConversationSession, Any], Awaitable[None]],
+        ],
+    ) -> None:
+        """
+        Register a callback to be invoked when user interrupts the agent.
+
+        The callback will be triggered when the user interrupts the agent's response
+        (e.g., in voice conversations when the user starts speaking while the agent
+        is still talking). This allows developers to handle interruptions appropriately,
+        such as canceling ongoing tool calls, stopping LLM generation, or logging events.
+
+        Supports both synchronous and asynchronous callbacks. Async callbacks
+        will be scheduled as background tasks using asyncio.create_task().
+
+        Args:
+            callback: A callable that accepts:
+                     - ConversationSession: Contains conversation_id, profile_id, channel
+                     - InterruptMessage: Details about the interruption (utterance_until_interrupt,
+                       duration_until_interrupt_ms)
+
+        Example (Synchronous):
+            ```python
+            from taf.core.context import ConversationSession
+            from taf.models.voice import InterruptMessage
+
+
+            def handle_interrupt(
+                context: ConversationSession,
+                interrupt_data: InterruptMessage,
+            ):
+                print(f"User interrupted conversation {context.conversation_id}")
+                print(f"Interrupted at: {interrupt_data.utterance_until_interrupt}")
+                print(f"Duration: {interrupt_data.duration_until_interrupt_ms}ms")
+
+                # Cancel ongoing operations, stop LLM generation, etc.
+                cancel_pending_operations(context.conversation_id)
+
+
+            taf = TAF(config)
+            taf.on_interrupt(handle_interrupt)
+            ```
+
+        Example (Asynchronous):
+            ```python
+            async def handle_interrupt(
+                context: ConversationSession,
+                interrupt_data: InterruptMessage,
+            ):
+                print(f"User interrupted on {context.channel}")
+
+                # Cancel async operations
+                await cancel_llm_generation(context.conversation_id)
+
+                # Log to analytics
+                await log_interrupt_event(context, interrupt_data)
+
+
+            taf = TAF(config)
+            taf.on_interrupt(handle_interrupt)
+            ```
+        """
+        self._interrupt_callback = callback
+
+    def trigger_interrupt(
+        self,
+        conversation_context: ConversationSession,
+        interrupt_data: Any,
+    ) -> None:
+        """
+        Trigger the registered interrupt callback.
+
+        This method is called by channels when an interrupt event occurs.
+
+        Args:
+            conversation_context: Conversation context with conversation_id, profile_id, channel
+            interrupt_data: Interrupt details (InterruptMessage for voice channel)
+        """
+        if self._interrupt_callback:
+            # Check if callback is async
+            if inspect.iscoroutinefunction(self._interrupt_callback):
+                # Schedule async callback as a background task
+                try:
+                    asyncio.create_task(
+                        self._interrupt_callback(conversation_context, interrupt_data)
+                    )
+                except RuntimeError:
+                    # No event loop running, log warning
+                    self.logger.warning(
+                        "Async interrupt callback registered but no event loop running. "
+                        "Callback will not be executed."
+                    )
+            else:
+                # Call sync callback directly
+                self._interrupt_callback(conversation_context, interrupt_data)

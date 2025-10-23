@@ -21,20 +21,10 @@ logger = logging.getLogger(__name__)
 class LLMService:
     """Service for processing messages with LLM using TAF memory context and OpenAI Agents SDK."""
 
-    def __init__(
-        self,
-        api_key: str,
-        model: str = "gpt-4o-mini",
-    ):
+    def __init__(self):
         """
         Initialize LLM service with OpenAI Agents SDK.
-
-        Args:
-            api_key: OpenAI API key
-            model: OpenAI model to use
         """
-        self.api_key = api_key
-        self.model = model
         # TODO: migrate more tools from demo repo.
         self.tools = [
             look_up_order_price,
@@ -69,7 +59,7 @@ class LLMService:
             agent = Agent(
                 name="Owl Internet Customer Service",
                 instructions=enhanced_instructions,
-                model=self.model,
+                model="gpt-4o",
                 tools=self.tools,
             )
 
