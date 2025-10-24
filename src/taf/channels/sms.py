@@ -2,6 +2,8 @@
 
 from typing import Any, Optional
 
+from twilio.rest import Client
+
 from taf import TAF
 from taf.channels.base import BaseChannel
 from taf.models.conversation_event import ConversationEvent
@@ -23,6 +25,7 @@ class SMSChannel(BaseChannel):
             taf: TAF instance for memory/context operations
         """
         super().__init__(taf)
+        self.twilio = Client(taf.config.twilio_account_sid, taf.config.twilio_auth_token)
 
     def process_webhook(self, webhook_data: dict[str, Any]) -> None:
         """
@@ -79,8 +82,11 @@ class SMSChannel(BaseChannel):
 
         session = self._conversations[conversation_id]
 
-        # TODO: Implement actual SMS sending via Twilio API
         self.logger.info(f"[SMS] Sending response to conversation {conversation_id}: {response}")
+        self.twilio.conversations.v1.conversations(conversation_id).messages.create(
+            author="assistant",
+            body=response,
+        )
         self.logger.debug(f"Profile: {session.profile_id}")
 
     def get_channel_name(self) -> str:
