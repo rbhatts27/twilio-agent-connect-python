@@ -6,9 +6,9 @@ import pytest
 
 from taf import TAF
 from taf.channels.voice import VoiceChannel
-from taf.context.conversation import ConversationResponse
-from taf.context.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
 from taf.core.context import ConversationSession
+from taf.models.conversation import ConversationResponse, ParticipantResponse
+from taf.models.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
 
 
 def get_test_config() -> dict:
@@ -48,16 +48,17 @@ class TestVoiceChannel:
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Set current conversation ID
-        channel._current_conversation_id = "CALL123"
-
-        # Handle setup message
-        setup_data = {"type": "setup"}
+        # Handle setup message with conversationId in custom parameters
+        setup_data = {
+            "type": "setup",
+            "conversationId": "CALL123",
+            "customParameters": {"conversationId": "CALL123"},
+        }
         channel.handle_message(setup_data)
 
         # Verify conversation was started
         assert "CALL123" in channel._conversations
-        assert channel._conversations["CALL123"].profile_id == "default"
+        assert channel._conversations["CALL123"].profile_id is None
         assert channel._conversations["CALL123"].channel == "voice"
 
     def test_handle_prompt_message(self) -> None:
@@ -65,8 +66,8 @@ class TestVoiceChannel:
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Set current conversation ID
-        channel._current_conversation_id = "CALL123"
+        # Initialize conversation (normally done in setup handler)
+        channel._start_conversation("CALL123", None)
 
         # Mock memory retrieval
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -75,8 +76,12 @@ class TestVoiceChannel:
             )
             mock_retrieve.return_value = empty_response
 
-            # Handle prompt message
-            prompt_data = {"type": "prompt", "voicePrompt": "Hello, I need help"}
+            # Handle prompt message with conversationId
+            prompt_data = {
+                "type": "prompt",
+                "conversationId": "CALL123",
+                "voicePrompt": "Hello, I need help",
+            }
             channel.handle_message(prompt_data)
 
             # Verify memory retrieval was called
@@ -194,8 +199,7 @@ class TestVoiceChannel:
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Set current conversation ID and start conversation
-        channel._current_conversation_id = "CALL123"
+        # Start conversation
         channel._start_conversation("CALL123", "profile_test")
 
         # Mock memory retrieval
@@ -205,8 +209,12 @@ class TestVoiceChannel:
             )
             mock_retrieve.return_value = empty_response
 
-            # Handle prompt message
-            prompt_data = {"type": "prompt", "voicePrompt": "First message"}
+            # Handle prompt message with conversationId
+            prompt_data = {
+                "type": "prompt",
+                "conversationId": "CALL123",
+                "voicePrompt": "First message",
+            }
             channel.handle_message(prompt_data)
 
             # Verify message was added
@@ -214,7 +222,11 @@ class TestVoiceChannel:
             assert channel._conversations["CALL123"].messages[0]["content"] == "First message"
 
             # Handle another prompt
-            prompt_data = {"type": "prompt", "voicePrompt": "Second message"}
+            prompt_data = {
+                "type": "prompt",
+                "conversationId": "CALL123",
+                "voicePrompt": "Second message",
+            }
             channel.handle_message(prompt_data)
 
             # Verify both messages are tracked
@@ -243,8 +255,7 @@ class TestVoiceChannel:
 
         taf.on_memory_ready(memory_callback)
 
-        # Set current conversation ID and start conversation
-        channel._current_conversation_id = "CALL123"
+        # Start conversation
         channel._start_conversation("CALL123", "profile_test")
 
         # Mock memory retrieval
@@ -254,8 +265,12 @@ class TestVoiceChannel:
             )
             mock_retrieve.return_value = empty_response
 
-            # Handle prompt message
-            prompt_data = {"type": "prompt", "voicePrompt": "Test message"}
+            # Handle prompt message with conversationId
+            prompt_data = {
+                "type": "prompt",
+                "conversationId": "CALL123",
+                "voicePrompt": "Test message",
+            }
             channel.handle_message(prompt_data)
 
             # Give async callback time to execute
@@ -276,17 +291,29 @@ class TestVoiceChannel:
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Mock conversation creation
-        with patch.object(taf.maestro_client, "create_conversation") as mock_create:
+        # Mock conversation creation and participant addition
+        with (
+            patch.object(taf.maestro_client, "create_conversation") as mock_create,
+            patch.object(taf.maestro_client, "add_participant") as mock_add_participant,
+        ):
             mock_create.return_value = ConversationResponse(
                 id="CONV123",
                 account_id="ACtest123",
                 service_id="IStest123",
             )
+            mock_add_participant.return_value = ParticipantResponse(
+                id="PART123",
+                conversation_id="CONV123",
+                account_id="ACtest123",
+                service_id="IStest123",
+                name="participant",
+            )
 
             # Generate TwiML
             twiml = channel.handle_incoming_call(
-                websocket_url="wss://example.ngrok.io/ws", welcome_greeting="Welcome!"
+                websocket_url="wss://example.ngrok.io/ws",
+                called_phone_number="+15551234567",
+                welcome_greeting="Welcome!",
             )
 
             # Verify TwiML contains expected elements
@@ -306,16 +333,29 @@ class TestVoiceChannel:
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Mock conversation creation
-        with patch.object(taf.maestro_client, "create_conversation") as mock_create:
+        # Mock conversation creation and participant addition
+        with (
+            patch.object(taf.maestro_client, "create_conversation") as mock_create,
+            patch.object(taf.maestro_client, "add_participant") as mock_add_participant,
+        ):
             mock_create.return_value = ConversationResponse(
                 id="CONV456",
                 account_id="ACtest123",
                 service_id="IStest123",
             )
+            mock_add_participant.return_value = ParticipantResponse(
+                id="PART456",
+                conversation_id="CONV456",
+                account_id="ACtest123",
+                service_id="IStest123",
+                name="participant",
+            )
 
             # Generate TwiML without custom greeting
-            twiml = channel.handle_incoming_call(websocket_url="wss://test.ngrok.io/ws")
+            twiml = channel.handle_incoming_call(
+                websocket_url="wss://test.ngrok.io/ws",
+                called_phone_number="+15559876543",
+            )
 
             # Verify default greeting is used
             assert 'welcomeGreeting="Hello! How can I assist you today?"' in twiml
@@ -325,35 +365,34 @@ class TestVoiceChannel:
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Set current conversation ID
-        channel._current_conversation_id = "CALL123"
-
         # Handle setup with custom parameters including profile_id
         setup_data = {
             "type": "setup",
+            "conversationId": "CONV123",
             "customParameters": {"conversationId": "CONV123", "profileId": "USER_PROFILE_789"},
         }
         channel.handle_message(setup_data)
 
         # Verify conversation was started with correct profile_id
-        assert "CALL123" in channel._conversations
-        assert channel._conversations["CALL123"].profile_id == "USER_PROFILE_789"
+        assert "CONV123" in channel._conversations
+        assert channel._conversations["CONV123"].profile_id == "USER_PROFILE_789"
 
-    def test_setup_without_custom_parameters_uses_default(self) -> None:
-        """Test setup message uses 'default' profile_id when no custom parameters."""
+    def test_setup_without_conversation_id_raises_error(self) -> None:
+        """Test setup message raises error when conversationId is missing from custom parameters."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
         # Set current conversation ID
         channel._current_conversation_id = "CALL456"
 
-        # Handle setup without custom parameters
+        # Handle setup without conversationId in custom parameters
         setup_data = {"type": "setup"}
+
+        # This should log an error but not crash (error is caught in handle_message)
         channel.handle_message(setup_data)
 
-        # Verify conversation was started with default profile_id
-        assert "CALL456" in channel._conversations
-        assert channel._conversations["CALL456"].profile_id == "default"
+        # Verify conversation was NOT started
+        assert "CALL456" not in channel._conversations
 
     def test_handle_message_invalid_data_logs_error(self) -> None:
         """Test handle_message logs error for invalid message data."""
@@ -392,8 +431,7 @@ class TestVoiceChannel:
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Set current conversation ID and start conversation
-        channel._current_conversation_id = "CALL111"
+        # Start conversation
         channel._start_conversation("CALL111", "profile_test")
 
         # Mock memory retrieval
@@ -403,8 +441,8 @@ class TestVoiceChannel:
             )
             mock_retrieve.return_value = empty_response
 
-            # Handle prompt with None voicePrompt
-            prompt_data = {"type": "prompt", "voicePrompt": None}
+            # Handle prompt with None voicePrompt and conversationId
+            prompt_data = {"type": "prompt", "conversationId": "CALL111", "voicePrompt": None}
             channel.handle_message(prompt_data)
 
             # Verify message was added with empty string

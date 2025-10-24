@@ -12,7 +12,7 @@ from typing import cast
 import openai
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, Form, WebSocket
 from fastapi.responses import Response
 from openai.types.chat import ChatCompletionMessageParam
 
@@ -24,8 +24,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from taf import TAF, TAFConfig, get_logger
 from taf.channels.voice import VoiceChannel
-from taf.context.memory import MemoryRetrievalResponse
 from taf.core.context import ConversationSession
+from taf.models.memory import MemoryRetrievalResponse
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -88,12 +88,20 @@ if __name__ == "__main__":
     # Create FastAPI app
     app = FastAPI(title="TAF Voice Server")
 
-    @app.get("/twiml")
-    async def get_twiml() -> Response:
+    @app.post("/twiml")
+    async def post_twiml(From: str = Form(...)) -> Response:
         """Generate TwiML for Twilio voice calls."""
+        # Get WebSocket URL from environment
         public_domain = os.environ.get("VOICE_PUBLIC_DOMAIN", "")
         websocket_url = f"wss://{public_domain}/ws"
-        twiml = voice_channel.handle_incoming_call(websocket_url=websocket_url)
+
+        # Generate TwiML with conversation and participant setup
+        # From contains the caller's phone number
+        twiml = voice_channel.handle_incoming_call(
+            websocket_url=websocket_url,
+            called_phone_number=From,
+            welcome_greeting="Hello! How can I assist you today?",
+        )
         return Response(content=twiml, media_type="application/xml")
 
     @app.websocket("/ws")

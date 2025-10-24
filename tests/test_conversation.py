@@ -5,8 +5,8 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from taf.context.conversation import (
-    ConversationClient,
+from taf.context.conversation import ConversationClient
+from taf.models.conversation import (
     ConversationRequest,
     ConversationResponse,
     ParticipantRequest,
@@ -99,7 +99,7 @@ class TestConversationModels:
             "name": "John Doe",
             "label": "customer",
             "profile_id": "profile_123",
-            "addresses": [{"type": "sms", "address": "+15551234567"}],
+            "addresses": [{"communicationType": "SMS", "value": "+15551234567"}],
         }
 
         request = ParticipantRequest(**request_data)
@@ -107,7 +107,9 @@ class TestConversationModels:
         assert request.name == "John Doe"
         assert request.label == "customer"
         assert request.profile_id == "profile_123"
-        assert request.addresses == [{"type": "sms", "address": "+15551234567"}]
+        assert len(request.addresses) == 1
+        assert request.addresses[0].communication_type == "SMS"
+        assert request.addresses[0].value == "+15551234567"
 
     def test_participant_request_minimal(self):
         """Test ParticipantRequest with no fields (all optional)."""
@@ -139,7 +141,7 @@ class TestConversationModels:
             "label": "customer",
             "profile_id": "profile_123",
             "status": "active",
-            "addresses": [{"type": "sms", "address": "+15551234567"}],
+            "addresses": [{"communicationType": "SMS", "value": "+15551234567"}],
             "created_at": "2025-01-01T00:00:00Z",
             "updated_at": "2025-01-01T01:00:00Z",
         }
@@ -154,7 +156,9 @@ class TestConversationModels:
         assert participant.label == "customer"
         assert participant.profile_id == "profile_123"
         assert participant.status == "active"
-        assert participant.addresses == [{"type": "sms", "address": "+15551234567"}]
+        assert len(participant.addresses) == 1
+        assert participant.addresses[0].communication_type == "SMS"
+        assert participant.addresses[0].value == "+15551234567"
         assert participant.created_at == "2025-01-01T00:00:00Z"
         assert participant.updated_at == "2025-01-01T01:00:00Z"
 
@@ -332,9 +336,6 @@ class TestConversationClient:
 
         result = client.add_participant(
             conversation_id="CH123456",
-            name="John Doe",
-            label="customer",
-            profile_id="profile_123",
         )
 
         # Verify API call (headers are set in session, not passed explicitly)
@@ -343,12 +344,7 @@ class TestConversationClient:
         )
         mock_post.assert_called_once_with(
             expected_url,
-            json={
-                "name": "John Doe",
-                "label": "customer",
-                "profile_id": "profile_123",
-                "addresses": [],
-            },
+            json={},
         )
 
         # Verify response
@@ -383,13 +379,10 @@ class TestConversationClient:
 
         result = client.add_participant(
             conversation_id="CH123456",
-            name=None,
-            label=None,
-            profile_id="profile_123",
         )
 
-        # Verify only non-None values are sent (addresses has default_factory so included)
-        assert mock_post.call_args[1]["json"] == {"profile_id": "profile_123", "addresses": []}
+        # Verify only non-None values are sent
+        assert mock_post.call_args[1]["json"] == {}
 
         # Verify response
         assert isinstance(result, ParticipantResponse)
@@ -402,9 +395,6 @@ class TestConversationClient:
         with pytest.raises(ValueError, match="base_url must be configured"):
             client.add_participant(
                 conversation_id="CH123456",
-                name="John",
-                label=None,
-                profile_id="profile_123",
             )
 
     @patch("requests.Session.post")
@@ -421,9 +411,6 @@ class TestConversationClient:
         with pytest.raises(requests.RequestException, match="API Error"):
             client.add_participant(
                 conversation_id="CH123456",
-                name="John",
-                label=None,
-                profile_id="profile_123",
             )
 
     def test_conversation_client_uses_correct_headers(self):
@@ -476,9 +463,7 @@ class TestConversationClient:
             "updated_at": "2025-01-01T01:00:00Z",
         }
 
-        client.add_participant(
-            conversation_id="CH123456", name="Test", label=None, profile_id="profile_123"
-        )
+        client.add_participant(conversation_id="CH123456")
 
         expected_url = (
             "https://maestro.twilio.com/v1/Services/IS999999/Conversations/CH123456/Participants"

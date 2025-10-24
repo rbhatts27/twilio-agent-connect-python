@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -12,7 +13,9 @@ class ConversationSession(BaseModel):
     """
 
     conversation_id: str = Field(..., description="Unique conversation identifier")
-    profile_id: str = Field(..., description="Profile ID associated with conversation")
+    profile_id: Optional[str] = Field(
+        None, description="Profile ID associated with conversation (optional)"
+    )
     channel: str = Field(..., description="Channel type (e.g., 'sms', 'voice')")
     started_at: datetime = Field(
         default_factory=datetime.now,

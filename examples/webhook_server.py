@@ -21,8 +21,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from taf import TAF, TAFConfig, get_logger
 from taf.channels.sms import SMSChannel
-from taf.context.memory import MemoryRetrievalResponse
 from taf.core.context import ConversationSession
+from taf.models.memory import MemoryRetrievalResponse
 
 
 class WebhookHandler(BaseHTTPRequestHandler):

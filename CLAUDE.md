@@ -121,9 +121,9 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 - `create_conversation(name, layers, intelligence_agents)`: Creates new conversation with optional parameters, returns `ConversationResponse`
   - Endpoint: `POST /Services/{service_id}/Conversations`
   - Parameters: All fields (name, layers, intelligence_agents) are Optional
-- `add_participant(conversation_id, name, label, profile_id)`: Adds participant with optional fields, returns `ParticipantResponse`
+- `add_participant(conversation_id, addresses)`: Adds participant with optional addresses, returns `ParticipantResponse`
   - Endpoint: `POST /Services/{service_id}/Conversations/{conversation_id}/Participants`
-  - Parameters: All fields (name, label, profile_id) are Optional
+  - Parameters: `conversation_id` (required), `addresses` (optional list of ParticipantAddress)
 - Auth: Uses `X-Twilio-Account-Sid` header for session and `I-Twilio-Auth-Account` header for requests
 - Models:
   - `ConversationRequest`: Request payload with optional `name`, `layers`, and `intelligence_agents` fields

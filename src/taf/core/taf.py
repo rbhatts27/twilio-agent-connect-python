@@ -8,10 +8,11 @@ from typing import Any, Optional, Union
 from pydantic import ValidationError
 
 from taf.context.conversation import ConversationClient
-from taf.context.memory import MemoryClient, MemoryRetrievalResponse
+from taf.context.memory import MemoryClient
 from taf.core.config import TAFConfig
 from taf.core.context import ConversationSession
 from taf.core.logging import get_logger, setup_logging
+from taf.models.memory import MemoryRetrievalResponse
 
 
 class TAF:
@@ -149,7 +150,7 @@ class TAF:
         Example (Synchronous):
             ```python
             from taf.core.context import ConversationSession
-            from taf.context.memory import MemoryRetrievalResponse
+            from taf.models.memory import MemoryRetrievalResponse
 
 
             def handle_memory(

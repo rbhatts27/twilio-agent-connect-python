@@ -15,15 +15,15 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, WebSocket
+from fastapi import FastAPI, Form, Request, WebSocket
 from fastapi.responses import JSONResponse, Response
 from llm_service import LLMService
 
 from taf import TAF, TAFConfig
 from taf.channels.sms import SMSChannel
 from taf.channels.voice import VoiceChannel
-from taf.context.memory import MemoryRetrievalResponse
 from taf.core.context import ConversationSession
+from taf.models.memory import MemoryRetrievalResponse
 
 # Load environment variables
 load_dotenv()
@@ -107,12 +107,20 @@ async def sms_webhook(request: Request):
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 
-@app.get("/twiml")
-async def get_twiml() -> Response:
+@app.post("/twiml")
+async def post_twiml(From: str = Form(...)) -> Response:
     """Generate TwiML for Twilio voice calls."""
+    # Get WebSocket URL from environment
     public_domain = os.environ.get("VOICE_PUBLIC_DOMAIN", "")
     websocket_url = f"wss://{public_domain}/ws"
-    twiml = voice_channel.handle_incoming_call(websocket_url=websocket_url)
+
+    # Generate TwiML with conversation and participant setup
+    # From contains the caller's phone number
+    twiml = voice_channel.handle_incoming_call(
+        websocket_url=websocket_url,
+        called_phone_number=From,
+        welcome_greeting="Hello! How can I assist you today?",
+    )
     return Response(content=twiml, media_type="application/xml")
 
 

@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 from taf import TAF
 from taf.channels.sms import SMSChannel
-from taf.context.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
 from taf.core.context import ConversationSession
+from taf.models.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
 
 
 def get_test_config() -> dict:

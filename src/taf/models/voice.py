@@ -46,6 +46,7 @@ class PromptMessage(BaseModel):
     """
 
     type: Literal["prompt"] = "prompt"
+    conversation_id: Optional[str] = Field(None, alias="conversationId")
     voice_prompt: Optional[str] = Field(
         None, alias="voicePrompt", description="Transcribed user speech"
     )
@@ -63,6 +64,7 @@ class InterruptMessage(BaseModel):
     """
 
     type: Literal["interrupt"] = "interrupt"
+    conversation_id: Optional[str] = Field(None, alias="conversationId")
     utterance_until_interrupt: Optional[str] = Field(
         None,
         alias="utteranceUntilInterrupt",

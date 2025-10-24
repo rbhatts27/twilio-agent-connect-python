@@ -13,7 +13,7 @@ from agents import Agent, Runner
 # Import tools from tools.py
 from tools import confirm_order, look_up_discounts, look_up_order_price
 
-from taf.context.memory import MemoryRetrievalResponse
+from taf.models.memory import MemoryRetrievalResponse
 
 logger = logging.getLogger(__name__)
 

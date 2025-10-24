@@ -5,6 +5,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from taf.channels.base import BaseChannel
 from taf.core.taf import TAF
+from taf.models.conversation import ParticipantAddress
 from taf.models.voice import (
     InterruptMessage,
     PromptMessage,
@@ -38,26 +39,42 @@ class VoiceChannel(BaseChannel):
         self._current_conversation_id: Optional[str] = None
 
     def handle_incoming_call(
-        self, websocket_url: str, welcome_greeting: str = "Hello! How can I assist you today?"
+        self,
+        websocket_url: str,
+        called_phone_number: str,
+        welcome_greeting: str = "Hello! How can I assist you today?",
+        conversation_id: Optional[str] = None,
     ) -> str:
         """
         Generate TwiML response for incoming voice calls.
 
-        This method creates a new conversation and returns TwiML that connects
-        the call to a ConversationRelay WebSocket endpoint.
+        This method creates a new conversation (or uses an existing one) and returns
+        TwiML that connects the call to a ConversationRelay WebSocket endpoint.
 
         Args:
             websocket_url: WebSocket URL for ConversationRelay (e.g., 'wss://example.ngrok.io/ws')
+            called_phone_number: Phone number that was called (e.g., '+15551234567').
+                               Will be added as a VOICE address for the participant.
             welcome_greeting: Initial greeting message for the caller.
                             Defaults to "Hello! How can I assist you today?"
+            conversation_id: Optional conversation ID to use. If not provided,
+                           a new conversation will be created.
 
         Returns:
             TwiML XML string for call connection
         """
-        # Create conversation for this call
-        conversation = self.taf.maestro_client.create_conversation()
+        # Use existing conversation or create a new one
+        if conversation_id is None:
+            conversation = self.taf.maestro_client.create_conversation()
+            conversation_id = conversation.id
 
-        # Generate TwiML response
+        # Add participant for the newly created conversation with called phone number
+        participant_response = self.taf.maestro_client.add_participant(
+            conversation_id=conversation_id,
+            addresses=[ParticipantAddress(communicationType="VOICE", value=called_phone_number)],
+        )
+        profile_id = participant_response.profile_id
+
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
@@ -65,7 +82,8 @@ class VoiceChannel(BaseChannel):
             url="{websocket_url}"
             welcomeGreeting="{welcome_greeting}"
             debug="debugging">
-            <Parameter name="conversationId" value="{conversation.id}" />
+            <Parameter name="conversationId" value="{conversation_id}" />
+            <Parameter name="profileId" value="{profile_id}" />
         </ConversationRelay>
     </Connect>
 </Response>"""
@@ -95,15 +113,8 @@ class VoiceChannel(BaseChannel):
                 # Receive data from Twilio
                 data = await websocket.receive_json()
                 self.logger.debug(f"Received WebSocket data: {data}")
-
-                # Extract conversation ID
-                conv_id = data.get("conversationId") or data.get("callSid")
-                if conv_id:
-                    self._current_conversation_id = conv_id
-
                 # Route to handler
                 self.handle_message(data)
-
         except WebSocketDisconnect:
             self.logger.info("WebSocket connection closed")
         except Exception as e:
@@ -150,43 +161,64 @@ class VoiceChannel(BaseChannel):
         Args:
             data: Raw message data from Twilio (setup, prompt, interrupt, etc.)
         """
-        conv_id = self._current_conversation_id
-
-        if not conv_id:
-            self.logger.error("No conversation ID available for message handling")
-            return
 
         # Parse message using Pydantic schemas for validation
         msg_type = data.get("type")
         try:
             if msg_type == "setup":
                 setup_msg = SetupMessage(**data)
-                self._handle_setup(conv_id, setup_msg)
+                self._handle_setup(setup_msg)
             elif msg_type == "prompt":
                 prompt_msg = PromptMessage(**data)
+                # Use conversation_id from message if available, otherwise use current
+                conv_id = prompt_msg.conversation_id or self._current_conversation_id
+                if not conv_id:
+                    self.logger.error(
+                        "No active conversation ID for prompt message; "
+                        "ensure setup message is processed first"
+                    )
+                    return
                 self._handle_prompt(conv_id, prompt_msg)
             elif msg_type == "interrupt":
                 interrupt_msg = InterruptMessage(**data)
+                # Use conversation_id from message if available, otherwise use current
+                conv_id = interrupt_msg.conversation_id or self._current_conversation_id
+                if not conv_id:
+                    self.logger.error(
+                        "No active conversation ID for interrupt message; "
+                        "ensure setup message is processed first"
+                    )
+                    return
                 self._handle_interrupt(conv_id, interrupt_msg)
-            else:
-                self.logger.warning(f"Unknown message type: {msg_type}")
         except Exception as e:
             self.logger.error(f"Failed to parse message: {str(e)}")
 
-    def _handle_setup(self, conv_id: str, message: SetupMessage) -> None:
+    def _handle_setup(self, message: SetupMessage) -> None:
         """
         Handle WebSocket setup message.
 
         Args:
-            conv_id: Conversation ID
             message: Parsed SetupMessage containing call metadata
         """
+        # Validate conversation ID is present in custom parameters
+        if not message.custom_parameters or not message.custom_parameters.conversation_id:
+            self.logger.error(
+                "conversationId is required in custom_parameters but was not provided"
+            )
+            return
+
+        # Use the conversation ID from custom parameters as the canonical conversation ID
+        conversation_id = message.custom_parameters.conversation_id
+
+        # Store current conversation ID
+        self._current_conversation_id = conversation_id
+
         # Extract profile ID from custom parameters if available
-        profile_id = "default"  # Default fallback
-        if message.custom_parameters and message.custom_parameters.profile_id:
+        profile_id = None
+        if message.custom_parameters.profile_id:
             profile_id = message.custom_parameters.profile_id
 
-        self._start_conversation(conv_id, profile_id)
+        self._start_conversation(conversation_id, profile_id)
 
     def _handle_prompt(self, conv_id: str, message: PromptMessage) -> None:
         """
@@ -197,7 +229,11 @@ class VoiceChannel(BaseChannel):
             message: Parsed PromptMessage containing user's transcribed speech
         """
         if conv_id not in self._conversations:
-            self._start_conversation(conv_id, "default")  # todo: get profile
+            self.logger.error(
+                f"Received prompt for unknown conversation {conv_id}. "
+                "Conversation should be initialized in setup message first."
+            )
+            return
 
         message_body = message.voice_prompt or ""
         self._add_conversation_messages(conv_id, [{"role": "user", "content": message_body}])
