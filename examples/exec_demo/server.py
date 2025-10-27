@@ -18,6 +18,11 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request, WebSocket
 from fastapi.responses import JSONResponse, Response
 from llm_service import LLMService
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionMessageParam,
+    ChatCompletionUserMessageParam,
+)
 
 from taf import TAF, TAFConfig
 from taf.channels.sms import SMSChannel
@@ -49,7 +54,6 @@ taf_config = TAFConfig(
     memory_service_sid=os.getenv("MEMORY_SERVICE_SID"),
     maestro_base_url=os.getenv("MAESTRO_BASE_URL", "https://maestro.twilio.com/v1"),
     conversation_service_sid=os.getenv("CONVERSATION_SERVICE_SID"),
-    log_level=os.getenv("LOG_LEVEL", "INFO"),
 )
 
 # Initialize TAF
@@ -61,6 +65,10 @@ voice_channel = VoiceChannel(taf)
 # Initialize LLM service
 llm_service = LLMService()
 
+# User-managed conversation history
+# Key: conversation_id, Value: list of messages
+conversation_messages: dict[str, list[ChatCompletionMessageParam]] = {}
+
 
 # Register memory ready callback
 async def handle_memory_ready(
@@ -70,20 +78,45 @@ async def handle_memory_ready(
 ) -> None:
     """
     Callback invoked when TAF memory retrieval completes.
+
+    This demonstrates how to process memories and respond to messages.
+    Uses LLM service with user-managed message history.
     """
     try:
+        # Initialize conversation history with system message if needed
+        conv_id = context.conversation_id
+        if conv_id not in conversation_messages:
+            conversation_messages[conv_id] = []
+
+        # Add current user message
+        user_msg: ChatCompletionUserMessageParam = {"role": "user", "content": user_message}
+        conversation_messages[conv_id].append(user_msg)
+
+        # Call LLM service with conversation history
         llm_response = await llm_service.process_message(
             user_message=user_message,
             memory_response=memory_response,
             profile_id=context.profile_id,
+            conversation_history=conversation_messages[conv_id],
         )
 
-        if context.channel == "sms":
-            await sms_channel.send_response(context.conversation_id, llm_response, role="assistant")
-        elif context.channel == "voice":
-            await voice_channel.send_response(
-                context.conversation_id, llm_response, role="assistant"
-            )
+        # Send response through appropriate channel
+        if llm_response:
+            if context.channel == "sms":
+                await sms_channel.send_response(
+                    context.conversation_id, llm_response, role="assistant"
+                )
+            elif context.channel == "voice":
+                await voice_channel.send_response(
+                    context.conversation_id, llm_response, role="assistant"
+                )
+
+            # Store assistant response in history
+            assistant_msg: ChatCompletionAssistantMessageParam = {
+                "role": "assistant",
+                "content": llm_response,
+            }
+            conversation_messages[conv_id].append(assistant_msg)
     except Exception as e:
         logger.error(f"Error handling memory ready callback: {e}", exc_info=True)
 

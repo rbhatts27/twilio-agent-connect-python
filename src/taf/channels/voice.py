@@ -139,13 +139,12 @@ class VoiceChannel(BaseChannel):
         Args:
             conversation_id: Conversation ID
             response: Response text to send
-            role: Optional message role (e.g., 'assistant', 'user', 'system')
+            role: Optional message role (not used in this implementation, but kept
+                  for API consistency with BaseChannel interface)
         """
         if not self._active_websocket:
             self.logger.error(f"No active websocket connection for conversation {conversation_id}")
             return
-
-        self._add_conversation_messages(conversation_id, [{"role": role, "content": response}])
 
         await self._active_websocket.send_text(
             json.dumps({"type": "text", "token": response, "last": True})
@@ -236,8 +235,6 @@ class VoiceChannel(BaseChannel):
             return
 
         message_body = message.voice_prompt or ""
-        self._add_conversation_messages(conv_id, [{"role": "user", "content": message_body}])
-
         session = self._conversations[conv_id]
 
         # Retrieve memory and trigger callback using the session
@@ -265,20 +262,6 @@ class VoiceChannel(BaseChannel):
             self.logger.warning(
                 f"Received interrupt for unknown conversation {conv_id}, skipping callback"
             )
-
-    def _add_conversation_messages(self, conv_id: str, messages: list[dict]) -> None:
-        """
-        Add messages to an existing conversation.
-
-        Args:
-            conv_id: Conversation ID
-            messages: List of messages to add
-        """
-        if conv_id not in self._conversations:
-            self.logger.warning(f"Conversation {conv_id} does not exist, skipping message addition")
-            return
-        existing_conv = self._conversations[conv_id]
-        existing_conv.messages.extend(messages)
 
     def _end_conversation(self, conv_id: str) -> None:
         """

@@ -21,7 +21,3 @@ class ConversationSession(BaseModel):
         default_factory=datetime.now,
         description="When the conversation session was started",
     )
-    messages: list[dict] = Field(
-        default_factory=list,
-        description="List of messages exchanged in the conversation",
-    )

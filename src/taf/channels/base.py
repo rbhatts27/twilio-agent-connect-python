@@ -77,7 +77,6 @@ class BaseChannel(ABC):
         self,
         conv_id: str,
         profile_id: Optional[str] = None,
-        init_messages: Optional[list[dict]] = None,
     ) -> None:
         """
         Initialize new conversation session.
@@ -85,7 +84,6 @@ class BaseChannel(ABC):
         Args:
             conv_id: Conversation ID
             profile_id: Profile ID for the conversation (optional)
-            init_messages: Initial messages for the conversation (optional)
         """
         if conv_id in self._conversations:
             self.logger.warning(f"Conversation {conv_id} already exists, skipping initialization")
@@ -96,7 +94,6 @@ class BaseChannel(ABC):
             conversation_id=conv_id,
             profile_id=profile_id,
             channel=self.get_channel_name(),
-            messages=init_messages or [],
         )
 
     def _end_conversation(self, conv_id: str) -> None:

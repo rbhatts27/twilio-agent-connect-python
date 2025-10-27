@@ -134,21 +134,14 @@ class TestVoiceChannel:
         # Send response without role
         await channel.send_response("CALL123", "Hello there")
 
-        # Verify websocket.send_text was called
-        mock_websocket.send_text.assert_called_once()
-
-        # Verify message was added to conversation
-        assert len(channel._conversations["CALL123"].messages) == 1
-        assert channel._conversations["CALL123"].messages[0]["content"] == "Hello there"
-        assert channel._conversations["CALL123"].messages[0]["role"] is None
+        # Verify websocket.send_text was called once
+        assert mock_websocket.send_text.call_count == 1
 
         # Send response with role
         await channel.send_response("CALL123", "How can I help?", role="assistant")
 
-        # Verify message with role was added
-        assert len(channel._conversations["CALL123"].messages) == 2
-        assert channel._conversations["CALL123"].messages[1]["content"] == "How can I help?"
-        assert channel._conversations["CALL123"].messages[1]["role"] == "assistant"
+        # Verify websocket.send_text was called again
+        assert mock_websocket.send_text.call_count == 2
 
     @pytest.mark.asyncio
     async def test_send_response_without_websocket(self) -> None:
@@ -162,11 +155,8 @@ class TestVoiceChannel:
         # No active websocket
         channel._active_websocket = None
 
-        # Should log error and return early
+        # Should log error and return early (no exception raised)
         await channel.send_response("CALL123", "Hello there")
-
-        # Message should not be added
-        assert len(channel._conversations["CALL123"].messages) == 0
 
     def test_end_conversation_cleanup(self) -> None:
         """Test ending conversation cleans up resources."""
@@ -193,44 +183,6 @@ class TestVoiceChannel:
 
         # Should not raise
         channel.process_webhook({})
-
-    def test_message_tracking_in_conversation(self) -> None:
-        """Test that messages are tracked in conversation session."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
-
-        # Start conversation
-        channel._start_conversation("CALL123", "profile_test")
-
-        # Mock memory retrieval
-        with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            empty_response = MemoryRetrievalResponse(
-                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
-            )
-            mock_retrieve.return_value = empty_response
-
-            # Handle prompt message with conversationId
-            prompt_data = {
-                "type": "prompt",
-                "conversationId": "CALL123",
-                "voicePrompt": "First message",
-            }
-            channel.handle_message(prompt_data)
-
-            # Verify message was added
-            assert len(channel._conversations["CALL123"].messages) == 1
-            assert channel._conversations["CALL123"].messages[0]["content"] == "First message"
-
-            # Handle another prompt
-            prompt_data = {
-                "type": "prompt",
-                "conversationId": "CALL123",
-                "voicePrompt": "Second message",
-            }
-            channel.handle_message(prompt_data)
-
-            # Verify both messages are tracked
-            assert len(channel._conversations["CALL123"].messages) == 2
 
     @pytest.mark.asyncio
     async def test_memory_callback_integration(self) -> None:
@@ -445,6 +397,5 @@ class TestVoiceChannel:
             prompt_data = {"type": "prompt", "conversationId": "CALL111", "voicePrompt": None}
             channel.handle_message(prompt_data)
 
-            # Verify message was added with empty string
-            assert len(channel._conversations["CALL111"].messages) == 1
-            assert channel._conversations["CALL111"].messages[0]["content"] == ""
+            # Verify memory retrieval was called with empty string
+            mock_retrieve.assert_called_once()

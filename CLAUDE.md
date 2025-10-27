@@ -70,15 +70,19 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 - **`src/taf/core/`** - Core TAF class, configuration, and context models
   - `taf.py` - Main `TAF` class with `retrieve_memory()` and `on_memory_ready()` hook
   - `config.py` - `TAFConfig` Pydantic model for SDK configuration
-  - `context.py` - `SessionIdentity`, `Profile`, `Memory`, `ConversationSession` models
+  - `context.py` - `SessionIdentity`, `Profile`, `Memory`, `ConversationSession` models (Note: `ConversationSession` does not store message history)
 
 - **`src/taf/context/`** - Integration with Twilio Sierra primitives
   - `memory.py` - `MemoryClient` for memory retrieval (traits, observations, sessions)
   - `conversation.py` - `ConversationClient` for conversation/participant management
 
 - **`src/taf/models/`** - Data models
+  - `memory.py` - Memory API models: `MemoryRetrievalRequest`, `MemoryRetrievalResponse`, `ObservationInfo`, `SummaryInfo`, `SessionInfo`, `SessionMessage`
+  - `conversation.py` - Conversation API models: `ConversationRequest`, `ConversationResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`
+  - `voice.py` - Voice WebSocket message models: `SetupMessage`, `PromptMessage`, `InterruptMessage`, `CustomParameters`
   - `webhook.py` - `TwilioWebhookEvent` model for parsing Twilio webhook events
-  - `conversation_event.py` - `ConversationEvent` model with comprehensive event fields (transcription metadata, communication recipients, profile IDs, etc.)
+  - `knowledge.py` - `Knowledge` model for knowledge tool integration
+  - `conversation_event.py` - `ConversationEvent` model with comprehensive event fields
 
 - **`src/taf/channels/`** - Channel-specific orchestration and conversation lifecycle management
   - `base.py` - `BaseChannel` abstract class with conversation session management (`_start_conversation`, `_end_conversation`); `send_response()` with optional `role` parameter
@@ -104,32 +108,31 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
    - `onMessageAdded`: Channel validates message → auto-initializes conversation if needed → creates `ConversationSession` with all fields → calls `taf.retrieve_memory(conversation_context, query)`
    - `onConversationRemoved`: Channel calls `_end_conversation(conv_id)` → cleans up session
 
-3. **Memory Retrieval**: `TAF.retrieve_memory(conversation_context, query)` → retrieves memories from Memora using `conversation_context.profile_id` and `config.memory_service_sid` → triggers `on_memory_ready()` callback if registered → returns list of `TwilioMemory` objects
+3. **Memory Retrieval**: `TAF.retrieve_memory(conversation_context, query)` → retrieves memories from Memora using `conversation_context.conversation_id` and `config.memory_service_sid` → triggers `on_memory_ready()` callback if registered → returns `MemoryRetrievalResponse`
 
-4. **Memory Ready Hook**: Developers register callbacks via `taf.on_memory_ready(callback)` to receive `ConversationSession`, memories, and user message when ready (triggered automatically in `retrieve_memory()`, with `query` parameter passed as `user_message`)
+4. **Memory Ready Hook**: Developers register callbacks via `taf.on_memory_ready(callback)` to receive `ConversationSession`, `MemoryRetrievalResponse`, and user message (triggered automatically in `retrieve_memory()`, with `query` parameter passed as `user_message`)
 
 ### API Clients
 
 **MemoryClient** (`src/taf/context/memory.py`):
-- Endpoint: `POST /Services/{service_id}/Profiles/{profile_id}/Recall`
-- Returns: List of `TwilioMemory` objects (traits, observations, sessions)
+- Endpoint: `POST /Services/{service_id}/Conversations/{conversation_id}/Recall`
+- Returns: `MemoryRetrievalResponse` with `observations`, `summaries`, `sessions` fields
 - Auth: Uses `X-Pre-Auth-Context` header with auth token
-- Models: `TraitMemory`, `ObservationMemory`, `SessionMemory` with discriminated union on `memType`
+- Models (from `src/taf/models/memory.py`):
+  - `MemoryRetrievalRequest`: Request with `conversation_id`, `query`, optional date filters
+  - `MemoryRetrievalResponse`: Response with observations, summaries, sessions arrays
+  - `ObservationInfo`: Individual observation memories
+  - `SummaryInfo`: Summarized insights from conversations
+  - `SessionInfo`: Historical conversation sessions with messages
+  - `SessionMessage`: Individual messages within sessions (includes `timestamp`, `direction`, `channel`, `from_address`, `to_address`, `content`)
 
 **ConversationClient** (`src/taf/context/conversation.py`):
-- Constructor: `ConversationClient(base_url, account_sid, service_id)` - Service ID is required for API paths
-- `create_conversation(name, layers, intelligence_agents)`: Creates new conversation with optional parameters, returns `ConversationResponse`
+- `create_conversation(name, layers, intelligence_agents)`: Creates new conversation, returns `ConversationResponse`
   - Endpoint: `POST /Services/{service_id}/Conversations`
-  - Parameters: All fields (name, layers, intelligence_agents) are Optional
-- `add_participant(conversation_id, addresses)`: Adds participant with optional addresses, returns `ParticipantResponse`
+- `add_participant(conversation_id, addresses)`: Adds participant, returns `ParticipantResponse`
   - Endpoint: `POST /Services/{service_id}/Conversations/{conversation_id}/Participants`
-  - Parameters: `conversation_id` (required), `addresses` (optional list of ParticipantAddress)
 - Auth: Uses `X-Twilio-Account-Sid` header for session and `I-Twilio-Auth-Account` header for requests
-- Models:
-  - `ConversationRequest`: Request payload with optional `name`, `layers`, and `intelligence_agents` fields
-  - `ConversationResponse`: `account_id` (was `account_sid`), `service_id`, optional status/timestamps, `layers` and `intelligence_agents` as `list[str]`
-  - `ParticipantRequest`: Supports `name`, `label`, `profile_id` (all optional), and `addresses` fields
-  - `ParticipantResponse`: `account_id` (was `account_sid`), includes `service_id` field; `profile_id`, `status`, `created_at`, and `updated_at` are optional
+- Models (from `src/taf/models/conversation.py`): `ConversationRequest`, `ConversationResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`
 
 ## Type Checking and Code Style
 
@@ -157,11 +160,14 @@ This project uses **strict mypy configuration** (see pyproject.toml):
 
 Tests are located in `tests/` directory:
 - `test_taf.py` - Core TAF class tests
-- `test_webhook.py` - Webhook event parsing tests
 - `test_config.py` - Configuration tests
 - `test_integration.py` - Integration tests
+- `test_sms_channel.py` - SMS channel tests
+- `test_voice_channel.py` - Voice channel tests
+- `test_voice_models.py` - Voice WebSocket message model tests
+- `test_conversation.py` - Conversation client tests
+- `test_webhook.py` - Webhook event parsing tests
 - `test_tools.py` - Tools module tests (function_tool decorator, TAFTool format conversions)
-- `test_sms_channel.py` - SMS channel specific tests
 - `test_init.py` - Package initialization tests
 
 Test requirements (pytest.ini_options in pyproject.toml):
@@ -183,14 +189,11 @@ When initializing TAF, developers must provide:
 
 ## Common Patterns
 
-### SMS Channel Usage (Recommended)
+### SMS Channel Usage
 
 ```python
-from typing import List
 from taf import TAF, TAFConfig
 from taf.channels import SMSChannel
-from taf.core.context import ConversationSession
-from taf.context.memory import TwilioMemory
 
 # 1. Setup TAF and SMS Channel
 config = TAFConfig(
@@ -206,25 +209,8 @@ taf = TAF(config)
 sms_channel = SMSChannel(taf)
 
 # 2. Register callback to handle memory-ready events
-def handle_memory(
-    context: ConversationSession,
-    memories: List[TwilioMemory],
-    user_message: str
-):
-    """Called when memory retrieval completes."""
-    print(f"Conversation {context.conversation_id} on channel {context.channel}")
-    print(f"Profile: {context.profile_id}")
-    print(f"User message: {user_message}")
-
-    # Process memories with type narrowing
-    for memory in memories:
-        if memory.mem_type == 'TRAIT':
-            print(f"Trait: {memory.name} = {memory.value}")
-
-    # Call your LLM here with user message and conversation context
-    llm_response = call_your_llm(user_message, memories)
-
-    # Send response back through SMS channel
+def handle_memory(context, memory_response, user_message):
+    llm_response = call_your_llm(user_message, memory_response)
     sms_channel.send_response(context.conversation_id, llm_response)
 
 taf.on_memory_ready(handle_memory)
@@ -232,8 +218,7 @@ taf.on_memory_ready(handle_memory)
 # 3. In your webhook handler
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    webhook_data = request.json
-    sms_channel.process_webhook(webhook_data)
+    sms_channel.process_webhook(request.json)
     return {"status": "ok"}
 ```
 
@@ -248,7 +233,7 @@ The SMS channel handles three webhook events:
 2. **`onMessageAdded`**: Processes incoming message
    - Validates message body (ignores empty/whitespace messages)
    - Auto-initializes conversation if not already started (extracts `profile_id` from webhook)
-   - Creates `ConversationSession` with `conversation_id`, `profile_id`, and `channel`
+   - Creates `ConversationSession` with `conversation_id`, `profile_id`, `channel`, and `started_at`
    - Calls `taf.retrieve_memory(conversation_context, query=message_body)`
    - This triggers `on_memory_ready` callback with full context and memories
 
@@ -266,8 +251,6 @@ from fastapi import FastAPI, WebSocket
 from fastapi.responses import Response
 from taf import TAF, TAFConfig
 from taf.channels.voice import VoiceChannel
-from taf.context.memory import TwilioMemory
-from taf.core.context import ConversationSession
 
 # 1. Setup TAF and Voice Channel
 config = TAFConfig(
@@ -279,24 +262,12 @@ config = TAFConfig(
     conversation_service_sid="IS..."
 )
 taf = TAF(config)
-
-# Voice channel is protocol handler only (no server)
 voice_channel = VoiceChannel(taf)
 
 # 2. Register callback to handle memory-ready events
-async def handle_memory(
-    context: ConversationSession,
-    memories: list[TwilioMemory],
-    user_message: str
-):
-    """Called when memory retrieval completes."""
-    # Call your LLM with user message and conversation context
-    llm_response = await call_your_llm(user_message, memories)
-
-    # Send response with proper role for LLM context
-    await voice_channel.send_response(
-        context.conversation_id, llm_response, role="assistant"
-    )
+async def handle_memory(context, memory_response, user_message):
+    llm_response = await call_your_llm(user_message, memory_response)
+    await voice_channel.send_response(context.conversation_id, llm_response)
 
 taf.on_memory_ready(handle_memory)
 
@@ -305,14 +276,11 @@ app = FastAPI()
 
 @app.get("/twiml")
 async def get_twiml():
-    """Generate TwiML for incoming calls"""
     conversation = taf.maestro_client.create_conversation()
-    websocket_url = f"wss://your-domain.ngrok.io/ws"
-
     twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
-        <ConversationRelay url="{websocket_url}" welcomeGreeting="Hello!">
+        <ConversationRelay url="wss://your-domain.ngrok.io/ws">
             <Parameter name="conversationId" value="{conversation.id}" />
         </ConversationRelay>
     </Connect>
@@ -321,36 +289,16 @@ async def get_twiml():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """Handle WebSocket connection"""
     await voice_channel.handle_websocket(websocket)
-
-# 4. Run server
-import uvicorn
-uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
+
+See `examples/voice_server.py` for a complete implementation.
 
 ### Voice Channel Architecture
 
-The Voice channel follows a layered architecture:
-
-**Protocol Layer** (`VoiceChannel`):
-- Handles WebSocket lifecycle via `handle_websocket(websocket)`
-- Processes ConversationRelay messages (setup, prompt, interrupt)
-- Manages conversation state and memory retrieval
-- Sends responses through WebSocket with optional `role` parameter
-
-**Application Layer** (User's FastAPI app):
-- Creates FastAPI application
-- Generates TwiML with conversation ID
-- Defines `/twiml` endpoint for incoming calls
-- Defines `/ws` endpoint that calls `voice_channel.handle_websocket()`
-- Configures server (host, port, domain)
-
-**Benefits**:
-- **Separation of concerns**: Protocol vs. application logic
-- **Flexibility**: Integrate into existing FastAPI apps
-- **No forced dependencies**: FastAPI only required for voice examples, not core TAF
-- **Full control**: Customize TwiML generation and server configuration
+- **Protocol Layer** (`VoiceChannel`): Handles WebSocket lifecycle, processes ConversationRelay messages, manages conversation state
+- **Application Layer** (User's FastAPI app): Provides TwiML endpoint and WebSocket endpoint
+- **Benefits**: Separation of concerns, no forced dependencies, full control over server configuration
 
 ## Dependencies
 

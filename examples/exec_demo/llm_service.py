@@ -9,6 +9,11 @@ Uses OpenAI Agents SDK for tool integration and conversation management.
 import logging
 
 from agents import Agent, Runner
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionMessageParam,
+    ChatCompletionUserMessageParam,
+)
 
 # Import tools from tools.py
 from tools import confirm_order, look_up_discounts, look_up_order_price
@@ -39,6 +44,7 @@ class LLMService:
         user_message: str,
         memory_response: MemoryRetrievalResponse,
         profile_id: str,
+        conversation_history: list[ChatCompletionMessageParam] | None = None,
     ) -> str:
         """
         Process user message with memory context and generate response using Agents SDK.
@@ -47,6 +53,8 @@ class LLMService:
             user_message: The user's message
             memory_response: Memory response from TAF with observations, summaries, and sessions
             profile_id: User's profile ID
+            conversation_history: Optional conversation history (OpenAI ChatCompletionMessageParam format).
+                                 If provided, uses this instead of building from TAF session memories.
 
         Returns:
             Generated response from LLM
@@ -63,24 +71,27 @@ class LLMService:
                 tools=self.tools,
             )
 
-            # Build conversation history from TAF session memories
-            messages_history = self._build_conversation_history(memory_response)
-
-            # Prepend conversation history to current message if available
-            if messages_history:
-                # Format history for context
-                history_context = "\n".join(
-                    [
-                        f"{'User' if msg['role'] == 'user' else 'Assistant'}: {msg['content']}"
-                        for msg in messages_history
-                    ]
-                )
-                enhanced_message = f"[Previous conversation]\n{history_context}\n\n[Current message]\n{user_message}"
+            # Use passed conversation history if provided, otherwise build from TAF session memories
+            if conversation_history is not None:
+                messages_history = conversation_history
             else:
-                enhanced_message = user_message
+                messages_history = self._build_conversation_history(memory_response)
 
-            # Run the agent with the message (without session for stateless operation)
-            result = await Runner.run(agent, input=enhanced_message)
+            # Format conversation history for agent context
+            # Exclude the current user message to avoid duplication (it's at the end of the history)
+            previous_messages = messages_history[:-1] if messages_history else []
+
+            if previous_messages:
+                # Format previous messages as context
+                history_lines = [f"{msg['role']}: {msg['content']}" for msg in previous_messages]
+                history_context = "\n".join(history_lines)
+                agent_input = f"[Previous conversation]\n{history_context}\n\n[Current message]\n{user_message}"
+            else:
+                # No previous history, just use the current message
+                agent_input = user_message
+
+            # Run the agent with the message (tools are executed automatically)
+            result = await Runner.run(agent, input=agent_input)
 
             # Extract response
             response = str(result.final_output)
@@ -156,7 +167,9 @@ class LLMService:
 
         return "\n".join(instruction_parts)
 
-    def _build_conversation_history(self, memory_response: MemoryRetrievalResponse) -> list[dict]:
+    def _build_conversation_history(
+        self, memory_response: MemoryRetrievalResponse
+    ) -> list[ChatCompletionMessageParam]:
         """
         Build conversation history from session memories.
 
@@ -166,16 +179,26 @@ class LLMService:
             memory_response: Memory response from TAF
 
         Returns:
-            List of message dicts with role and content
+            List of OpenAI ChatCompletionMessageParam (properly typed message objects)
         """
-        messages = []
+        messages: list[ChatCompletionMessageParam] = []
 
         # Extract messages from session memories
         for session in memory_response.sessions:
             # Each session contains a list of structured messages
             for msg in session.messages:
                 # Map direction to role (inbound=user, outbound=assistant)
-                role = "user" if msg.direction == "inbound" else "assistant"
-                messages.append({"role": role, "content": msg.content})
+                if msg.direction == "inbound":
+                    user_msg: ChatCompletionUserMessageParam = {
+                        "role": "user",
+                        "content": msg.content,
+                    }
+                    messages.append(user_msg)
+                else:
+                    assistant_msg: ChatCompletionAssistantMessageParam = {
+                        "role": "assistant",
+                        "content": msg.content,
+                    }
+                    messages.append(assistant_msg)
 
         return messages

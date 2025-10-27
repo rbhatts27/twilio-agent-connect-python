@@ -7,14 +7,18 @@ Example demonstrating VoiceChannel with FastAPI server for TwiML and WebSocket e
 
 import os
 import sys
-from typing import cast
 
 import openai
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, WebSocket
 from fastapi.responses import Response
-from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionMessageParam,
+    ChatCompletionSystemMessageParam,
+    ChatCompletionUserMessageParam,
+)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -34,6 +38,10 @@ logger = get_logger(__name__)
 voice_channel: VoiceChannel
 system_prompt = "You're a helpful assistant that helps users over the phone."
 
+# User-managed conversation history
+# Key: conversation_id, Value: list of messages
+conversation_messages: dict[str, list[ChatCompletionMessageParam]] = {}
+
 
 async def handle_memory_ready(
     context: ConversationSession, memory_response: MemoryRetrievalResponse, user_message: str
@@ -42,26 +50,36 @@ async def handle_memory_ready(
     Callback invoked when memory retrieval completes.
 
     This demonstrates how to process memories and respond to messages.
-    Uses openai-agents SDK for agent-based responses.
+    Uses OpenAI API for completions with user-managed message history.
     """
-    logger.info(f"User message: {user_message}")
 
-    # Build messages array with system prompt and conversation history
-    messages: list[ChatCompletionMessageParam] = [
-        cast(ChatCompletionMessageParam, cast(object, {"role": "system", "content": system_prompt}))
-    ] + cast(list[ChatCompletionMessageParam], cast(object, context.messages))
+    # Initialize conversation history with system message if needed
+    conv_id = context.conversation_id
+    if conv_id not in conversation_messages:
+        system_msg: ChatCompletionSystemMessageParam = {"role": "system", "content": system_prompt}
+        conversation_messages[conv_id] = [system_msg]
+
+    # Add current user message
+    user_msg: ChatCompletionUserMessageParam = {"role": "user", "content": user_message}
+    conversation_messages[conv_id].append(user_msg)
 
     client = openai.AsyncOpenAI()
-    # todo: pass context data to model
     completion = await client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=messages,
+        messages=conversation_messages[conv_id],
     )
 
     response = completion.choices[0].message.content
 
     # Send response through the voice channel
     if response:
+        # Store assistant response in history
+        assistant_msg: ChatCompletionAssistantMessageParam = {
+            "role": "assistant",
+            "content": response,
+        }
+        conversation_messages[conv_id].append(assistant_msg)
+
         await voice_channel.send_response(context.conversation_id, response, role="assistant")
 
 
