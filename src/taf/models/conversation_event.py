@@ -75,3 +75,25 @@ class ConversationEvent(BaseModel):
     communication_language: Optional[str] = Field(None, alias="communicationLanguage")
 
     model_config = {"populate_by_name": True}
+
+
+class TwilioConversationEvent(BaseModel):
+    """Represents a Twilio Conversations webhook event (form-encoded format)."""
+
+    messaging_service_sid: Optional[str] = Field(None, alias="MessagingServiceSid")
+    event_type: Optional[str] = Field(None, alias="EventType")
+    attributes: Optional[str] = Field(None, alias="Attributes")
+    date_created: Optional[str] = Field(None, alias="DateCreated")
+    index: Optional[int] = Field(None, alias="Index")
+    chat_service_sid: Optional[str] = Field(None, alias="ChatServiceSid")
+    message_sid: Optional[str] = Field(None, alias="MessageSid")
+    account_sid: Optional[str] = Field(None, alias="AccountSid")
+    source: Optional[str] = Field(None, alias="Source")
+    retry_count: Optional[int] = Field(None, alias="RetryCount")
+    author: Optional[str] = Field(None, alias="Author")
+    participant_sid: Optional[str] = Field(None, alias="ParticipantSid")
+    body: Optional[str] = Field(None, alias="Body")
+    conversation_sid: Optional[str] = Field(None, alias="ConversationSid")
+    profile_id: Optional[str] = Field(None, alias="ProfileId")
+
+    model_config = {"populate_by_name": True}

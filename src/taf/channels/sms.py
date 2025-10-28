@@ -6,7 +6,9 @@ from twilio.rest import Client
 
 from taf import TAF
 from taf.channels.base import BaseChannel
-from taf.models.conversation_event import ConversationEvent
+
+# TODO: Use Vnext Conversation Event when it is ready
+from taf.models.conversation_event import TwilioConversationEvent
 
 
 class SMSChannel(BaseChannel):
@@ -40,14 +42,14 @@ class SMSChannel(BaseChannel):
             webhook_data: Raw webhook event data from Twilio
         """
         try:
-            event = ConversationEvent(**webhook_data)
+            event = TwilioConversationEvent(**webhook_data)
         except Exception as e:
             self.logger.error(f"Failed to parse webhook event: {e}")
             return
 
-        conv_id = event.conversation_id
+        conv_id = event.conversation_sid
         if not conv_id:
-            self.logger.error("No conversation_id in webhook event")
+            self.logger.error("No conversation_sid in webhook event")
             return
 
         # Handle conversation lifecycle events
@@ -80,20 +82,16 @@ class SMSChannel(BaseChannel):
             self.logger.error(f"Cannot send response: conversation {conversation_id} not found")
             return
 
-        session = self._conversations[conversation_id]
-
         self.logger.info(f"[SMS] Sending response to conversation {conversation_id}: {response}")
         self.twilio.conversations.v1.conversations(conversation_id).messages.create(
-            author="assistant",
-            body=response,
+            body=response, author=role
         )
-        self.logger.debug(f"Profile: {session.profile_id}")
 
     def get_channel_name(self) -> str:
         """Get the channel name identifier."""
         return "sms"
 
-    def _handle_conversation_started(self, conv_id: str, event: ConversationEvent) -> None:
+    def _handle_conversation_started(self, conv_id: str, event: TwilioConversationEvent) -> None:
         """
         Handle conversation started event.
 
@@ -102,15 +100,13 @@ class SMSChannel(BaseChannel):
             event: Parsed conversation event
         """
         # Extract profile_id from event
-        profile_id = event.participant_profile_id
-
-        if not profile_id:
-            self.logger.error(f"No profile_id found in onConversationAdded event for {conv_id}")
-            return
-
+        profile_id = event.profile_id
+        self.twilio.conversations.v1.conversations(conv_id).participants.create(
+            messaging_binding_address=event.author,
+        )
         self._start_conversation(conv_id, profile_id)
 
-    def _handle_message(self, conv_id: str, event: ConversationEvent) -> None:
+    def _handle_message(self, conv_id: str, event: TwilioConversationEvent) -> None:
         """
         Handle incoming message event.
 
@@ -119,19 +115,14 @@ class SMSChannel(BaseChannel):
             event: Parsed conversation event
         """
         # Validate message has content
-        message_body = event.communication_message_body
+        message_body = event.body
         if not message_body or not message_body.strip():
             self.logger.debug(f"Empty message in conversation {conv_id}, ignoring")
             return
 
         # Auto-initialize conversation if not already started
         if conv_id not in self._conversations:
-            profile_id = event.participant_profile_id
-            if not profile_id:
-                self.logger.error(
-                    f"No profile_id found for conversation {conv_id}, cannot process message"
-                )
-                return
+            profile_id = event.profile_id
             self._start_conversation(conv_id, profile_id)
 
         session = self._conversations[conv_id]

@@ -39,14 +39,23 @@ class TestSMSChannel:
 
     def test_process_conversation_started(self) -> None:
         """Test processing onConversationAdded event."""
-        with patch("taf.channels.sms.Client"):
+        with patch("taf.channels.sms.Client") as mock_client_class:
+            # Mock participant creation
+            mock_client = MagicMock()
+            mock_client_class.return_value = mock_client
+            mock_participants_create = MagicMock()
+            mock_client.conversations.v1.conversations.return_value.participants.create = (
+                mock_participants_create
+            )
+
             taf = TAF(get_test_config())
             channel = SMSChannel(taf)
 
             webhook_data = {
-                "eventType": "onConversationAdded",
-                "conversationId": "CH123456",
-                "participantProfileId": "profile_test_123",
+                "EventType": "onConversationAdded",
+                "ConversationSid": "CH123456",
+                "ProfileId": "profile_test_123",
+                "Author": "+12345678901",
             }
 
             channel.process_webhook(webhook_data)
@@ -54,6 +63,10 @@ class TestSMSChannel:
             # Verify conversation was started
             assert "CH123456" in channel._conversations
             assert channel._conversations["CH123456"].profile_id == "profile_test_123"
+
+            # Verify participant was created
+            mock_client.conversations.v1.conversations.assert_called_once_with("CH123456")
+            mock_participants_create.assert_called_once()
 
     def test_process_message_auto_initialize(self) -> None:
         """Test processing message auto-initializes conversation if not started."""
@@ -77,13 +90,11 @@ class TestSMSChannel:
             taf.on_memory_ready(memory_callback)
 
             webhook_data = {
-                "eventType": "onMessageAdded",
-                "conversationId": "CH123456",
-                "communicationMessageBody": "Hello, I need help",
-                "communicationMessageAuthor": "+12345678901",
-                "participantProfileId": "profile_test_123",
-                "communicationId": "IM123456",
-                "communicationChannel": "sms",
+                "EventType": "onMessageAdded",
+                "ConversationSid": "CH123456",
+                "Body": "Hello, I need help",
+                "Author": "+12345678901",
+                "ProfileId": "profile_test_123",
             }
 
             with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -105,26 +116,34 @@ class TestSMSChannel:
 
     def test_process_message_with_existing_conversation(self) -> None:
         """Test processing message with pre-existing conversation."""
-        with patch("taf.channels.sms.Client"):
+        with patch("taf.channels.sms.Client") as mock_client_class:
+            # Mock participant creation
+            mock_client = MagicMock()
+            mock_client_class.return_value = mock_client
+            mock_participants_create = MagicMock()
+            mock_client.conversations.v1.conversations.return_value.participants.create = (
+                mock_participants_create
+            )
+
             taf = TAF(get_test_config())
             channel = SMSChannel(taf)
 
             # Start conversation first
             start_webhook = {
-                "eventType": "onConversationAdded",
-                "conversationId": "CH123456",
-                "participantProfileId": "profile_test_123",
+                "EventType": "onConversationAdded",
+                "ConversationSid": "CH123456",
+                "ProfileId": "profile_test_123",
+                "Author": "+12345678901",
             }
 
             channel.process_webhook(start_webhook)
 
             # Now process message
             message_webhook = {
-                "eventType": "onMessageAdded",
-                "conversationId": "CH123456",
-                "communicationMessageBody": "Test message",
-                "communicationMessageAuthor": "+12345678901",
-                "communicationId": "IM123456",
+                "EventType": "onMessageAdded",
+                "ConversationSid": "CH123456",
+                "Body": "Test message",
+                "Author": "+12345678901",
             }
 
             with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -148,11 +167,11 @@ class TestSMSChannel:
             channel = SMSChannel(taf)
 
             webhook_data = {
-                "eventType": "onMessageAdded",
-                "conversationId": "CH123456",
-                "communicationMessageBody": "",
-                "communicationMessageAuthor": "+12345678901",
-                "participantProfileId": "profile_test_123",
+                "EventType": "onMessageAdded",
+                "ConversationSid": "CH123456",
+                "Body": "",
+                "Author": "+12345678901",
+                "ProfileId": "profile_test_123",
             }
 
             with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -163,23 +182,32 @@ class TestSMSChannel:
 
     def test_process_conversation_ended(self) -> None:
         """Test processing onConversationRemoved event."""
-        with patch("taf.channels.sms.Client"):
+        with patch("taf.channels.sms.Client") as mock_client_class:
+            # Mock participant creation
+            mock_client = MagicMock()
+            mock_client_class.return_value = mock_client
+            mock_participants_create = MagicMock()
+            mock_client.conversations.v1.conversations.return_value.participants.create = (
+                mock_participants_create
+            )
+
             taf = TAF(get_test_config())
             channel = SMSChannel(taf)
 
             # Start conversation
             start_webhook = {
-                "eventType": "onConversationAdded",
-                "conversationId": "CH123456",
-                "participantProfileId": "profile_test_123",
+                "EventType": "onConversationAdded",
+                "ConversationSid": "CH123456",
+                "ProfileId": "profile_test_123",
+                "Author": "+12345678901",
             }
 
             channel.process_webhook(start_webhook)
 
             # End conversation
             end_webhook = {
-                "eventType": "onConversationRemoved",
-                "conversationId": "CH123456",
+                "EventType": "onConversationRemoved",
+                "ConversationSid": "CH123456",
             }
 
             # Should not raise
@@ -192,8 +220,12 @@ class TestSMSChannel:
             mock_client = MagicMock()
             mock_client_class.return_value = mock_client
             mock_messages_create = MagicMock()
+            mock_participants_create = MagicMock()
             mock_client.conversations.v1.conversations.return_value.messages.create = (
                 mock_messages_create
+            )
+            mock_client.conversations.v1.conversations.return_value.participants.create = (
+                mock_participants_create
             )
 
             taf = TAF(get_test_config())
@@ -201,9 +233,10 @@ class TestSMSChannel:
 
             # Start conversation
             start_webhook = {
-                "eventType": "onConversationAdded",
-                "conversationId": "CH123456",
-                "participantProfileId": "profile_test_123",
+                "EventType": "onConversationAdded",
+                "ConversationSid": "CH123456",
+                "ProfileId": "profile_test_123",
+                "Author": "+12345678901",
             }
 
             channel.process_webhook(start_webhook)
@@ -212,8 +245,9 @@ class TestSMSChannel:
             asyncio.run(channel.send_response("CH123456", "Test response"))
 
             # Verify Twilio API was called
-            mock_client.conversations.v1.conversations.assert_called_once_with("CH123456")
-            mock_messages_create.assert_called_once_with(author="assistant", body="Test response")
+            # Note: conversations() is called twice - once for participant.create,
+            # once for messages.create
+            mock_messages_create.assert_called_once_with(body="Test response", author=None)
 
     def test_send_response_to_unknown_conversation(self) -> None:
         """Test sending response to non-existent conversation logs error."""
@@ -232,25 +266,35 @@ class TestSMSChannel:
 
     def test_multiple_concurrent_conversations(self) -> None:
         """Test handling multiple concurrent conversations."""
-        with patch("taf.channels.sms.Client"):
+        with patch("taf.channels.sms.Client") as mock_client_class:
+            # Mock participant creation
+            mock_client = MagicMock()
+            mock_client_class.return_value = mock_client
+            mock_participants_create = MagicMock()
+            mock_client.conversations.v1.conversations.return_value.participants.create = (
+                mock_participants_create
+            )
+
             taf = TAF(get_test_config())
             channel = SMSChannel(taf)
 
             # Start first conversation
             channel.process_webhook(
                 {
-                    "eventType": "onConversationAdded",
-                    "conversationId": "CH111",
-                    "participantProfileId": "profile_1",
+                    "EventType": "onConversationAdded",
+                    "ConversationSid": "CH111",
+                    "ProfileId": "profile_1",
+                    "Author": "+11111111111",
                 }
             )
 
             # Start second conversation
             channel.process_webhook(
                 {
-                    "eventType": "onConversationAdded",
-                    "conversationId": "CH222",
-                    "participantProfileId": "profile_2",
+                    "EventType": "onConversationAdded",
+                    "ConversationSid": "CH222",
+                    "ProfileId": "profile_2",
+                    "Author": "+12222222222",
                 }
             )
 
@@ -261,8 +305,8 @@ class TestSMSChannel:
             # End first conversation (should not raise)
             channel.process_webhook(
                 {
-                    "eventType": "onConversationRemoved",
-                    "conversationId": "CH111",
+                    "EventType": "onConversationRemoved",
+                    "ConversationSid": "CH111",
                 }
             )
 
@@ -277,8 +321,8 @@ class TestSMSChannel:
             channel = SMSChannel(taf)
 
             webhook_data = {
-                "eventType": "onParticipantAdded",
-                "conversationId": "CH123456",
+                "EventType": "onParticipantAdded",
+                "ConversationSid": "CH123456",
             }
 
             # Should not raise, just log debug message

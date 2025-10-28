@@ -64,16 +64,19 @@ class VoiceChannel(BaseChannel):
             TwiML XML string for call connection
         """
         # Use existing conversation or create a new one
+        profile_id = None
         if conversation_id is None:
             conversation = self.taf.maestro_client.create_conversation()
             conversation_id = conversation.id
 
-        # Add participant for the newly created conversation with called phone number
-        participant_response = self.taf.maestro_client.add_participant(
-            conversation_id=conversation_id,
-            addresses=[ParticipantAddress(communicationType="VOICE", value=called_phone_number)],
-        )
-        profile_id = participant_response.profile_id
+            # Add participant for the newly created conversation with called phone number
+            participant_response = self.taf.maestro_client.add_participant(
+                conversation_id=conversation_id,
+                addresses=[
+                    ParticipantAddress(communicationType="VOICE", value=called_phone_number)
+                ],
+            )
+            profile_id = participant_response.profile_id
 
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>

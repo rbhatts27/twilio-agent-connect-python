@@ -1,19 +1,21 @@
 """
-TAF SMS Demo - Executable Example
+TAF Multi-Channel Demo - Executable Example
 
-A complete SMS demo showing how to:
-1. Set up TAF with SMS channel
-2. Process webhooks from Twilio
+A complete multi-channel demo showing how to:
+1. Set up TAF with SMS and Voice channels
+2. Process webhooks from Twilio (SMS and Voice)
 3. Retrieve memories and context
 4. Process messages with LLM (OpenAI)
-5. Send responses back through SMS
+5. Send responses back through SMS and Voice
+6. Handle WebSocket connections for Voice streaming
 
-This demo consolidates the FastAPI-based taf_sms_demo into a single executable script.
+This demo demonstrates TAF's channel-agnostic architecture with both SMS and Voice support.
 """
 
 import logging
 import os
 
+import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request, WebSocket
 from fastapi.responses import JSONResponse, Response
@@ -42,7 +44,9 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="TAF SMS Demo", description="SMS demo using Twilio Agentic Framework", version="1.0.0"
+    title="TAF Multi-Channel Demo",
+    description="Multi-channel demo using Twilio Agentic Framework (SMS + Voice)",
+    version="1.0.0",
 )
 
 # Initialize TAF configuration
@@ -68,6 +72,8 @@ llm_service = LLMService()
 # User-managed conversation history
 # Key: conversation_id, Value: list of messages
 conversation_messages: dict[str, list[ChatCompletionMessageParam]] = {}
+# todo: use a global conversation id until vnext is ready
+active_conversation_sid = None
 
 
 # Register memory ready callback
@@ -83,8 +89,10 @@ async def handle_memory_ready(
     Uses LLM service with user-managed message history.
     """
     try:
+        global active_conversation_sid
         # Initialize conversation history with system message if needed
         conv_id = context.conversation_id
+        active_conversation_sid = conv_id
         if conv_id not in conversation_messages:
             conversation_messages[conv_id] = []
 
@@ -130,7 +138,9 @@ async def sms_webhook(request: Request):
     Webhook endpoint for Twilio SMS events.
     """
     try:
-        webhook_data = await request.json()
+        # Twilio sends form-encoded data, not JSON
+        form_data = await request.form()
+        webhook_data = dict(form_data)
         sms_channel.process_webhook(webhook_data)
         return JSONResponse(
             status_code=200, content={"status": "success", "message": "Webhook processed"}
@@ -153,6 +163,7 @@ async def post_twiml(From: str = Form(...)) -> Response:
         websocket_url=websocket_url,
         called_phone_number=From,
         welcome_greeting="Hello! How can I assist you today?",
+        conversation_id=active_conversation_sid,
     )
     return Response(content=twiml, media_type="application/xml")
 
@@ -164,9 +175,4 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
 
 if __name__ == "__main__":
-    import uvicorn
-
-    port = int(os.getenv("PORT", "8001"))
-    debug = os.getenv("DEBUG", "false").lower() == "true"
-
-    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=debug)
+    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
