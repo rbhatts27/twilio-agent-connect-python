@@ -60,12 +60,11 @@ from taf.context.memory import TwilioMemory
 
 # 1. Configure TAF with your Twilio credentials
 config = TAFConfig(
+    environment="prod",  # or "dev" or "stage"
     twilio_account_sid="ACxxxxx...",
     twilio_auth_token="your_auth_token",
     twilio_phone_number="+1234567890",
-    memora_base_url="https://memory.twilio.com/v1",
     memory_service_sid="MGxxxxx...",
-    maestro_base_url="https://maestro.twilio.com/v1",
     conversation_service_sid="ISxxxxx..."
 )
 
@@ -106,11 +105,11 @@ TAF requires the following configuration parameters:
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
+| `environment` | TAF environment - automatically sets Memora and Maestro URLs | `"prod"`, `"stage"`, or `"dev"` |
 | `twilio_account_sid` | Your Twilio Account SID | `ACxxxxx...` |
 | `twilio_auth_token` | Your Twilio Auth Token | From Twilio Console |
-| `memora_base_url` | Memora API base URL | `https://memory.twilio.com/v1` |
+| `twilio_phone_number` | Your Twilio Phone Number | `+1234567890` |
 | `memory_service_sid` | Memora Memory Service SID | `MGxxxxx...` |
-| `maestro_base_url` | Maestro API base URL | `https://maestro.twilio.com/v1` |
 | `conversation_service_sid` | Twilio Conversation Service SID | `ISxxxxx...` |
 | `log_level` | Logging level (optional) | `INFO` (default) |
 

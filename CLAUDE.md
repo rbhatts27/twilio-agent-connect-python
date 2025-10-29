@@ -117,7 +117,7 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 **MemoryClient** (`src/taf/context/memory.py`):
 - Endpoint: `POST /Services/{service_id}/Conversations/{conversation_id}/Recall`
 - Returns: `MemoryRetrievalResponse` with `observations`, `summaries`, `sessions` fields
-- Auth: Uses `X-Pre-Auth-Context` header with auth token
+- Auth: Uses HTTP Basic Authentication (Account SID as username, Auth Token as password)
 - Models (from `src/taf/models/memory.py`):
   - `MemoryRetrievalRequest`: Request with `conversation_id`, `query`, optional date filters
   - `MemoryRetrievalResponse`: Response with observations, summaries, sessions arrays
@@ -131,7 +131,7 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
   - Endpoint: `POST /Services/{service_id}/Conversations`
 - `add_participant(conversation_id, addresses)`: Adds participant, returns `ParticipantResponse`
   - Endpoint: `POST /Services/{service_id}/Conversations/{conversation_id}/Participants`
-- Auth: Uses `X-Twilio-Account-Sid` header for session and `I-Twilio-Auth-Account` header for requests
+- Auth: Uses HTTP Basic Authentication (Account SID as username, Auth Token as password)
 - Models (from `src/taf/models/conversation.py`): `ConversationRequest`, `ConversationResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`
 
 ## Type Checking and Code Style
@@ -178,12 +178,11 @@ Test requirements (pytest.ini_options in pyproject.toml):
 ## Configuration Requirements
 
 When initializing TAF, developers must provide:
+- `environment` - TAF environment ("dev", "stage", or "prod") - automatically sets Memora and Maestro base URLs
 - `twilio_account_sid` - From Twilio Console
 - `twilio_auth_token` - From Twilio Console
 - `twilio_phone_number` - Twilio Phone Number to use for sending messages (required for messaging tools)
-- `memora_base_url` - Memora API base URL (e.g., `https://memory.twilio.com/v1`)
 - `memory_service_sid` - Memora service ID for memory retrieval (starts with `MG`)
-- `maestro_base_url` - Maestro API base URL (e.g., `https://maestro.twilio.com/v1`)
 - `conversation_service_sid` - Twilio Conversation Service SID (starts with `IS`)
 - `log_level` - Optional, defaults to "INFO"
 
@@ -197,12 +196,11 @@ from taf.channels import SMSChannel
 
 # 1. Setup TAF and SMS Channel
 config = TAFConfig(
+    environment="prod",  # or "dev" or "stage"
     twilio_account_sid="AC...",
     twilio_auth_token="...",
     twilio_phone_number="+1234567890",
-    memora_base_url="https://memory.twilio.com/v1",
     memory_service_sid="MG...",
-    maestro_base_url="https://maestro.twilio.com/v1",
     conversation_service_sid="IS..."
 )
 taf = TAF(config)
@@ -254,11 +252,11 @@ from taf.channels.voice import VoiceChannel
 
 # 1. Setup TAF and Voice Channel
 config = TAFConfig(
+    environment="prod",  # or "dev" or "stage"
     twilio_account_sid="AC...",
     twilio_auth_token="...",
-    memora_base_url="https://memory.twilio.com/v1",
+    twilio_phone_number="+1234567890",
     memory_service_sid="MG...",
-    maestro_base_url="https://maestro.twilio.com/v1",
     conversation_service_sid="IS..."
 )
 taf = TAF(config)

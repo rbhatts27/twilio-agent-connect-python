@@ -87,9 +87,8 @@ if __name__ == "__main__":
     # Initialize TAF with environment variables (will raise KeyError if missing)
     taf = TAF(
         config=TAFConfig(
-            memora_base_url=os.environ["MEMORA_BASE_URL"],
+            environment=os.environ.get("ENVIRONMENT", "prod"),
             memory_service_sid=os.environ["MEMORY_SERVICE_SID"],
-            maestro_base_url=os.environ["MAESTRO_BASE_URL"],
             conversation_service_sid=os.environ["CONVERSATION_SERVICE_SID"],
             twilio_account_sid=os.environ["TWILIO_ACCOUNT_SID"],
             twilio_auth_token=os.environ["TWILIO_AUTH_TOKEN"],

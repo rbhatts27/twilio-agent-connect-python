@@ -19,12 +19,12 @@ load_dotenv(override=True)
 async def main() -> None:
     # Initialize TAF
     config = TAFConfig(
-        memora_base_url=os.getenv("MEMORA_BASE_URL"),
+        environment=os.getenv("ENVIRONMENT", "prod"),
         memory_service_sid=os.getenv("MEMORY_SERVICE_SID"),
-        maestro_base_url=os.getenv("MAESTRO_BASE_URL"),
         conversation_service_sid=os.getenv("CONVERSATION_SERVICE_SID"),
         twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
         twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN"),
+        twilio_phone_number=os.getenv("TWILIO_PHONE_NUMBER"),
     )
 
     # Create session context (from webhook or conversation flow)

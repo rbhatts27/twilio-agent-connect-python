@@ -13,16 +13,16 @@ class TestTAFConfig:
         """Test config with all required fields."""
         config = TAFConfig(
             twilio_auth_token="test_token_123",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest123",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             twilio_account_sid="ACtest123",
             conversation_service_sid="IS123test",
             twilio_phone_number="+15551234567",
         )
         assert config.twilio_auth_token == "test_token_123"
         assert config.memora_base_url == "https://memory.twilio.com/v1"
-        assert config.maestro_base_url == "https://maestro.twilio.com/v1"
+        assert config.environment == "prod"
+        assert config.maestro_base_url == "https://conversations.twilio.com/v2"
         assert config.twilio_account_sid == "ACtest123"
         assert config.log_level == "INFO"  # Default value
 
@@ -30,17 +30,17 @@ class TestTAFConfig:
         """Test config with custom log level."""
         config = TAFConfig(
             twilio_auth_token="test_token_123",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest123",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="dev",
             twilio_account_sid="ACtest123",
             conversation_service_sid="IS123test",
             twilio_phone_number="+15551234567",
             log_level="DEBUG",
         )
         assert config.twilio_auth_token == "test_token_123"
-        assert config.memora_base_url == "https://memory.twilio.com/v1"
-        assert config.maestro_base_url == "https://maestro.twilio.com/v1"
+        assert config.environment == "dev"
+        assert config.memora_base_url == "https://memory.dev.twilio.com/v1"
+        assert config.maestro_base_url == "https://conversations.dev.twilio.com/v2"
         assert config.twilio_account_sid == "ACtest123"
         assert config.log_level == "DEBUG"
 
@@ -48,9 +48,8 @@ class TestTAFConfig:
         """Test converting config to dictionary."""
         config = TAFConfig(
             twilio_auth_token="test_token_123",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest123",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="stage",
             twilio_account_sid="ACtest123",
             conversation_service_sid="IS123test",
             twilio_phone_number="+15551234567",
@@ -60,6 +59,8 @@ class TestTAFConfig:
         assert isinstance(config_dict, dict)
         assert "twilio_auth_token" in config_dict
         assert config_dict["twilio_auth_token"] == "test_token_123"
+        assert "environment" in config_dict
+        assert config_dict["environment"] == "stage"
         assert "log_level" in config_dict
         assert config_dict["log_level"] == "INFO"
 
@@ -67,9 +68,8 @@ class TestTAFConfig:
         """Test creating config from dictionary."""
         config_data = {
             "twilio_auth_token": "test_token_123",
-            "memora_base_url": "https://memory.twilio.com/v1",
             "memory_service_sid": "MGtest123",
-            "maestro_base_url": "https://maestro.twilio.com/v1",
+            "environment": "prod",
             "twilio_account_sid": "ACtest123",
             "conversation_service_sid": "IS123test",
             "twilio_phone_number": "+15551234567",
@@ -77,6 +77,7 @@ class TestTAFConfig:
         config = TAFConfig(**config_data)
         assert config.twilio_auth_token == "test_token_123"
         assert config.memora_base_url == "https://memory.twilio.com/v1"
+        assert config.environment == "prod"
 
     def test_config_json_schema(self):
         """Test that config has valid JSON schema."""
@@ -84,27 +85,27 @@ class TestTAFConfig:
 
         assert "properties" in schema
         assert "twilio_auth_token" in schema["properties"]
-        assert "memora_base_url" in schema["properties"]
-        assert "maestro_base_url" in schema["properties"]
+        assert "environment" in schema["properties"]
         assert "twilio_account_sid" in schema["properties"]
         assert "twilio_phone_number" in schema["properties"]
         assert "log_level" in schema["properties"]
+
+        # Check that environment has the correct enum values
+        assert schema["properties"]["environment"]["enum"] == ["dev", "stage", "prod"]
 
         # Check required fields
         assert "required" in schema
         required_fields = schema["required"]
         assert "twilio_auth_token" in required_fields
-        assert "memora_base_url" in required_fields
-        assert "maestro_base_url" in required_fields
+        assert "environment" in required_fields
         assert "twilio_account_sid" in required_fields
 
     def test_config_equality(self):
         """Test config equality comparison."""
         base_config = {
             "twilio_auth_token": "test_token_123",
-            "memora_base_url": "https://memory.twilio.com/v1",
             "memory_service_sid": "MGtest123",
-            "maestro_base_url": "https://maestro.twilio.com/v1",
+            "environment": "prod",
             "twilio_account_sid": "ACtest123",
             "conversation_service_sid": "IS123test",
             "twilio_phone_number": "+15551234567",
@@ -126,8 +127,7 @@ class TestTAFConfig:
 
         error = exc_info.value
         assert "twilio_auth_token" in str(error)
-        assert "memora_base_url" in str(error)
-        assert "maestro_base_url" in str(error)
+        assert "environment" in str(error)
         assert "twilio_account_sid" in str(error)
 
     def test_partial_config_fails(self):

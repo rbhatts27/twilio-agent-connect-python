@@ -194,22 +194,13 @@ class TestConversationClient:
         client = ConversationClient(
             base_url="https://maestro.twilio.com/v1",
             account_sid="AC123456",
+            auth_token="test_token",
             service_id="IS123456",
         )
 
         assert client.base_url == "https://maestro.twilio.com/v1"
-        assert client.account_sid == "AC123456"
         assert client.service_id == "IS123456"
-        assert "I-Twilio-Auth-Account" in client.session.headers
-        assert client.session.headers["I-Twilio-Auth-Account"] == "AC123456"
-
-    def test_client_initialization_without_account_sid(self):
-        """Test ConversationClient initialization without account_sid."""
-        client = ConversationClient(base_url="https://maestro.twilio.com/v1")
-
-        assert client.base_url == "https://maestro.twilio.com/v1"
-        assert client.account_sid is None
-        assert "I-Twilio-Auth-Account" not in client.session.headers
+        assert client.session.auth is not None
 
     @patch("requests.Session.post")
     def test_create_conversation_success(self, mock_post):
@@ -227,6 +218,7 @@ class TestConversationClient:
         client = ConversationClient(
             base_url="https://maestro.twilio.com/v1",
             account_sid="AC123456",
+            auth_token="test_token",
             service_id="IS123456",
         )
 
@@ -262,6 +254,7 @@ class TestConversationClient:
         client = ConversationClient(
             base_url="https://maestro.twilio.com/v1",
             account_sid="AC123456",
+            auth_token="test_token",
             service_id="IS123456",
         )
 
@@ -288,13 +281,6 @@ class TestConversationClient:
         assert result.layers == ["layer1", "layer2"]
         assert result.intelligence_agents == ["agent1"]
 
-    def test_create_conversation_missing_base_url(self):
-        """Test create_conversation fails without base_url."""
-        client = ConversationClient(account_sid="AC123456", service_id="IS123456")
-
-        with pytest.raises(ValueError, match="base_url must be configured"):
-            client.create_conversation()
-
     @patch("requests.Session.post")
     def test_create_conversation_api_error(self, mock_post):
         """Test create_conversation handles API errors."""
@@ -303,6 +289,7 @@ class TestConversationClient:
         client = ConversationClient(
             base_url="https://maestro.twilio.com/v1",
             account_sid="AC123456",
+            auth_token="test_token",
             service_id="IS123456",
         )
 
@@ -331,6 +318,7 @@ class TestConversationClient:
         client = ConversationClient(
             base_url="https://maestro.twilio.com/v1",
             account_sid="AC123456",
+            auth_token="test_token",
             service_id="IS123456",
         )
 
@@ -374,6 +362,7 @@ class TestConversationClient:
         client = ConversationClient(
             base_url="https://maestro.twilio.com/v1",
             account_sid="AC123456",
+            auth_token="test_token",
             service_id="IS123456",
         )
 
@@ -388,15 +377,6 @@ class TestConversationClient:
         assert isinstance(result, ParticipantResponse)
         assert result.id == "MB123456"
 
-    def test_add_participant_missing_base_url(self):
-        """Test add_participant fails without base_url."""
-        client = ConversationClient(account_sid="AC123456", service_id="IS123456")
-
-        with pytest.raises(ValueError, match="base_url must be configured"):
-            client.add_participant(
-                conversation_id="CH123456",
-            )
-
     @patch("requests.Session.post")
     def test_add_participant_api_error(self, mock_post):
         """Test add_participant handles API errors."""
@@ -405,6 +385,7 @@ class TestConversationClient:
         client = ConversationClient(
             base_url="https://maestro.twilio.com/v1",
             account_sid="AC123456",
+            auth_token="test_token",
             service_id="IS123456",
         )
 
@@ -419,12 +400,15 @@ class TestConversationClient:
         client = ConversationClient(
             base_url="https://maestro.twilio.com/v1",
             account_sid="AC123456",
+            auth_token="test_token",
             service_id="IS123456",
         )
 
-        # Verify headers are set in the session
-        assert client.session.headers["I-Twilio-Auth-Account"] == "AC123456"
-        assert client.session.headers["Content-Type"] == "application/json"
+        # Verify basic auth is set in the session
+        assert client.session.auth is not None
+        assert client.session.auth.username == "AC123456"
+        assert client.session.auth.password == "test_token"
+        # Note: Content-Type header is automatically set by requests when using json= parameter
 
     @patch("requests.Session.post")
     def test_conversation_client_constructs_correct_url(self, mock_post):
@@ -440,6 +424,7 @@ class TestConversationClient:
         client = ConversationClient(
             base_url="https://maestro.twilio.com/v1",
             account_sid="AC123456",
+            auth_token="test_token",
             service_id="IS999999",
         )
 

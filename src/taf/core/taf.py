@@ -47,15 +47,16 @@ class TAF:
         setup_logging(log_level=self.config.log_level)
         self.logger = get_logger(__name__)
 
-        # TODO: Change this to use account_sid:auth_token format when Memora supports it
-        # f"{self.config.twilio_account_sid}:{self.config.twilio_auth_token}"
+        # Initialize Memora client with HTTP Basic Authentication
         self.memora_client = MemoryClient(
             base_url=self.config.memora_base_url,
+            account_sid=self.config.twilio_account_sid,
             auth_token=self.config.twilio_auth_token,
         )
         self.maestro_client = ConversationClient(
             base_url=self.config.maestro_base_url,
             account_sid=self.config.twilio_account_sid,
+            auth_token=self.config.twilio_auth_token,
             service_id=self.config.conversation_service_sid,
         )
 

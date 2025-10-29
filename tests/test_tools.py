@@ -445,9 +445,8 @@ class TestMemoryTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -466,9 +465,8 @@ class TestMemoryTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -494,9 +492,8 @@ class TestMemoryTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -522,9 +519,8 @@ class TestMemoryTools:
         config1 = TAFConfig(
             twilio_account_sid="ACtest1",
             twilio_auth_token="token1",
-            memora_base_url="https://memory1.twilio.com/v1",
             memory_service_sid="MGtest1",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest1",
             twilio_phone_number="+15551234567",
         )
@@ -533,9 +529,8 @@ class TestMemoryTools:
         config2 = TAFConfig(
             twilio_account_sid="ACtest2",
             twilio_auth_token="token2",
-            memora_base_url="https://memory2.twilio.com/v1",
             memory_service_sid="MGtest2",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest2",
             twilio_phone_number="+15551234567",
         )
@@ -557,9 +552,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -579,9 +573,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -603,9 +596,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -629,9 +621,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -654,9 +645,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -689,9 +679,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -732,9 +721,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -758,9 +746,8 @@ class TestKnowledgeTools:
         config1 = TAFConfig(
             twilio_account_sid="ACtest1",
             twilio_auth_token="token1",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest1",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest1",
             twilio_phone_number="+15551234567",
         )
@@ -769,9 +756,8 @@ class TestKnowledgeTools:
         config2 = TAFConfig(
             twilio_account_sid="ACtest2",
             twilio_auth_token="token2",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest2",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest2",
             twilio_phone_number="+15551234567",
         )
@@ -788,9 +774,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -810,9 +795,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -833,9 +817,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -859,9 +842,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -876,9 +858,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )
@@ -909,9 +890,8 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            memora_base_url="https://memory.twilio.com/v1",
             memory_service_sid="MGtest",
-            maestro_base_url="https://maestro.twilio.com/v1",
+            environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
         )

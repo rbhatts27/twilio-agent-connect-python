@@ -1,6 +1,7 @@
 from typing import Optional
 
 import requests
+from requests.auth import HTTPBasicAuth
 
 from taf.core.logging import get_logger
 from taf.models.memory import (
@@ -13,24 +14,24 @@ from taf.models.memory import (
 class MemoryClient:
     """Client for interacting with Twilio Memora data plane API."""
 
-    def __init__(self, base_url: Optional[str] = None, auth_token: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        account_sid: str,
+        auth_token: str,
+    ) -> None:
         """
         Initialize the Memory client.
 
         Args:
-            base_url: Base URL for the Memora data plane API. Defaults to production.
-            auth_token: Authentication token for API requests.
+            base_url: Base URL for the Memora data plane API.
+            account_sid: Twilio Account SID for authentication.
+            auth_token: Twilio Auth Token for authentication.
         """
         self.base_url = base_url
-        self.auth_token = auth_token
         self.session = requests.Session()
         self.logger = get_logger(__name__)
-
-        if self.auth_token:
-            # todo: change this to use proper auth when Memora supports it
-            self.session.headers.update(
-                {"X-Pre-Auth-Context": "account_00000000000000000000000000"}
-            )
+        self.session.auth = HTTPBasicAuth(account_sid, auth_token)
 
     def retrieve_memory(
         self,
@@ -72,7 +73,6 @@ class MemoryClient:
             response = self.session.post(
                 url,
                 json=request_payload,
-                headers={"Content-Type": "application/json"},
             )
 
             response.raise_for_status()

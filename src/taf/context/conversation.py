@@ -1,6 +1,7 @@
 from typing import Optional
 
 import requests
+from requests.auth import HTTPBasicAuth
 
 from taf.core.logging import get_logger
 from taf.models.conversation import (
@@ -17,9 +18,10 @@ class ConversationClient:
 
     def __init__(
         self,
-        base_url: Optional[str] = None,
-        account_sid: Optional[str] = None,
-        service_id: Optional[str] = None,
+        base_url: str,
+        account_sid: str,
+        auth_token: str,
+        service_id: str,
     ) -> None:
         """
         Initialize the Conversation client.
@@ -27,22 +29,14 @@ class ConversationClient:
         Args:
             base_url: Base URL for the Maestro API
             account_sid: Twilio Account SID for authentication
+            auth_token: Twilio Auth Token for authentication
             service_id: Conversation Service SID for API requests
         """
         self.base_url = base_url
-        self.account_sid = account_sid
         self.service_id = service_id
         self.session = requests.Session()
         self.logger = get_logger(__name__)
-
-        if self.account_sid:
-            # todo: use rest proxy auth when Memora supports it
-            self.session.headers.update(
-                {
-                    "I-Twilio-Auth-Account": self.account_sid,
-                    "Content-Type": "application/json",
-                }
-            )
+        self.session.auth = HTTPBasicAuth(account_sid, auth_token)
 
     def add_participant(
         self,
@@ -62,11 +56,6 @@ class ConversationClient:
         Raises:
             requests.RequestException: If the API request fails
         """
-
-        if not self.base_url:
-            self.logger.error("base_url must be configured but was None")
-            raise ValueError("base_url must be configured")
-
         url = (
             f"{self.base_url}/Services/{self.service_id}/Conversations/"
             f"{conversation_id}/Participants"
@@ -131,11 +120,6 @@ class ConversationClient:
         Raises:
             requests.RequestException: If the API request fails
         """
-
-        if not self.base_url:
-            self.logger.error("base_url must be configured but was None")
-            raise ValueError("base_url must be configured")
-
         url = f"{self.base_url}/Services/{self.service_id}/Conversations"
 
         request_data = ConversationRequest(

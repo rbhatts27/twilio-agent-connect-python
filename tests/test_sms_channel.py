@@ -13,9 +13,8 @@ def get_test_config() -> dict:
     """Get a valid test configuration."""
     return {
         "twilio_auth_token": "test_token_123",
-        "memora_base_url": "https://memory.twilio.com/v1",
         "memory_service_sid": "MGtest123",
-        "maestro_base_url": "https://maestro.twilio.com/v1",
+        "environment": "prod",
         "conversation_service_sid": "IStest123",
         "twilio_account_sid": "ACtest123",
         "twilio_phone_number": "+15551234567",

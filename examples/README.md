@@ -272,10 +272,9 @@ Complete voice server implementation with FastAPI, TwiML generation, and WebSock
 **Usage:**
 ```bash
 # 1. Set up environment variables in .env
+ENVIRONMENT=dev  # or 'stage' or 'prod' - automatically sets Memora/Maestro URLs
 VOICE_PUBLIC_DOMAIN=your-domain.ngrok.io  # Your ngrok or public domain
-MEMORA_BASE_URL=https://memory.twilio.com/v1
 MEMORY_SERVICE_SID=MGxxxxx...
-MAESTRO_BASE_URL=https://maestro.twilio.com/v1
 CONVERSATION_SERVICE_SID=ISxxxxx...
 TWILIO_ACCOUNT_SID=ACxxxxx...
 TWILIO_AUTH_TOKEN=your_auth_token

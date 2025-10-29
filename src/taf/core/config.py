@@ -1,13 +1,16 @@
 """Configuration models for the Twilio Agentic Framework."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class TAFConfig(BaseModel):
     """Configuration model for Twilio Agentic Framework settings."""
 
-    memora_base_url: str = Field(description="Base URL for Memora API")
-    maestro_base_url: str = Field(description="Base URL for Maestro API")
+    environment: Literal["dev", "stage", "prod"] = Field(
+        description="TAF environment (dev, stage, or prod)"
+    )
     conversation_service_sid: str = Field(description="Twilio Conversation Service SID")
     memory_service_sid: str = Field(description="Memora Memory Service SID")
 
@@ -21,13 +24,34 @@ class TAFConfig(BaseModel):
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
     )
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def memora_base_url(self) -> str:
+        """Return the Memora base URL based on the environment."""
+        memora_urls = {
+            "dev": "https://memory.dev.twilio.com/v1",
+            "stage": "https://memory.stage.twilio.com/v1",
+            "prod": "https://memory.twilio.com/v1",
+        }
+        return memora_urls[self.environment]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def maestro_base_url(self) -> str:
+        """Return the Maestro base URL based on the environment."""
+        maestro_urls = {
+            "dev": "https://conversations.dev.twilio.com/v2",
+            "stage": "https://conversations.stage.twilio.com/v2",
+            "prod": "https://conversations.twilio.com/v2",
+        }
+        return maestro_urls[self.environment]
+
     model_config = ConfigDict(
         use_enum_values=True,
         json_schema_extra={
             "example": {
-                "memora_base_url": "https://memory.twilio.com/v1",
+                "environment": "prod",
                 "memory_service_sid": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-                "maestro_base_url": "https://maestro.twilio.com/v1",
                 "conversation_service_sid": "ISxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "twilio_account_sid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "twilio_auth_token": "your_auth_token_here",
