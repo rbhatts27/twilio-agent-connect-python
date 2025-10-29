@@ -88,6 +88,29 @@ class ConversationClient:
             self.logger.error(f"Failed to add participant: {e}")
             raise
 
+    def list_participants(self, conversation_id: str) -> list[ParticipantResponse]:
+        url = (
+            f"{self.base_url}/Services/{self.service_id}/Conversations/"
+            f"{conversation_id}/Participants"
+        )
+
+        try:
+            response = self.session.get(url)
+            response.raise_for_status()
+            participants = response.json().get("participants", [])
+            return [ParticipantResponse(**p) for p in participants]
+        except requests.Timeout:
+            self.logger.error(f"Timeout listing participants for conversation {conversation_id}")
+            raise
+        except requests.RequestException as e:
+            self.logger.error(
+                f"HTTP error listing participants for conversation {conversation_id}: {e}"
+            )
+            raise
+        except ValueError as e:
+            self.logger.error(f"Invalid JSON format when listing participants: {e}")
+            raise
+
     def create_conversation(
         self,
         name: Optional[str] = None,

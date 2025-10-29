@@ -216,38 +216,50 @@ class TestSMSChannel:
     def test_send_response_with_active_conversation(self) -> None:
         """Test sending response to active conversation."""
         with patch("taf.channels.sms.Client") as mock_client_class:
-            # Setup mock chain for Twilio API
+            # Setup mock Twilio client
             mock_client = MagicMock()
             mock_client_class.return_value = mock_client
             mock_messages_create = MagicMock()
-            mock_participants_create = MagicMock()
-            mock_client.conversations.v1.conversations.return_value.messages.create = (
-                mock_messages_create
-            )
-            mock_client.conversations.v1.conversations.return_value.participants.create = (
-                mock_participants_create
-            )
+            mock_client.messages.create = mock_messages_create
 
             taf = TAF(get_test_config())
             channel = SMSChannel(taf)
 
-            # Start conversation
-            start_webhook = {
-                "EventType": "onConversationAdded",
-                "ConversationSid": "CH123456",
-                "ProfileId": "profile_test_123",
-                "Author": "+12345678901",
-            }
+            # Mock list_participants to return a customer participant
+            from taf.models.conversation import ParticipantAddress, ParticipantResponse
 
-            channel.process_webhook(start_webhook)
+            mock_participant = ParticipantResponse(
+                id="PA123",
+                account_id="ACtest123",
+                service_id="IStest123",
+                conversation_id="CH123456",
+                name="Test Customer",
+                label="Customer",
+                addresses=[ParticipantAddress(communication_type="SMS", value="+12345678901")],
+            )
 
-            # Send response
-            asyncio.run(channel.send_response("CH123456", "Test response"))
+            with patch.object(
+                taf.maestro_client, "list_participants", return_value=[mock_participant]
+            ):
+                # Start conversation
+                start_webhook = {
+                    "EventType": "onConversationAdded",
+                    "ConversationSid": "CH123456",
+                    "ProfileId": "profile_test_123",
+                    "Author": "+12345678901",
+                }
 
-            # Verify Twilio API was called
-            # Note: conversations() is called twice - once for participant.create,
-            # once for messages.create
-            mock_messages_create.assert_called_once_with(body="Test response", author=None)
+                channel.process_webhook(start_webhook)
+
+                # Send response
+                asyncio.run(channel.send_response("CH123456", "Test response"))
+
+                # Verify Twilio messages API was called
+                mock_messages_create.assert_called_once_with(
+                    to="+12345678901",
+                    from_=taf.config.twilio_phone_number,
+                    body="Test response",
+                )
 
     def test_send_response_to_unknown_conversation(self) -> None:
         """Test sending response to non-existent conversation logs error."""
@@ -261,8 +273,8 @@ class TestSMSChannel:
             # Should log error but not raise
             asyncio.run(channel.send_response("CH_UNKNOWN", "Test response"))
 
-            # Verify Twilio API was NOT called
-            mock_client.conversations.v1.conversations.assert_not_called()
+            # Verify Twilio messages API was NOT called
+            mock_client.messages.create.assert_not_called()
 
     def test_multiple_concurrent_conversations(self) -> None:
         """Test handling multiple concurrent conversations."""

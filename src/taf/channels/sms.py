@@ -82,10 +82,27 @@ class SMSChannel(BaseChannel):
             self.logger.error(f"Cannot send response: conversation {conversation_id} not found")
             return
 
-        self.logger.info(f"[SMS] Sending response to conversation {conversation_id}: {response}")
-        self.twilio.conversations.v1.conversations(conversation_id).messages.create(
-            body=response, author=role
-        )
+        # TODO this is a super hacky workaround because Maestro isn't ready to
+        # support sending messages yet. Defensively go from conversation_id ->
+        # participant -> address -> phone number
+        participants = self.taf.maestro_client.list_participants(conversation_id)
+        for participant in participants:
+            if participant.label != "Customer":
+                self.logger.debug("Found non-customer participant; skipping")
+                continue
+
+            for address in participant.addresses:
+                if address.communication_type != "SMS":
+                    self.logger.debug("Found non-SMS address; skipping")
+                    continue
+
+                self.logger.debug(f"[SMS] Sending response: {response}")
+                self.twilio.messages.create(
+                    to=address.value,
+                    from_=self.taf.config.twilio_phone_number,
+                    body=response,
+                )
+                self.logger.info(f"[SMS] Sent response: {response}")
 
     def get_channel_name(self) -> str:
         """Get the channel name identifier."""
