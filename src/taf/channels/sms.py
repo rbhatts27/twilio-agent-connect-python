@@ -82,10 +82,20 @@ class SMSChannel(BaseChannel):
             self.logger.error(f"Cannot send response: conversation {conversation_id} not found")
             return
 
+        self.logger.info(f"Sending SMS response via Twilio {response}")
+
         # TODO this is a super hacky workaround because Maestro isn't ready to
         # support sending messages yet. Defensively go from conversation_id ->
         # participant -> address -> phone number
-        participants = self.taf.maestro_client.list_participants(conversation_id)
+        try:
+            participants = self.taf.maestro_client.list_participants(conversation_id)
+        except Exception as e:
+            self.logger.error(
+                f"Failed to list participants for conversation {conversation_id}: {e}"
+            )
+            self.logger.info("Continuing without sending response via Maestro")
+            return
+
         for participant in participants:
             if participant.label != "Customer":
                 self.logger.debug("Found non-customer participant; skipping")

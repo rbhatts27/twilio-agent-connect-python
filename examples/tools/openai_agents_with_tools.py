@@ -38,7 +38,7 @@ def taf_tool_to_openai_agents(taf_tool: Any) -> Any:
 async def main() -> None:
     # Initialize TAF
     config = TAFConfig(
-        environment=os.getenv("ENVIRONMENT", "prod"),
+        environment=os.getenv("ENVIRONMENT"),
         conversation_service_sid=os.getenv("CONVERSATION_SERVICE_SID"),
         memory_service_sid=os.getenv("MEMORY_SERVICE_SID"),
         twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),

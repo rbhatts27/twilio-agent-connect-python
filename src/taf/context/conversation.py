@@ -90,15 +90,15 @@ class ConversationClient:
             return [ParticipantResponse(**p) for p in participants]
         except requests.Timeout:
             self.logger.error(f"Timeout listing participants for conversation {conversation_id}")
-            raise
+            return []
         except requests.RequestException as e:
             self.logger.error(
                 f"HTTP error listing participants for conversation {conversation_id}: {e}"
             )
-            raise
+            return []
         except ValueError as e:
             self.logger.error(f"Invalid JSON format when listing participants: {e}")
-            raise
+            return []
 
     def create_conversation(
         self,

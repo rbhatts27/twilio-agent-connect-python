@@ -55,7 +55,7 @@ uv run pytest tests/test_taf.py::test_function_name
 make server
 
 # Custom port
-python examples/webhook_server.py --port 3000
+python examples/servers/sms.py --port 3000
 
 # Start ngrok tunnel for local testing
 make ngrok
@@ -290,7 +290,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await voice_channel.handle_websocket(websocket)
 ```
 
-See `examples/voice_server.py` for a complete implementation.
+See `examples/servers/voice.py` for a complete implementation.
 
 ### Voice Channel Architecture
 

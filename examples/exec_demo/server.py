@@ -51,7 +51,7 @@ app = FastAPI(
 
 # Initialize TAF configuration
 taf_config = TAFConfig(
-    environment=os.getenv("ENVIRONMENT", "prod"),
+    environment=os.getenv("ENVIRONMENT"),
     twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
     twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN"),
     twilio_phone_number=os.getenv("TWILIO_PHONE_NUMBER"),
@@ -106,6 +106,8 @@ async def handle_memory_ready(
             profile_id=context.profile_id,
             conversation_history=conversation_messages[conv_id],
         )
+
+        logger.info("Response generated: %s", llm_response)
 
         # Send response through appropriate channel
         if llm_response:

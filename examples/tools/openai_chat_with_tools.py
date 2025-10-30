@@ -19,7 +19,7 @@ load_dotenv(override=True)
 async def main() -> None:
     # Initialize TAF
     config = TAFConfig(
-        environment=os.getenv("ENVIRONMENT", "prod"),
+        environment=os.getenv("ENVIRONMENT"),
         memory_service_sid=os.getenv("MEMORY_SERVICE_SID"),
         conversation_service_sid=os.getenv("CONVERSATION_SERVICE_SID"),
         twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
