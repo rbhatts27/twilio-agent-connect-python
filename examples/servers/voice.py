@@ -5,13 +5,14 @@ Voice Server for Twilio Agentic Framework
 Example demonstrating VoiceChannel with FastAPI server for TwiML and WebSocket endpoints.
 """
 
+import json
 import os
 import sys
 
 import openai
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, WebSocket
+from fastapi import FastAPI, Form, Request, WebSocket
 from fastapi.responses import Response
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
@@ -19,6 +20,9 @@ from openai.types.chat import (
     ChatCompletionSystemMessageParam,
     ChatCompletionUserMessageParam,
 )
+
+from taf.tools.flex_escalation import create_flex_escalation_tool
+from taf.util.flex import handle_flex_handoff_logic
 
 # Load environment variables from .env file
 load_dotenv()
@@ -36,11 +40,19 @@ logger = get_logger(__name__)
 
 # Global variables
 voice_channel: VoiceChannel
-system_prompt = "You're a helpful assistant that helps users over the phone."
+system_prompt = (
+    "You're a helpful assistant that helps users over the phone. "
+    "If the user asks to speak to a human, requests escalation, or needs to be transferred to support, "
+    "you MUST use the flex_escalate_to_human tool instead of replying yourself."
+)
 
 # User-managed conversation history
 # Key: conversation_id, Value: list of messages
 conversation_messages: dict[str, list[ChatCompletionMessageParam]] = {}
+
+
+def flex_handoff_handler(request_data):
+    return handle_flex_handoff_logic(request_data)
 
 
 async def handle_memory_ready(
@@ -69,13 +81,35 @@ async def handle_memory_ready(
     conversation_messages[conv_id].append(user_msg)
 
     # Generate response with OpenAI
+    flex_escalation_tool = create_flex_escalation_tool(websocket=voice_channel._active_websocket)
+    tools = [flex_escalation_tool]
+    tool_map = {tool.name: tool for tool in tools}
+
     client = openai.AsyncOpenAI()
     completion = await client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=conversation_messages[conv_id],
+        tools=[tool.to_openai_format() for tool in tools],
+        tool_choice="auto",
     )
 
-    response = completion.choices[0].message.content
+    choice = completion.choices[0]
+    if (
+        hasattr(choice, "message")
+        and hasattr(choice.message, "tool_calls")
+        and choice.message.tool_calls
+    ):
+        for tool_call in choice.message.tool_calls:
+            tool_name = tool_call.function.name
+            args = tool_call.function.arguments
+            if isinstance(args, str):
+                args = json.loads(args)
+            tool = tool_map.get(tool_name)
+            if tool:
+                tool.implementation(**args)
+        return
+
+    response = choice.message.content
 
     logger.info("Response generated: %s", response)
 
@@ -109,6 +143,9 @@ if __name__ == "__main__":
     # Initialize channel
     voice_channel = VoiceChannel(taf=taf)
 
+    # Register Flex handoff handler
+    taf.on_handoff(flex_handoff_handler)
+
     # Create FastAPI app
     app = FastAPI(title="TAF Voice Server")
 
@@ -117,10 +154,12 @@ if __name__ == "__main__":
         """Generate TwiML for incoming voice calls."""
         public_domain = os.environ.get("VOICE_PUBLIC_DOMAIN")
         websocket_url = f"wss://{public_domain}/ws"
+        handoff_url = f"https://{public_domain}/handoff"
 
         twiml = voice_channel.handle_incoming_call(
             websocket_url=websocket_url,
             called_phone_number=From,
+            action_url=handoff_url,
             welcome_greeting="Hello! How can I assist you today?",
             conversation_id="fake_id",  # todo: resolve id when maestro is ready
         )
@@ -130,6 +169,10 @@ if __name__ == "__main__":
     async def websocket_endpoint(websocket: WebSocket) -> None:
         """Handle voice WebSocket connections for real-time streaming."""
         await voice_channel.handle_websocket(websocket)
+
+    @app.post("/handoff")
+    async def handoff(request: Request) -> Response:
+        return await voice_channel.handle_handoff(request)
 
     # Start the server
     logger.info("Starting TAF Voice Server on 0.0.0.0:8000")

@@ -1,7 +1,8 @@
 import json
 from typing import Any, Optional
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import Request, Response, WebSocket, WebSocketDisconnect
+from fastapi.datastructures import FormData
 
 from taf.channels.base import BaseChannel
 from taf.core.taf import TAF
@@ -42,6 +43,7 @@ class VoiceChannel(BaseChannel):
         self,
         websocket_url: str,
         called_phone_number: str,
+        action_url: Optional[str] = None,
         welcome_greeting: str = "Hello! How can I assist you today?",
         conversation_id: Optional[str] = None,
     ) -> str:
@@ -80,7 +82,7 @@ class VoiceChannel(BaseChannel):
 
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Connect>
+    <Connect action="{action_url}">
         <ConversationRelay
             url="{websocket_url}"
             welcomeGreeting="{welcome_greeting}"
@@ -92,6 +94,29 @@ class VoiceChannel(BaseChannel):
 </Response>"""
 
         return twiml
+
+    async def handle_handoff(self, request: Request) -> Response:
+        """
+        Generic handler for handoff webhook. Delegates to registered TAF handoff callback.
+        Args:
+            request: FastAPI Request object for the webhook.
+        Returns:
+            FastAPI Response for Twilio (or as returned by the callback).
+        """
+        self.logger.info("Handling handoff webhook (delegated)")
+        request_data: FormData = await request.form()
+        cb = getattr(self.taf, "_handoff_callback", None)
+        if cb is not None:
+            result = await cb(request_data)
+            # Explicitly cast to Response for mypy
+            from fastapi import Response as FastAPIResponse
+
+            if not isinstance(result, FastAPIResponse):
+                raise TypeError("Handoff callback did not return a FastAPI Response")
+            return result
+        return Response(
+            content="No handoff handler registered", media_type="text/plain", status_code=501
+        )
 
     async def handle_websocket(self, websocket: WebSocket) -> None:
         """

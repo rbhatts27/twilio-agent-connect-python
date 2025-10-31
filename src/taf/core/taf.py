@@ -5,6 +5,8 @@ import inspect
 from collections.abc import Awaitable, Callable
 from typing import Any, Optional, Union
 
+from fastapi import Response
+from fastapi.datastructures import FormData
 from pydantic import ValidationError
 
 from taf.context.conversation import ConversationClient
@@ -16,6 +18,20 @@ from taf.models.memory import MemoryRetrievalResponse
 
 
 class TAF:
+    _handoff_callback: Optional[Callable[[FormData], Awaitable[Response]]] = None
+
+    def on_handoff(
+        self,
+        callback: Callable[[FormData], Awaitable[Response]],
+    ) -> None:
+        """
+        Register a callback to be invoked when a handoff event occurs (e.g., Flex handoff).
+
+        The callback will be triggered by the channel when a handoff is required.
+        Supports both synchronous and asynchronous callbacks.
+        """
+        self._handoff_callback = callback
+
     """
     Main Twilio Agentic Framework class for processing webhook events with configuration.
 

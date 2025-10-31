@@ -264,13 +264,14 @@ class TestVoiceChannel:
             twiml = channel.handle_incoming_call(
                 websocket_url="wss://example.ngrok.io/ws",
                 called_phone_number="+15551234567",
+                action_url="https://example.ngrok.io/flex_handoff",
                 welcome_greeting="Welcome!",
             )
 
             # Verify TwiML contains expected elements
             assert '<?xml version="1.0" encoding="UTF-8"?>' in twiml
             assert "<Response>" in twiml
-            assert "<Connect>" in twiml
+            assert '<Connect action="https://example.ngrok.io/flex_handoff">' in twiml
             assert "<ConversationRelay" in twiml
             assert 'url="wss://example.ngrok.io/ws"' in twiml
             assert 'welcomeGreeting="Welcome!"' in twiml
@@ -306,6 +307,7 @@ class TestVoiceChannel:
             twiml = channel.handle_incoming_call(
                 websocket_url="wss://test.ngrok.io/ws",
                 called_phone_number="+15559876543",
+                action_url="https://example.ngrok.io/flex_handoff",
             )
 
             # Verify default greeting is used
