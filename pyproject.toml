@@ -100,13 +100,25 @@ warn_no_return = true
 warn_unreachable = true
 strict_equality = true
 exclude = [
-    "taf/tools/examples/.*"
+    "taf/tools/examples/.*",
+    ".*/site-packages/mcp/.*"
 ]
 
 # Specify the paths to type check
 [[tool.mypy.overrides]]
 module = ["src.taf.*", "twilio.*"]  # twilio.* added to ignore missing type stubs
 ignore_missing_imports = true
+
+# Ignore mcp module to avoid Python 3.10 syntax errors when checking with 3.9
+[[tool.mypy.overrides]]
+module = "mcp.*"
+ignore_errors = true
+follow_imports = "skip"
+
+# Relaxed rules for examples (allow untyped decorators like @app.post())
+[[tool.mypy.overrides]]
+module = ["examples.*"]
+disallow_untyped_decorators = false
 
 [tool.pytest.ini_options]
 minversion = "7.0"

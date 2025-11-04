@@ -22,7 +22,7 @@ format: ## Format code with ruff
 	uv run ruff check --fix .
 
 type-check: ## Run type checking with mypy
-	uv run mypy src/taf
+	uv run mypy src/taf examples
 
 pre-commit: ## Run pre-commit hooks on all files
 	uv run pre-commit run --all-files
@@ -45,7 +45,7 @@ build: ## Build the package
 	uv build
 
 server: ## Start the webhook test server on port 8000
-	python examples/servers/sms.py --port 8000
+	python examples/channels/sms.py --port 8000
 
 exec-demo: ## Start the exec_demo server with hot reloading (watches both examples and src)
 	cd examples/exec_demo && uv run uvicorn server:app --host 0.0.0.0 --port 8000 --reload --reload-dir . --reload-dir ../../src/taf

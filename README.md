@@ -126,8 +126,9 @@ TAF requires the following configuration parameters:
 Check out the [examples](examples) directory for complete working examples:
 
 - **[`exec_demo/`](examples/exec_demo)**: Complete multi-channel demo with SMS and Voice support, OpenAI Agents integration, and custom business tools
-- **[`servers/sms.py`](examples/servers/sms.py)**: SMS webhook server with FastAPI and TAF integration
-- **[`servers/voice.py`](examples/servers/voice.py)**: Voice server with FastAPI, TwiML generation, and WebSocket handling
+- **[`channels/sms.py`](examples/channels/sms.py)**: SMS webhook server with FastAPI and TAF integration
+- **[`channels/voice.py`](examples/channels/voice.py)**: Simple voice server with FastAPI, TwiML generation, and WebSocket handling
+- **[`channels/voice_escalation.py`](examples/channels/voice_escalation.py)**: Voice server with Flex escalation for agent handoff to humans
 - **[`tools/`](examples/tools)**: LLM tool integration examples with OpenAI Chat Completions and Agents SDK
 
 ---

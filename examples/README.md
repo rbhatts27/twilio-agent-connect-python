@@ -26,7 +26,7 @@ This directory contains examples demonstrating how to use the Twilio Agentic Fra
 3. **Run an example:**
    ```bash
    # Start SMS webhook server
-   uv run python examples/servers/sms.py
+   uv run python examples/channels/sms.py
 
    # Or try a tool integration example
    uv run python examples/tools/openai_chat_with_tools.py
@@ -45,14 +45,15 @@ Complete production-ready example demonstrating both SMS and Voice channels:
 
 [→ View Multi-Channel Demo](exec_demo/)
 
-### [servers/](servers/) - Production Server Implementations
+### [channels/](channels/) - Channel Implementation Examples
 
-Ready-to-deploy server examples for handling Twilio webhooks and voice calls:
+Ready-to-deploy examples for handling different Twilio channels:
 
-- **`sms.py`** - SMS webhook server with TAF integration
-- **`voice.py`** - Voice server with FastAPI and ConversationRelay WebSocket
+- **`sms.py`** - SMS channel webhook server with TAF integration
+- **`voice.py`** - Simple voice channel server with FastAPI and ConversationRelay WebSocket
+- **`voice_escalation.py`** - Voice channel with Flex escalation for agent handoff to humans
 
-[→ View Server Examples](servers/)
+[→ View Channel Examples](channels/)
 
 ### [tools/](tools/) - LLM Tool Integration
 

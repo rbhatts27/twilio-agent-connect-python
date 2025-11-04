@@ -1,6 +1,6 @@
-# TAF Server Examples
+# TAF Channel Examples
 
-Production-ready server implementations for Twilio Agentic Framework (TAF).
+Production-ready channel implementation examples for Twilio Agentic Framework (TAF).
 
 > **Prerequisites:** Complete the [Quick Start setup](../README.md#quick-start) in the main examples README before running these servers.
 
@@ -25,7 +25,7 @@ OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 **Usage:**
 ```bash
 # Start server on 0.0.0.0:8000
-uv run python examples/servers/sms.py
+uv run python examples/channels/sms.py
 ```
 
 **Setup Twilio Webhook:**
@@ -84,9 +84,9 @@ uvicorn.run(app, host="0.0.0.0", port=8000)
 
 ---
 
-## `voice.py` - Voice Server with ConversationRelay
+## `voice.py` - Simple Voice Channel Server
 
-Complete voice server with FastAPI, TwiML generation, and WebSocket handling for Twilio Voice.
+Basic voice server with FastAPI, TwiML generation, and WebSocket handling for Twilio Voice. This is the recommended starting point for voice integration without escalation features.
 
 **Additional Environment Variables:**
 ```bash
@@ -113,7 +113,7 @@ ngrok http 8000 --domain={your-ngrok-domain}
 # 3. Verify VOICE_PUBLIC_DOMAIN in .env matches your ngrok domain
 
 # 4. Run voice server
-uv run python examples/servers/voice.py
+uv run python examples/channels/voice.py
 
 # 5. Configure Twilio phone number webhook to point to:
 #    https://{your-ngrok-domain}/twiml
@@ -165,3 +165,79 @@ async def websocket_endpoint(websocket: WebSocket):
 # Start server
 uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
+
+---
+
+## `voice_escalation.py` - Voice Channel with Flex Escalation
+
+Advanced voice server demonstrating agent handoff to Twilio Flex for human escalation. Use this example when you need to transfer calls from AI agents to human agents.
+
+**Additional Environment Variables:**
+```bash
+VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
+OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
+# Additional Flex configuration may be required
+```
+
+**Features:**
+- ✅ All features from `voice.py` (TwiML, WebSocket, memory, LLM)
+- ✅ Flex escalation tool integration
+- ✅ OpenAI tool calling for intelligent escalation decisions
+- ✅ `/handoff` endpoint for processing transfer requests
+- ✅ Automatic detection of escalation requests (e.g., "speak to a human")
+- ✅ Handoff handler registration with `taf.on_handoff()`
+
+**Usage:**
+```bash
+# Same setup as voice.py, plus:
+# 1. Ensure Flex workspace is configured
+# 2. Run voice escalation server
+uv run python examples/channels/voice_escalation.py
+
+# 3. Configure Twilio phone number webhook to point to:
+#    https://{your-ngrok-domain}/twiml
+```
+
+**How It Works:**
+1. Voice call handled same as `voice.py`
+2. AI agent monitors conversation for escalation requests
+3. When user requests human assistance, LLM calls `flex_escalate_to_human` tool
+4. Tool triggers handoff process via `/handoff` endpoint
+5. Call transferred to available Flex agent
+6. Conversation context preserved during transfer
+
+**Key Code Pattern:**
+```python
+from taf.tools.flex_escalation import create_flex_escalation_tool
+from taf.util.flex import handle_flex_handoff_logic
+
+# Create escalation tool
+flex_escalation_tool = create_flex_escalation_tool(
+    websocket=voice_channel._active_websocket
+)
+
+# Register handoff handler
+def flex_handoff_handler(request_data):
+    return handle_flex_handoff_logic(request_data)
+
+taf.on_handoff(flex_handoff_handler)
+
+# Use tool with OpenAI
+completion = await client.chat.completions.create(
+    model="gpt-4o",
+    messages=conversation_messages[conv_id],
+    tools=[flex_escalation_tool.to_openai_format()],
+    tool_choice="auto",
+)
+
+# Add handoff endpoint
+@app.post("/handoff")
+async def handoff(request: Request):
+    return await voice_channel.handle_handoff(request)
+```
+
+**When to Use:**
+- You need agent-to-human escalation
+- Your application integrates with Twilio Flex
+- Conversations require human intervention for complex cases
+- You want intelligent escalation based on user requests
