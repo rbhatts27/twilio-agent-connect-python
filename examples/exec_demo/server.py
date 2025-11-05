@@ -31,6 +31,7 @@ from taf.channels.sms import SMSChannel
 from taf.channels.voice import VoiceChannel
 from taf.core.context import ConversationSession
 from taf.models.memory import MemoryRetrievalResponse
+from taf.util.flex import handle_flex_handoff_logic
 
 # Load environment variables
 load_dotenv()
@@ -74,6 +75,18 @@ conversation_messages: dict[str, list[ChatCompletionMessageParam]] = {}
 # todo: use a global conversation id until vnext is ready
 active_conversation_sid = None
 
+system_prompt = (
+    "You're a helpful assistant that helps users over the phone. "
+    "If the user asks to speak to a human, requests escalation, or needs to be transferred to support, "
+    "you MUST use the flex_escalate_to_human tool instead of replying yourself."
+)
+
+
+def flex_handoff_handler(request_data):
+    return handle_flex_handoff_logic(
+        request_data, flex_workflow_sid=os.environ.get("VOICE_HANDOFF_FLEX_WORKFLOW_SID")
+    )
+
 
 # Register memory ready callback
 async def handle_memory_ready(
@@ -100,10 +113,12 @@ async def handle_memory_ready(
         conversation_messages[conv_id].append(user_msg)
 
         # Call LLM service with conversation history
+        active_websocket = voice_channel._active_websocket if context.channel == "voice" else None
         llm_response = await llm_service.process_message(
             user_message=user_message,
             memory_response=memory_response,
             profile_id=context.profile_id,
+            websocket=active_websocket,
             conversation_history=conversation_messages[conv_id],
         )
 
@@ -132,6 +147,8 @@ async def handle_memory_ready(
 
 taf.on_memory_ready(handle_memory_ready)
 
+taf.on_handoff(flex_handoff_handler)
+
 
 @app.post("/sms")
 async def sms_webhook(request: Request):
@@ -157,12 +174,14 @@ async def post_twiml(From: str = Form(...)) -> Response:
     # Get WebSocket URL from environment
     public_domain = os.environ.get("VOICE_PUBLIC_DOMAIN", "")
     websocket_url = f"wss://{public_domain}/ws"
+    handoff_url = f"https://{public_domain}/handoff"
 
     # Generate TwiML with conversation and participant setup
     # From contains the caller's phone number
     twiml = voice_channel.handle_incoming_call(
         websocket_url=websocket_url,
         called_phone_number=From,
+        action_url=handoff_url,
         welcome_greeting="Hello! How can I assist you today?",
         conversation_id=active_conversation_sid,
     )
@@ -173,6 +192,11 @@ async def post_twiml(From: str = Form(...)) -> Response:
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """Handle voice streaming WebSocket connection."""
     await voice_channel.handle_websocket(websocket)
+
+
+@app.post("/handoff")
+async def handoff(request: Request) -> Response:
+    return await voice_channel.handle_handoff(request)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-import os
+from typing import Optional
 
 from fastapi.datastructures import FormData
 from fastapi.responses import Response
@@ -11,7 +11,7 @@ from taf.models.handoff_data import HandoffData
 logger = get_logger(__name__)
 
 
-def handle_flex_handoff_logic(request_data: FormData) -> Response:
+def handle_flex_handoff_logic(request_data: FormData, flex_workflow_sid: Optional[str]) -> Response:
     """
     Encapsulates all Flex handoff logic for Twilio webhook.
     Args:
@@ -19,7 +19,6 @@ def handle_flex_handoff_logic(request_data: FormData) -> Response:
     Returns:
         FastAPI Response for Twilio
     """
-    flex_workflow_sid = os.environ.get("VOICE_HANDOFF_FLEX_WORKFLOW_SID")
     if flex_workflow_sid is None:
         if logger:
             logger.error("No Flex workflow SID configured")

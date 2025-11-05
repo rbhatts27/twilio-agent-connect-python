@@ -68,7 +68,9 @@ def flex_handoff_handler(request_data):
     This function is called when the AI agent triggers a handoff to a human agent.
     It processes the handoff logic and returns the appropriate response.
     """
-    return handle_flex_handoff_logic(request_data)
+    return handle_flex_handoff_logic(
+        request_data, flex_workflow_sid=os.environ.get("VOICE_HANDOFF_FLEX_WORKFLOW_SID")
+    )
 
 
 async def handle_memory_ready(

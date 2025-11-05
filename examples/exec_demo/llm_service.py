@@ -7,8 +7,10 @@ Uses OpenAI Agents SDK for tool integration and conversation management.
 """
 
 import logging
+from typing import Optional
 
 from agents import Agent, Runner
+from fastapi import WebSocket
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
     ChatCompletionMessageParam,
@@ -16,7 +18,7 @@ from openai.types.chat import (
 )
 
 # Import tools from tools.py
-from tools import confirm_order, look_up_discounts, look_up_order_price
+from tools import confirm_order, create_flex_escalation_tool, look_up_discounts, look_up_order_price
 
 from taf.models.memory import MemoryRetrievalResponse
 
@@ -44,6 +46,7 @@ class LLMService:
         user_message: str,
         memory_response: MemoryRetrievalResponse,
         profile_id: str,
+        websocket: Optional[WebSocket],
         conversation_history: list[ChatCompletionMessageParam] | None = None,
     ) -> str:
         """
@@ -63,12 +66,17 @@ class LLMService:
             # Build TAF-enhanced instructions with profile context
             enhanced_instructions = self._build_enhanced_instructions(memory_response, profile_id)
 
+            if websocket is not None:
+                tools = self.tools + [create_flex_escalation_tool(websocket)]
+            else:
+                tools = self.tools
+
             # Create agent with TAF-enhanced instructions
             agent = Agent(
                 name="Owl Internet Customer Service",
                 instructions=enhanced_instructions,
                 model="gpt-4o",
-                tools=self.tools,
+                tools=tools,
             )
 
             # Use passed conversation history if provided, otherwise build from TAF session memories
