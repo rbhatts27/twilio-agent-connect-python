@@ -155,4 +155,11 @@ class SMSChannel(BaseChannel):
         session = self._conversations[conv_id]
 
         # Retrieve memory and trigger callback using the session
-        self.taf.retrieve_memory(session, query=message_body)
+        try:
+            self.taf.retrieve_memory(session, query=message_body)
+        except Exception as e:
+            self.logger.error(
+                f"Failed to retrieve memory for conversation {conv_id}: {e}",
+                exc_info=True,
+            )
+            return

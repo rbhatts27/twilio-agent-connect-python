@@ -106,10 +106,22 @@ class TAF:
 
         Returns:
             MemoryRetrievalResponse containing observations, summaries, sessions, and metadata
+
+        Raises:
+            ValueError: If profile_id is not available in conversation context
         """
+        # Validate that profile_id is available
+        if not conversation_context.profile_id:
+            raise ValueError(
+                "profile_id is required for memory retrieval but was not found in "
+                "conversation context. Ensure profile_id is provided when creating "
+                "the ConversationSession."
+            )
+
         try:
             memory_response = self.memora_client.retrieve_memory(
                 service_id=self.config.memory_service_sid,
+                profile_id=conversation_context.profile_id,
                 conversation_id=conversation_context.conversation_id,
                 query=query,
             )

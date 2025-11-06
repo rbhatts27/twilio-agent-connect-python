@@ -66,7 +66,7 @@ class TestVoiceChannel:
         channel = VoiceChannel(taf=taf)
 
         # Initialize conversation (normally done in setup handler)
-        channel._start_conversation("CALL123", None)
+        channel._start_conversation("CALL123", "profile_test_123")
 
         # Mock memory retrieval
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:

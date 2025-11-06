@@ -390,7 +390,7 @@ class TestTAFIntegration:
                 assert received_context.channel == "sms"
 
     def test_sms_channel_missing_profile_id_handling(self):
-        """Test SMS channel handles missing profile_id gracefully."""
+        """Test SMS channel raises ValueError when profile_id is missing."""
         with patch("taf.channels.sms.Client"):
             taf = TAF(get_test_config())
             channel = SMSChannel(taf)
@@ -415,12 +415,13 @@ class TestTAFIntegration:
                 "Author": "+17777777777",
             }
 
-            with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-                channel.process_webhook(message_webhook)
+            # Verify that processing webhook without profile_id doesn't propagate
+            # an exception to the caller. The conversation is auto-initialized with
+            # None profile_id, which will cause retrieve_memory to be called and
+            # raise ValueError internally, but it is handled internally
+            channel.process_webhook(message_webhook)
 
-                # Verify memory retrieval was called with None profile_id (auto-initialize)
-                # The code auto-initializes conversation even without explicit profile_id
-                mock_retrieve.assert_called_once()
-                assert callback_invoked
-                # Verify conversation was initialized
-                assert "CH777" in channel._conversations
+            # Callback should not be invoked due to the ValueError
+            assert not callback_invoked
+            # Verify conversation was auto-initialized despite the error
+            assert "CH777" in channel._conversations
