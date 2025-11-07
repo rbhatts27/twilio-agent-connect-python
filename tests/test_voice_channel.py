@@ -1,5 +1,6 @@
 """Tests for Voice Channel."""
 
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -8,7 +9,7 @@ from taf import TAF
 from taf.channels.voice import VoiceChannel
 from taf.core.context import ConversationSession
 from taf.models.conversation import ConversationResponse, ParticipantResponse
-from taf.models.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
+from taf.models.memory import MemoryRetrievalResponse
 
 
 def get_test_config() -> dict:
@@ -61,20 +62,15 @@ class TestVoiceChannel:
         assert channel._conversations["CALL123"].channel == "voice"
 
     def test_handle_prompt_message(self) -> None:
-        """Test handling prompt message triggers memory retrieval."""
+        """Test handling prompt message does NOT trigger memory retrieval (voice channel)."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
         # Initialize conversation (normally done in setup handler)
         channel._start_conversation("CALL123", "profile_test_123")
 
-        # Mock memory retrieval
+        # Mock memory retrieval to verify it's NOT called
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            empty_response = MemoryRetrievalResponse(
-                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
-            )
-            mock_retrieve.return_value = empty_response
-
             # Handle prompt message with conversationId
             prompt_data = {
                 "type": "prompt",
@@ -83,8 +79,8 @@ class TestVoiceChannel:
             }
             channel.handle_message(prompt_data)
 
-            # Verify memory retrieval was called
-            mock_retrieve.assert_called_once()
+            # Verify memory retrieval was NOT called (voice channel doesn't fetch memory)
+            mock_retrieve.assert_not_called()
 
     def test_handle_interrupt_message(self) -> None:
         """Test handling interrupt message."""
@@ -184,8 +180,8 @@ class TestVoiceChannel:
         channel.process_webhook({})
 
     @pytest.mark.asyncio
-    async def test_memory_callback_integration(self) -> None:
-        """Test memory callback is invoked with conversation context."""
+    async def test_message_callback_integration(self) -> None:
+        """Test message callback is invoked with conversation context."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
@@ -194,48 +190,42 @@ class TestVoiceChannel:
         captured_memories = None
         captured_user_message = None
 
-        async def memory_callback(
-            context: ConversationSession,
-            memory_response: MemoryRetrievalResponse,
+        async def message_callback(
             user_message: str,
+            context: ConversationSession,
+            memory_response: Optional[MemoryRetrievalResponse],
         ) -> None:
             nonlocal captured_context, captured_memories, captured_user_message
             captured_context = context
             captured_memories = memory_response
             captured_user_message = user_message
 
-        taf.on_memory_ready(memory_callback)
+        taf.on_message_ready(message_callback)
 
         # Start conversation
         channel._start_conversation("CALL123", "profile_test")
 
-        # Mock memory retrieval
-        with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            empty_response = MemoryRetrievalResponse(
-                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
-            )
-            mock_retrieve.return_value = empty_response
+        # Handle prompt message with conversationId
+        prompt_data = {
+            "type": "prompt",
+            "conversationId": "CALL123",
+            "voicePrompt": "Test message",
+        }
+        channel.handle_message(prompt_data)
 
-            # Handle prompt message with conversationId
-            prompt_data = {
-                "type": "prompt",
-                "conversationId": "CALL123",
-                "voicePrompt": "Test message",
-            }
-            channel.handle_message(prompt_data)
+        # Give async callback time to execute
+        import asyncio
 
-            # Give async callback time to execute
-            import asyncio
+        await asyncio.sleep(0.01)
 
-            await asyncio.sleep(0.01)
-
-            # Verify callback was invoked
-            assert captured_context is not None
-            assert captured_context.conversation_id == "CALL123"
-            assert captured_context.profile_id == "profile_test"
-            assert captured_context.channel == "voice"
-            assert captured_memories is not None
-            assert captured_user_message == "Test message"
+        # Verify callback was invoked
+        assert captured_context is not None
+        assert captured_context.conversation_id == "CALL123"
+        assert captured_context.profile_id == "profile_test"
+        assert captured_context.channel == "voice"
+        # Voice channel doesn't fetch memory, so it should be None
+        assert captured_memories is None
+        assert captured_user_message == "Test message"
 
     def test_handle_incoming_call(self) -> None:
         """Test handle_incoming_call generates valid TwiML."""
@@ -387,16 +377,11 @@ class TestVoiceChannel:
         # Start conversation
         channel._start_conversation("CALL111", "profile_test")
 
-        # Mock memory retrieval
+        # Mock memory retrieval to verify it's NOT called
         with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            empty_response = MemoryRetrievalResponse(
-                observations=[], summaries=[], sessions=[], meta=MemoryRetrievalMeta(queryTime=0)
-            )
-            mock_retrieve.return_value = empty_response
-
             # Handle prompt with None voicePrompt and conversationId
             prompt_data = {"type": "prompt", "conversationId": "CALL111", "voicePrompt": None}
             channel.handle_message(prompt_data)
 
-            # Verify memory retrieval was called with empty string
-            mock_retrieve.assert_called_once()
+            # Verify memory retrieval was NOT called (voice channel doesn't fetch memory)
+            mock_retrieve.assert_not_called()

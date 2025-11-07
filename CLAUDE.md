@@ -68,7 +68,7 @@ make ngrok
 The codebase follows a modular design matching the architecture diagram in TAF.md:
 
 - **`src/taf/core/`** - Core TAF class, configuration, and context models
-  - `taf.py` - Main `TAF` class with `retrieve_memory()` and `on_memory_ready()` hook
+  - `taf.py` - Main `TAF` class with `retrieve_memory()` and `on_message_ready()` hook
   - `config.py` - `TAFConfig` Pydantic model for SDK configuration
   - `context.py` - `SessionIdentity`, `Profile`, `Memory`, `ConversationSession` models (Note: `ConversationSession` does not store message history)
 
@@ -108,9 +108,11 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
    - `onMessageAdded`: Channel validates message → auto-initializes conversation if needed → creates `ConversationSession` with all fields → calls `taf.retrieve_memory(conversation_context, query)`
    - `onConversationRemoved`: Channel calls `_end_conversation(conv_id)` → cleans up session
 
-3. **Memory Retrieval**: `TAF.retrieve_memory(conversation_context, query)` → retrieves memories from Memora using `conversation_context.conversation_id` and `config.memory_service_sid` → triggers `on_memory_ready()` callback if registered → returns `MemoryRetrievalResponse`
+3. **Message Processing**: `TAF.retrieve_memory(conversation_context, query)` → retrieves memories from Memora using `conversation_context.conversation_id` and `config.memory_service_sid` → triggers `on_message_ready()` callback with optional memory response → returns `MemoryRetrievalResponse`
 
-4. **Memory Ready Hook**: Developers register callbacks via `taf.on_memory_ready(callback)` to receive `ConversationSession`, `MemoryRetrievalResponse`, and user message (triggered automatically in `retrieve_memory()`, with `query` parameter passed as `user_message`)
+4. **Message Ready Hook**: Developers register callbacks via `taf.on_message_ready(callback)` to handle incoming messages
+   - For SMS: Receives `user_message`, `context` (ConversationSession), and `memory_response` (MemoryRetrievalResponse)
+   - For Voice: Receives `user_message`, `context`, and `memory_response` (may be None)
 
 ### API Clients
 
@@ -206,12 +208,12 @@ config = TAFConfig(
 taf = TAF(config)
 sms_channel = SMSChannel(taf)
 
-# 2. Register callback to handle memory-ready events
-def handle_memory(context, memory_response, user_message):
+# 2. Register callback to handle message processing
+def handle_message(user_message, context, memory_response=None):
     llm_response = call_your_llm(user_message, memory_response)
     sms_channel.send_response(context.conversation_id, llm_response)
 
-taf.on_memory_ready(handle_memory)
+taf.on_message_ready(handle_message)
 
 # 3. In your webhook handler
 @app.route('/webhook', methods=['POST'])
@@ -233,7 +235,7 @@ The SMS channel handles three webhook events:
    - Auto-initializes conversation if not already started (extracts `profile_id` from webhook)
    - Creates `ConversationSession` with `conversation_id`, `profile_id`, `channel`, and `started_at`
    - Calls `taf.retrieve_memory(conversation_context, query=message_body)`
-   - This triggers `on_memory_ready` callback with full context and memories
+   - This triggers `on_message_ready` callback with `user_message`, `context`, and optional `memory_response`
 
 3. **`onConversationRemoved`**: Cleans up conversation state
    - Calls `_end_conversation(conv_id)` to remove conversation from internal tracking
@@ -309,12 +311,12 @@ config = TAFConfig(
 taf = TAF(config)
 voice_channel = VoiceChannel(taf)
 
-# 2. Register callback to handle memory-ready events
-async def handle_memory(context, memory_response, user_message):
+# 2. Register callback to handle message processing
+async def handle_message(user_message, context, memory_response=None):
     llm_response = await call_your_llm(user_message, memory_response)
     await voice_channel.send_response(context.conversation_id, llm_response)
 
-taf.on_memory_ready(handle_memory)
+taf.on_message_ready(handle_message)
 
 # 3. Create FastAPI app with TwiML and WebSocket endpoints
 app = FastAPI()

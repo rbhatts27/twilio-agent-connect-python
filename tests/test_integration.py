@@ -1,5 +1,6 @@
 """Integration tests for the complete TAF framework."""
 
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -72,17 +73,17 @@ class TestTAFIntegration:
             received_context = None
             received_memories = None
 
-            def memory_ready_callback(
-                context: ConversationSession,
-                memory_response: MemoryRetrievalResponse,
+            def message_ready_callback(
                 user_message: str,
+                context: ConversationSession,
+                memory_response: Optional[MemoryRetrievalResponse] = None,
             ):
                 nonlocal callback_invoked, received_context, received_memories
                 callback_invoked = True
                 received_context = context
                 received_memories = memory_response
 
-            taf.on_memory_ready(memory_ready_callback)
+            taf.on_message_ready(message_ready_callback)
 
             # Simulate conversation started webhook
             conversation_started = {
@@ -139,15 +140,15 @@ class TestTAFIntegration:
 
             callback_invoked = False
 
-            def memory_ready_callback(
-                context: ConversationSession,
-                memory_response: MemoryRetrievalResponse,
+            def message_ready_callback(
                 user_message: str,
+                context: ConversationSession,
+                memory_response: Optional[MemoryRetrievalResponse] = None,
             ):
                 nonlocal callback_invoked
                 callback_invoked = True
 
-            taf.on_memory_ready(memory_ready_callback)
+            taf.on_message_ready(message_ready_callback)
 
             # Send message without explicit conversation start
             message_webhook = {
@@ -189,15 +190,15 @@ class TestTAFIntegration:
 
             callback_invoked = False
 
-            def memory_ready_callback(
-                context: ConversationSession,
-                memory_response: MemoryRetrievalResponse,
+            def message_ready_callback(
                 user_message: str,
+                context: ConversationSession,
+                memory_response: Optional[MemoryRetrievalResponse] = None,
             ):
                 nonlocal callback_invoked
                 callback_invoked = True
 
-            taf.on_memory_ready(memory_ready_callback)
+            taf.on_message_ready(message_ready_callback)
 
             # Initialize conversation
             channel.process_webhook(
@@ -285,16 +286,16 @@ class TestTAFIntegration:
             callback_count = 0
             conversation_ids = set()
 
-            def memory_ready_callback(
-                context: ConversationSession,
-                memory_response: MemoryRetrievalResponse,
+            def message_ready_callback(
                 user_message: str,
+                context: ConversationSession,
+                memory_response: Optional[MemoryRetrievalResponse] = None,
             ):
                 nonlocal callback_count
                 callback_count += 1
                 conversation_ids.add(context.conversation_id)
 
-            taf.on_memory_ready(memory_ready_callback)
+            taf.on_message_ready(message_ready_callback)
 
             # Start multiple conversations
             for i in range(3):
@@ -342,16 +343,16 @@ class TestTAFIntegration:
             callback_invoked = False
             received_context = None
 
-            def memory_ready_callback(
-                context: ConversationSession,
-                memory_response: MemoryRetrievalResponse,
+            def message_ready_callback(
                 user_message: str,
+                context: ConversationSession,
+                memory_response: Optional[MemoryRetrievalResponse] = None,
             ):
                 nonlocal callback_invoked, received_context
                 callback_invoked = True
                 received_context = context
 
-            taf.on_memory_ready(memory_ready_callback)
+            taf.on_message_ready(message_ready_callback)
 
             # Simulate real Twilio webhook with TwilioConversationEvent format
             real_webhook = {
@@ -397,15 +398,15 @@ class TestTAFIntegration:
 
             callback_invoked = False
 
-            def memory_ready_callback(
-                context: ConversationSession,
-                memory_response: MemoryRetrievalResponse,
+            def message_ready_callback(
                 user_message: str,
+                context: ConversationSession,
+                memory_response: Optional[MemoryRetrievalResponse] = None,
             ):
                 nonlocal callback_invoked
                 callback_invoked = True
 
-            taf.on_memory_ready(memory_ready_callback)
+            taf.on_message_ready(message_ready_callback)
 
             # Message without profile_id
             message_webhook = {

@@ -1,6 +1,7 @@
 """Tests for SMS Channel."""
 
 import asyncio
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 from taf import TAF
@@ -77,16 +78,16 @@ class TestSMSChannel:
             captured_context = None
             captured_memories = None
 
-            def memory_callback(
-                context: ConversationSession,
-                memory_response: MemoryRetrievalResponse,
+            def message_callback(
                 user_message: str,
+                context: ConversationSession,
+                memory_response: Optional[MemoryRetrievalResponse],
             ) -> None:
                 nonlocal captured_context, captured_memories
                 captured_context = context
                 captured_memories = memory_response
 
-            taf.on_memory_ready(memory_callback)
+            taf.on_message_ready(message_callback)
 
             webhook_data = {
                 "EventType": "onMessageAdded",

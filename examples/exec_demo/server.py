@@ -14,6 +14,7 @@ This demo demonstrates TAF's channel-agnostic architecture with both SMS and Voi
 
 import logging
 import os
+from typing import Optional
 
 import uvicorn
 from dotenv import load_dotenv
@@ -88,17 +89,18 @@ def flex_handoff_handler(request_data):
     )
 
 
-# Register memory ready callback
-async def handle_memory_ready(
-    context: ConversationSession,
-    memory_response: MemoryRetrievalResponse,
+# Register message ready callback
+async def handle_message_ready(
     user_message: str,
+    context: ConversationSession,
+    memory_response: Optional[MemoryRetrievalResponse],
 ) -> None:
     """
-    Callback invoked when TAF memory retrieval completes.
+    Callback invoked when a message is ready to be processed.
 
     This demonstrates how to process memories and respond to messages.
     Uses LLM service with user-managed message history.
+    Memory response is optional - SMS channel provides it, Voice channel does not.
     """
     try:
         global active_conversation_sid
@@ -145,7 +147,7 @@ async def handle_memory_ready(
         logger.error(f"Error handling memory ready callback: {e}", exc_info=True)
 
 
-taf.on_memory_ready(handle_memory_ready)
+taf.on_message_ready(handle_message_ready)
 
 taf.on_handoff(flex_handoff_handler)
 

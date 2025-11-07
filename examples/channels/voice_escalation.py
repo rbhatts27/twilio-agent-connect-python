@@ -18,6 +18,7 @@ Features:
 import json
 import os
 import sys
+from typing import Optional
 
 import openai
 import uvicorn
@@ -73,20 +74,26 @@ def flex_handoff_handler(request_data):
     )
 
 
-async def handle_memory_ready(
-    context: ConversationSession, memory_response: MemoryRetrievalResponse, user_message: str
+async def handle_message_ready(
+    user_message: str,
+    context: ConversationSession,
+    memory_response: Optional[MemoryRetrievalResponse],
 ) -> None:
     """
-    Callback invoked when memory retrieval completes.
+    Callback invoked when a message is ready to be processed.
 
     Processes user message with OpenAI, using retrieved memories for context
-    and maintaining conversation history for coherent multi-turn interactions.
+    (if available) and maintaining conversation history for coherent multi-turn interactions.
+    For voice channel, memory_response will be None.
     """
     logger.info(f"Processing message for conversation {context.conversation_id}")
-    logger.info(
-        f"Retrieved memories: {len(memory_response.observations)} observations, "
-        f"{len(memory_response.summaries)} summaries, {len(memory_response.sessions)} sessions"
-    )
+    if memory_response:
+        logger.info(
+            f"Retrieved memories: {len(memory_response.observations)} observations, "
+            f"{len(memory_response.summaries)} summaries, {len(memory_response.sessions)} sessions"
+        )
+    else:
+        logger.info("No memory response (voice channel)")
 
     # Initialize conversation history with system message
     conv_id = context.conversation_id
@@ -155,8 +162,8 @@ if __name__ == "__main__":
         )
     )
 
-    # Register callback for memory retrieval
-    taf.on_memory_ready(handle_memory_ready)
+    # Register callback for message ready
+    taf.on_message_ready(handle_message_ready)
 
     # Initialize channel
     voice_channel = VoiceChannel(taf=taf)

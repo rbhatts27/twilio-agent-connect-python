@@ -265,15 +265,14 @@ class VoiceChannel(BaseChannel):
         message_body = message.voice_prompt or ""
         session = self._conversations[conv_id]
 
-        # Retrieve memory and trigger callback using the session
+        # Trigger message ready callback without memory (voice channel doesn't fetch memory)
         try:
-            self.taf.retrieve_memory(session, query=message_body)
+            self.taf.trigger_message_ready(message_body, session, None)
         except Exception as e:
             self.logger.error(
-                f"Failed to retrieve memory for conversation {conv_id}: {e}",
+                f"Error in message ready callback for conversation {conv_id}: {e}",
                 exc_info=True,
             )
-            return
 
     def _handle_interrupt(self, conv_id: str, message: InterruptMessage) -> None:
         """

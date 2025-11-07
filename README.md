@@ -17,7 +17,7 @@ Explore the [examples](examples) directory to see the SDK in action.
 - **Memory Management**: Automatic integration with Twilio Memora for persistent user context
 - **Conversation Lifecycle**: Automatic tracking of conversation sessions and state
 - **Type-Safe**: Full type hints and Pydantic models throughout
-- **Callback-Based**: Simple `on_memory_ready` callback for LLM integration
+- **Callback-Based**: Simple `on_message_ready` callback for LLM integration with optional memory retrieval
 - **Production Ready**: Comprehensive test coverage and error handling
 
 ## Get Started
@@ -52,11 +52,11 @@ pip install "git+https://github.com/twilio-internal/twilio-agentic-framework-pyt
 ## Quick Example: SMS Channel with Memory
 
 ```python
-from typing import List
+from typing import List, Optional
 from taf import TAF, TAFConfig
 from taf.channels.sms import SMSChannel
 from taf.core.context import ConversationSession
-from taf.context.memory import TwilioMemory
+from taf.context.memory import MemoryRetrievalResponse
 
 # 1. Configure TAF with your Twilio credentials
 config = TAFConfig(
@@ -70,23 +70,25 @@ config = TAFConfig(
 
 taf = TAF(config)
 
-# 2. Register callback for when memories are retrieved
-def handle_memory_ready(
+# 2. Register callback for when messages are processed
+def handle_message_ready(
+    user_message: str,
     context: ConversationSession,
-    memories: List[TwilioMemory],
-    user_message: str
+    memory_response: Optional[MemoryRetrievalResponse] = None
 ):
-    """Called when memory retrieval completes"""
+    """Called when message is received and memory is retrieved"""
     print(f"Conversation: {context.conversation_id}")
     print(f"Profile: {context.profile_id}")
     print(f"User message: {user_message}")
-    print(f"Memories: {len(memories)}")
 
-    # Process memories and call your LLM with user message
-    # llm_response = your_llm.generate(user_message, memories)
+    if memory_response:
+        print(f"Memories: {len(memory_response.observations)}")
+
+    # Process message and call your LLM with user message
+    # llm_response = your_llm.generate(user_message, memory_response)
     # sms_channel.send_response(context.conversation_id, llm_response)
 
-taf.on_memory_ready(handle_memory_ready)
+taf.on_message_ready(handle_message_ready)
 
 # 3. Initialize SMS channel
 sms_channel = SMSChannel(taf)
@@ -177,9 +179,9 @@ TAF requires the following configuration parameters:
 
 1. **Webhook Received**: Twilio sends SMS webhook to your server
 2. **Channel Processing**: `SMSChannel` validates and processes the event
-3. **Memory Retrieval**: TAF automatically retrieves user memories from Memora
-4. **Callback Invoked**: Your `on_memory_ready` callback receives context and memories
-5. **LLM Integration**: Your code calls LLM with memories and sends response
+3. **Memory Retrieval**: TAF optionally retrieves user memories from Memora
+4. **Callback Invoked**: Your `on_message_ready` callback receives user message, context, and optional memory response
+5. **LLM Integration**: Your code calls LLM with message and optional memories, sends response
 
 ## Examples
 

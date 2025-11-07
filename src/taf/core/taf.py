@@ -76,11 +76,13 @@ class TAF:
             service_id=self.config.conversation_service_sid,
         )
 
-        # Callback for when memory is ready (supports both sync and async)
-        self._memory_ready_callback: Optional[
+        # Callback for when message is ready (supports both sync and async)
+        self._message_ready_callback: Optional[
             Union[
-                Callable[[ConversationSession, MemoryRetrievalResponse, str], None],
-                Callable[[ConversationSession, MemoryRetrievalResponse, str], Awaitable[None]],
+                Callable[[str, ConversationSession, Optional[MemoryRetrievalResponse]], None],
+                Callable[
+                    [str, ConversationSession, Optional[MemoryRetrievalResponse]], Awaitable[None]
+                ],
             ]
         ] = None
 
@@ -98,7 +100,7 @@ class TAF:
         query: Optional[str] = None,
     ) -> MemoryRetrievalResponse:
         """
-        Retrieve memories from Memora and trigger callback with conversation context.
+        Retrieve memories from Memora.
 
         Args:
             conversation_context: Conversation context containing profile_id and other info
@@ -125,79 +127,58 @@ class TAF:
                 conversation_id=conversation_context.conversation_id,
                 query=query,
             )
-
-            # Trigger the memory ready callback if registered
-            if self._memory_ready_callback:
-                # Check if callback is async
-                if inspect.iscoroutinefunction(self._memory_ready_callback):
-                    # Schedule async callback as a background task
-                    try:
-                        asyncio.create_task(
-                            self._memory_ready_callback(
-                                conversation_context, memory_response, query or ""
-                            )
-                        )
-                    except RuntimeError:
-                        # No event loop running, log warning
-                        self.logger.warning(
-                            "Async callback registered but no event loop running. "
-                            "Callback will not be executed."
-                        )
-                else:
-                    # Call sync callback directly
-                    self._memory_ready_callback(conversation_context, memory_response, query or "")
-
             return memory_response
         except Exception as e:
             self.logger.error(f"Failed to retrieve memory: {e}")
             raise
 
-    def on_memory_ready(
+    def on_message_ready(
         self,
         callback: Union[
-            Callable[[ConversationSession, MemoryRetrievalResponse, str], None],
-            Callable[[ConversationSession, MemoryRetrievalResponse, str], Awaitable[None]],
+            Callable[[str, ConversationSession, Optional[MemoryRetrievalResponse]], None],
+            Callable[
+                [str, ConversationSession, Optional[MemoryRetrievalResponse]], Awaitable[None]
+            ],
         ],
     ) -> None:
         """
-        Register a callback to be invoked when memory context is ready.
+        Register a callback to be invoked when a message is ready to be processed.
 
-        The callback will be triggered after memory retrieval is complete
-        (after retrieve_memory on MemoryClient) and will receive the conversation context,
-        retrieved memory data, and the user's message that triggered the retrieval.
+        The callback will be triggered by channels when a new user message arrives,
+        regardless of whether memory was fetched. This allows different channels
+        (SMS, Voice) to handle memory retrieval differently.
 
         Supports both synchronous and asynchronous callbacks. Async callbacks
         will be scheduled as background tasks using asyncio.create_task().
 
         Args:
             callback: A callable that accepts:
-                     - ConversationSession: Contains conversation_id, profile_id for responses
-                     - MemoryRetrievalResponse: Retrieved memory data with observations,
-                       summaries, and sessions
-                     - str: The user's message (query) that triggered memory retrieval
+                     - str: The user's message content
+                     - ConversationSession: Contains conversation_id, profile_id, channel
+                     - Optional[MemoryRetrievalResponse]: Retrieved memory data
+                       (None for voice channel)
 
         Example (Synchronous):
             ```python
             from taf.core.context import ConversationSession
             from taf.models.memory import MemoryRetrievalResponse
+            from typing import Optional
 
 
-            def handle_memory(
-                context: ConversationSession,
-                memory_response: MemoryRetrievalResponse,
+            def handle_message(
                 user_message: str,
+                context: ConversationSession,
+                memory_response: Optional[MemoryRetrievalResponse],
             ):
-                print(f"Conversation {context.conversation_id} on {context.channel}")
                 print(f"User message: {user_message}")
-                print(f"Observations: {len(memory_response.observations)}")
-                print(f"Summaries: {len(memory_response.summaries)}")
-                print(f"Sessions: {len(memory_response.sessions)}")
+                print(f"Conversation {context.conversation_id} on {context.channel}")
 
-                # Access observations
-                for obs in memory_response.observations:
-                    print(f"Observation: {obs.content}")
+                if memory_response:
+                    print(f"Observations: {len(memory_response.observations)}")
+                    print(f"Summaries: {len(memory_response.summaries)}")
+                    print(f"Sessions: {len(memory_response.sessions)}")
 
-                # Process user message with LLM using memories
+                # Process user message with LLM
                 # llm_response = llm.process(user_message, memory_response)
 
                 # Send response back through the channel
@@ -205,28 +186,65 @@ class TAF:
 
 
             taf = TAF(config)
-            taf.on_memory_ready(handle_memory)
+            taf.on_message_ready(handle_message)
             ```
 
         Example (Asynchronous):
             ```python
-            async def handle_memory(
-                context: ConversationSession,
-                memory_response: MemoryRetrievalResponse,
+            async def handle_message(
                 user_message: str,
+                context: ConversationSession,
+                memory_response: Optional[MemoryRetrievalResponse],
             ):
-                print(f"Conversation {context.conversation_id} on {context.channel}")
+                print(f"Message on {context.channel}: {user_message}")
 
                 # Call async operations directly
                 response = await call_llm(user_message, memory_response)
-                await voice_channel.send_response(context.conversation_id, response)
+                await channel.send_response(context.conversation_id, response)
 
 
             taf = TAF(config)
-            taf.on_memory_ready(handle_memory)
+            taf.on_message_ready(handle_message)
             ```
         """
-        self._memory_ready_callback = callback
+        self._message_ready_callback = callback
+
+    def trigger_message_ready(
+        self,
+        user_message: str,
+        conversation_context: ConversationSession,
+        memory_response: Optional[MemoryRetrievalResponse] = None,
+    ) -> None:
+        """
+        Trigger the registered message ready callback.
+
+        This method is called by channels when a new message is ready to be processed.
+        Different channels can call this with or without memory based on their needs.
+
+        Args:
+            user_message: The user's message content
+            conversation_context: Conversation context with conversation_id, profile_id, channel
+            memory_response: Optional memory retrieval response (None for voice channel)
+        """
+        if self._message_ready_callback:
+            # Check if callback is async
+            if inspect.iscoroutinefunction(self._message_ready_callback):
+                # Schedule async callback as a background task
+                try:
+                    asyncio.create_task(
+                        self._message_ready_callback(
+                            user_message, conversation_context, memory_response
+                        )
+                    )
+                except RuntimeError:
+                    # No event loop running, log warning
+                    self.logger.warning(
+                        "Async message ready callback registered but no event loop running. "
+                        "Callback will not be executed."
+                    )
+            else:
+                # Call sync callback directly
+                self._message_ready_callback(user_message, conversation_context, memory_response)
 
     def on_interrupt(
         self,

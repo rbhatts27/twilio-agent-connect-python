@@ -48,8 +48,8 @@ uv run python examples/channels/sms.py
 1. Twilio sends SMS webhook to `/sms` endpoint
 2. SMS channel processes webhook and validates message
 3. TAF retrieves memories (observations, summaries, sessions)
-4. `handle_memory_ready` callback invoked with context and memories
-5. OpenAI generates response using conversation history
+4. `handle_message_ready` callback invoked with user message, context, and optional memory_response
+5. OpenAI generates response using conversation history and optional memories
 6. Response sent back via SMS channel
 
 **Key Code Pattern:**
@@ -62,12 +62,12 @@ taf = TAF(config)
 sms_channel = SMSChannel(taf)
 
 # Register callback
-async def handle_memory_ready(context, memory_response, user_message):
+async def handle_message_ready(user_message, context, memory_response=None):
     # Generate response with OpenAI
     response = await openai_client.chat.completions.create(...)
     await sms_channel.send_response(context.conversation_id, response)
 
-taf.on_memory_ready(handle_memory_ready)
+taf.on_message_ready(handle_message_ready)
 
 # Create FastAPI app
 app = FastAPI(title="TAF SMS Server")
@@ -124,8 +124,8 @@ uv run python examples/channels/voice.py
 2. `/twiml` endpoint generates TwiML with WebSocket URL
 3. Voice channel establishes WebSocket connection via `/ws`
 4. TAF retrieves memories (observations, summaries, sessions)
-5. `handle_memory_ready` callback invoked with context and memories
-6. OpenAI generates response using conversation history
+5. `handle_message_ready` callback invoked with user message, context, and optional memory_response
+6. OpenAI generates response using conversation history and optional memories
 7. Response sent back via voice channel
 
 **Key Code Pattern:**
@@ -138,12 +138,12 @@ taf = TAF(config)
 voice_channel = VoiceChannel(taf)
 
 # Register callback
-async def handle_memory_ready(context, memory_response, user_message):
+async def handle_message_ready(user_message, context, memory_response=None):
     # Generate response with OpenAI
     response = await openai_client.chat.completions.create(...)
     await voice_channel.send_response(context.conversation_id, response)
 
-taf.on_memory_ready(handle_memory_ready)
+taf.on_message_ready(handle_message_ready)
 
 # Create FastAPI app
 app = FastAPI(title="TAF Voice Server")
