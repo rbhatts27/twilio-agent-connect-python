@@ -21,11 +21,15 @@ This directory contains examples demonstrating how to use the Twilio Agentic Fra
    TWILIO_AUTH_TOKEN=your_auth_token
    TWILIO_PHONE_NUMBER=+1234567890
    OPENAI_API_KEY=sk-xxxxx...  # For examples using OpenAI
+   VOICE_PUBLIC_DOMAIN=example.ngrok.io  # For voice examples (your ngrok domain)
    ```
 
 3. **Run an example:**
    ```bash
-   # Start SMS webhook server
+   # Start simplified voice server (recommended for getting started)
+   uv run python examples/servers/voice.py
+
+   # Or start SMS webhook server
    uv run python examples/channels/sms.py
 
    # Or try a tool integration example
@@ -45,13 +49,25 @@ Complete production-ready example demonstrating both SMS and Voice channels:
 
 [→ View Multi-Channel Demo](exec_demo/)
 
+### [servers/](servers/) - Simplified Server Setup
+
+**Recommended starting point** for new users. Examples using TAF's built-in server configuration for minimal boilerplate:
+
+- **`voice.py`** - Simplified voice server with automatic FastAPI setup and endpoint creation
+
+Perfect for getting started quickly. For advanced features or custom control, see the manual approach in `channels/`.
+
+[→ View Simplified Server Examples](servers/)
+
 ### [channels/](channels/) - Channel Implementation Examples
 
-Ready-to-deploy examples for handling different Twilio channels:
+Ready-to-deploy examples with full control over FastAPI configuration:
 
 - **`sms.py`** - SMS channel webhook server with TAF integration
-- **`voice.py`** - Simple voice channel server with FastAPI and ConversationRelay WebSocket
+- **`voice.py`** - Voice channel server with manual FastAPI and WebSocket setup
 - **`voice_escalation.py`** - Voice channel with Flex escalation for agent handoff to humans
+
+Use these examples when you need custom middleware, authentication, or integration with existing apps.
 
 [→ View Channel Examples](channels/)
 

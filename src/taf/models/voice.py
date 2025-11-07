@@ -5,6 +5,25 @@ from typing import Literal, Optional, Union
 from pydantic import BaseModel, Field
 
 
+class VoiceServerConfig(BaseModel):
+    """
+    Configuration for the built-in Voice WebSocket server.
+
+    When provided to VoiceChannel, enables the simplified start() approach
+    that automatically sets up FastAPI endpoints for TwiML and WebSocket handling.
+    """
+
+    host: str = Field(default="0.0.0.0", description="Host to bind the server to")
+    port: int = Field(default=8000, description="Port to bind the server to")
+    public_domain: str = Field(
+        ..., description="Public domain for WebSocket URL (e.g., 'example.ngrok.io')"
+    )
+    welcome_greeting: str = Field(
+        default="Hello! How can I assist you today?",
+        description="Initial greeting message for callers",
+    )
+
+
 class CustomParameters(BaseModel):
     """Custom parameters passed in ConversationRelay setup."""
 

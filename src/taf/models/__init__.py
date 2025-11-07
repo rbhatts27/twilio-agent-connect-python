@@ -12,6 +12,7 @@ from taf.models.conversation_event import (
     TwilioConversationEvent,
 )
 from taf.models.knowledge import Knowledge
+from taf.models.voice import VoiceServerConfig
 from taf.models.webhook import TwilioWebhookEvent, WebhookEventType
 
 __all__ = [
@@ -24,5 +25,6 @@ __all__ = [
     "ParticipantResponse",
     "TwilioConversationEvent",
     "TwilioWebhookEvent",
+    "VoiceServerConfig",
     "WebhookEventType",
 ]

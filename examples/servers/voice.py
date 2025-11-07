@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
-Simple Voice Channel Example for Twilio Agentic Framework
+Simplified Voice Server Example using built-in server
 
-This example demonstrates basic VoiceChannel integration with FastAPI for handling
-voice calls without escalation features. For an example with Flex escalation support,
-see voice_escalation.py.
+This example demonstrates the simplified VoiceChannel integration with built-in server.
+Just provide VoiceServerConfig and call voice_channel.start() - no need to manually
+create FastAPI app or routes!
+
+For a manual approach with full control, see examples/channels/voice.py.
 
 Features:
-- Basic voice call handling with TwiML generation
-- WebSocket connection for real-time voice streaming
+- Automatic server setup with single start() call
+- Automatic TwiML and WebSocket endpoint handling
 - OpenAI integration for conversational responses
 - Memory retrieval and context management
 """
@@ -17,10 +19,7 @@ import os
 import sys
 
 import openai
-import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, WebSocket
-from fastapi.responses import Response
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
     ChatCompletionMessageParam,
@@ -34,7 +33,7 @@ load_dotenv()
 # Add parent directory to path to import taf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from taf import TAF, TAFConfig, get_logger
+from taf import TAF, TAFConfig, VoiceServerConfig, get_logger
 from taf.channels.voice import VoiceChannel
 from taf.core.context import ConversationSession
 from taf.models.memory import MemoryRetrievalResponse
@@ -43,9 +42,7 @@ from taf.models.memory import MemoryRetrievalResponse
 logger = get_logger(__name__)
 
 # Global variables
-voice_channel: VoiceChannel
 system_prompt = "You're a helpful assistant that helps users over the phone."
-
 
 # User-managed conversation history
 # Key: conversation_id, Value: list of messages
@@ -115,31 +112,16 @@ if __name__ == "__main__":
     # Register callback for memory retrieval
     taf.on_memory_ready(handle_memory_ready)
 
-    # Initialize channel
-    voice_channel = VoiceChannel(taf=taf)
+    # Initialize channel with server configuration
+    voice_channel = VoiceChannel(
+        taf=taf,
+        server_config=VoiceServerConfig(
+            public_domain=os.environ["VOICE_PUBLIC_DOMAIN"],
+            host="0.0.0.0",
+            port=8000,
+        ),
+    )
 
-    # Create FastAPI app
-    app = FastAPI(title="TAF Voice Server")
-
-    @app.post("/twiml")
-    async def post_twiml(From: str = Form(...)) -> Response:
-        """Generate TwiML for incoming voice calls."""
-        public_domain = os.environ.get("VOICE_PUBLIC_DOMAIN")
-        websocket_url = f"wss://{public_domain}/ws"
-
-        twiml = voice_channel.handle_incoming_call(
-            websocket_url=websocket_url,
-            called_phone_number=From,
-            welcome_greeting="Hello! How can I assist you today?",
-        )
-        return Response(content=twiml, media_type="application/xml")
-
-    @app.websocket("/ws")
-    async def websocket_endpoint(websocket: WebSocket) -> None:
-        """Handle voice WebSocket connections for real-time streaming."""
-        await voice_channel.handle_websocket(websocket)
-
-    # Start the server
-    logger.info("Starting TAF Voice Server on 0.0.0.0:8000")
-
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    # That's it! Just call start() and everything is handled automatically
+    logger.info("Starting simplified voice server...")
+    voice_channel.start()

@@ -182,8 +182,6 @@ async def post_twiml(From: str = Form(...)) -> Response:
         websocket_url=websocket_url,
         called_phone_number=From,
         action_url=handoff_url,
-        welcome_greeting="Hello! How can I assist you today?",
-        conversation_id=active_conversation_sid,
     )
     return Response(content=twiml, media_type="application/xml")
 

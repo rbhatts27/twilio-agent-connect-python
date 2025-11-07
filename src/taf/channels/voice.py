@@ -1,7 +1,8 @@
 import json
 from typing import Any, Optional
 
-from fastapi import Request, Response, WebSocket, WebSocketDisconnect
+import uvicorn
+from fastapi import FastAPI, Form, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.datastructures import FormData
 
 from taf.channels.base import BaseChannel
@@ -11,6 +12,7 @@ from taf.models.voice import (
     InterruptMessage,
     PromptMessage,
     SetupMessage,
+    VoiceServerConfig,
 )
 
 
@@ -25,12 +27,15 @@ class VoiceChannel(BaseChannel):
     def __init__(
         self,
         taf: TAF,
+        server_config: Optional[VoiceServerConfig] = None,
     ):
         """
         Initialize Voice channel for websocket protocol handling.
 
         Args:
             taf: TAF instance for memory/context operations
+            server_config: Optional server configuration. If provided, enables the simplified
+                         start() method to automatically create and run a FastAPI server.
         """
         super().__init__(taf)
 
@@ -38,6 +43,7 @@ class VoiceChannel(BaseChannel):
         # TODO: Support multiple concurrent calls
         self._active_websocket: Optional[WebSocket] = None
         self._current_conversation_id: Optional[str] = None
+        self._server_config = server_config
 
     def handle_incoming_call(
         self,
@@ -45,40 +51,34 @@ class VoiceChannel(BaseChannel):
         called_phone_number: str,
         action_url: Optional[str] = None,
         welcome_greeting: str = "Hello! How can I assist you today?",
-        conversation_id: Optional[str] = None,
     ) -> str:
         """
         Generate TwiML response for incoming voice calls.
 
-        This method creates a new conversation (or uses an existing one) and returns
-        TwiML that connects the call to a ConversationRelay WebSocket endpoint.
+        This method creates a new conversation and returns TwiML that connects
+        the call to a ConversationRelay WebSocket endpoint.
 
         Args:
             websocket_url: WebSocket URL for ConversationRelay (e.g., 'wss://example.ngrok.io/ws')
             called_phone_number: Phone number that was called (e.g., '+15551234567').
                                Will be added as a VOICE address for the participant.
+            action_url: Optional URL for Twilio to request when the call ends.
             welcome_greeting: Initial greeting message for the caller.
                             Defaults to "Hello! How can I assist you today?"
-            conversation_id: Optional conversation ID to use. If not provided,
-                           a new conversation will be created.
 
         Returns:
             TwiML XML string for call connection
         """
-        # Use existing conversation or create a new one
-        profile_id = None
-        if conversation_id is None:
-            conversation = self.taf.maestro_client.create_conversation()
-            conversation_id = conversation.id
+        # Create a new conversation for each call
+        conversation = self.taf.maestro_client.create_conversation()
+        conversation_id = conversation.id
 
-            # Add participant for the newly created conversation with called phone number
-            participant_response = self.taf.maestro_client.add_participant(
-                conversation_id=conversation_id,
-                addresses=[
-                    ParticipantAddress(communicationType="VOICE", value=called_phone_number)
-                ],
-            )
-            profile_id = participant_response.profile_id
+        # Add participant with the caller's phone number
+        participant_response = self.taf.maestro_client.add_participant(
+            conversation_id=conversation_id,
+            addresses=[ParticipantAddress(communicationType="VOICE", value=called_phone_number)],
+        )
+        profile_id = participant_response.profile_id
 
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -312,3 +312,57 @@ class VoiceChannel(BaseChannel):
         if self._current_conversation_id == conv_id:
             self._active_websocket = None
             self._current_conversation_id = None
+
+    def start(self) -> None:
+        """
+        Start the built-in FastAPI server with TwiML and WebSocket endpoints.
+
+        This method is only available when server_config is provided during initialization.
+        It automatically creates a FastAPI app with:
+        - POST /twiml endpoint for handling incoming calls
+        - WebSocket /ws endpoint for ConversationRelay connections
+
+        Raises:
+            ValueError: If server_config was not provided during initialization
+            ImportError: If FastAPI or uvicorn are not installed
+        """
+        if not self._server_config:
+            raise ValueError(
+                "Cannot start server: server_config was not provided during initialization. "
+                "Either provide VoiceServerConfig to VoiceChannel.__init__() or manually "
+                "create your FastAPI app and routes."
+            )
+        # Store config in local variable for type checking
+        config = self._server_config
+
+        # Create FastAPI app
+        app = FastAPI(title="TAF Voice Server")
+
+        # Register TwiML endpoint
+        @app.post("/twiml")
+        async def post_twiml(From: str = Form(...)) -> Response:  # noqa: N803
+            """Generate TwiML for incoming voice calls."""
+            websocket_url = f"wss://{config.public_domain}/ws"
+
+            twiml = self.handle_incoming_call(
+                websocket_url=websocket_url,
+                called_phone_number=From,
+                welcome_greeting=config.welcome_greeting,
+            )
+            return Response(content=twiml, media_type="application/xml")
+
+        # Register WebSocket endpoint
+        @app.websocket("/ws")
+        async def websocket_endpoint(websocket: WebSocket) -> None:
+            """Handle voice WebSocket connections for real-time streaming."""
+            await self.handle_websocket(websocket)
+
+        # Start the server
+        self.logger.info(f"Starting TAF Voice Server on {config.host}:{config.port}")
+
+        uvicorn.run(
+            app,
+            host=config.host,
+            port=config.port,
+            log_level="info",
+        )

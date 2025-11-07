@@ -79,7 +79,7 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 - **`src/taf/models/`** - Data models
   - `memory.py` - Memory API models: `MemoryRetrievalRequest`, `MemoryRetrievalResponse`, `ObservationInfo`, `SummaryInfo`, `SessionInfo`, `SessionMessage`
   - `conversation.py` - Conversation API models: `ConversationRequest`, `ConversationResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`
-  - `voice.py` - Voice WebSocket message models: `SetupMessage`, `PromptMessage`, `InterruptMessage`, `CustomParameters`
+  - `voice.py` - Voice WebSocket message models: `SetupMessage`, `PromptMessage`, `InterruptMessage`, `CustomParameters`, `VoiceServerConfig`
   - `webhook.py` - `TwilioWebhookEvent` model for parsing Twilio webhook events
   - `knowledge.py` - `Knowledge` model for knowledge tool integration
   - `conversation_event.py` - `ConversationEvent` model with comprehensive event fields
@@ -87,7 +87,7 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 - **`src/taf/channels/`** - Channel-specific orchestration and conversation lifecycle management
   - `base.py` - `BaseChannel` abstract class with conversation session management (`_start_conversation`, `_end_conversation`); `send_response()` with optional `role` parameter
   - `sms.py` - `SMSChannel` implementation handling webhook events, message validation, and memory retrieval
-  - `voice.py` - `VoiceChannel` for Voice/ConversationRelay WebSocket protocol handling (protocol layer only, no built-in server)
+  - `voice.py` - `VoiceChannel` for Voice/ConversationRelay WebSocket protocol handling; supports both simplified server (via `VoiceServerConfig`) and manual FastAPI approaches
 
 - **`src/taf/tools/`** - LLM tool integration for Sierra primitives
   - `base.py` - `TAFTool` dataclass with `to_openai_format()` and `to_anthropic_format()` methods; `function_tool` decorator for creating tools from functions
@@ -242,7 +242,54 @@ The SMS channel handles three webhook events:
 
 ### Voice Channel Usage
 
-The Voice channel provides WebSocket protocol handling for Twilio ConversationRelay. Unlike SMS, it does not include a built-in server - developers create their own FastAPI application:
+The Voice channel provides WebSocket protocol handling for Twilio ConversationRelay. TAF offers two approaches:
+
+**Simplified Approach (Recommended for Getting Started):**
+
+Use `VoiceServerConfig` for automatic server setup with minimal boilerplate:
+
+```python
+from taf import TAF, TAFConfig, VoiceServerConfig
+from taf.channels.voice import VoiceChannel
+
+# 1. Setup TAF and Voice Channel with server config
+config = TAFConfig(
+    environment="prod",  # or "dev" or "stage"
+    twilio_account_sid="AC...",
+    twilio_auth_token="...",
+    twilio_phone_number="+1234567890",
+    memory_service_sid="MG...",
+    conversation_service_sid="IS..."
+)
+taf = TAF(config)
+
+# 2. Register callback to handle memory-ready events
+async def handle_memory(context, memory_response, user_message):
+    llm_response = await call_your_llm(user_message, memory_response)
+    await voice_channel.send_response(context.conversation_id, llm_response)
+
+taf.on_memory_ready(handle_memory)
+
+# 3. Initialize channel with server configuration
+voice_channel = VoiceChannel(
+    taf=taf,
+    server_config=VoiceServerConfig(
+        public_domain="example.ngrok.io",  # Required
+        host="0.0.0.0",  # Optional (default: "0.0.0.0")
+        port=8000,  # Optional (default: 8000)
+        welcome_greeting="Hello! How can I assist you today?",  # Optional
+    ),
+)
+
+# 4. Start server (automatically creates FastAPI app with /twiml and /ws endpoints)
+voice_channel.start()
+```
+
+See `examples/servers/voice.py` for a complete implementation.
+
+**Manual Approach (For Advanced Use Cases):**
+
+Create your own FastAPI application for full control over server configuration:
 
 ```python
 from fastapi import FastAPI, WebSocket
@@ -294,9 +341,18 @@ See `examples/channels/voice.py` for a complete implementation.
 
 ### Voice Channel Architecture
 
+TAF provides two architectural patterns:
+
+**Simplified Pattern (VoiceServerConfig):**
+- **Built-in Server**: Automatic FastAPI app creation and endpoint setup
+- **Convention over Configuration**: Opinionated defaults for quick starts
+- **Use Case**: Getting started quickly, prototyping, simple voice applications
+
+**Manual Pattern (Custom FastAPI):**
 - **Protocol Layer** (`VoiceChannel`): Handles WebSocket lifecycle, processes ConversationRelay messages, manages conversation state
 - **Application Layer** (User's FastAPI app): Provides TwiML endpoint and WebSocket endpoint
 - **Benefits**: Separation of concerns, no forced dependencies, full control over server configuration
+- **Use Case**: Custom middleware, authentication, integration with existing apps
 
 ## Dependencies
 
@@ -310,7 +366,7 @@ See `examples/channels/voice.py` for a complete implementation.
 - `voice` - Voice channel support: `fastapi>=0.115.0,<1`, `uvicorn>=0.32.0,<1` (WebSocket support built-in to FastAPI)
 - `dev` - Development tools: `pytest>=7.0.0,<8`, `pytest-cov>=5.0.0,<6`, `ruff>=0.8.0,<1`, `mypy>=1.0.0,<2`, `types-requests>=2.31.0,<3`, `openai>=1.0.0,<2`, `openai-agents>=0.1.0`, `fastapi`, `uvicorn`
 
-**Note**: FastAPI and uvicorn are only required if using the Voice channel. The core TAF package does not depend on them.
+**Note**: FastAPI and uvicorn are only required if using the Voice channel (either simplified or manual approach). The core TAF package does not depend on them.
 
 ## Tools Integration
 

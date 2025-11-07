@@ -99,6 +99,66 @@ def webhook():
     return {"status": "ok"}
 ```
 
+## Quick Example: Voice Channel with Simplified Server
+
+For the fastest way to get started with voice, use the built-in server configuration:
+
+```python
+import os
+from taf import TAF, TAFConfig, VoiceServerConfig
+from taf.channels.voice import VoiceChannel
+from taf.core.context import ConversationSession
+from taf.models.memory import MemoryRetrievalResponse
+
+# 1. Configure TAF
+config = TAFConfig(
+    environment="prod",
+    twilio_account_sid="ACxxxxx...",
+    twilio_auth_token="your_auth_token",
+    twilio_phone_number="+1234567890",
+    memory_service_sid="MGxxxxx...",
+    conversation_service_sid="ISxxxxx..."
+)
+
+taf = TAF(config)
+
+# 2. Register callback for when memories are retrieved
+async def handle_memory_ready(
+    context: ConversationSession,
+    memory_response: MemoryRetrievalResponse,
+    user_message: str
+):
+    """Called when memory retrieval completes"""
+    # Process memories and call your LLM
+    # llm_response = await your_llm.generate(user_message, memory_response)
+    # await voice_channel.send_response(context.conversation_id, llm_response)
+
+taf.on_memory_ready(handle_memory_ready)
+
+# 3. Initialize Voice channel with server configuration
+voice_channel = VoiceChannel(
+    taf=taf,
+    server_config=VoiceServerConfig(
+        public_domain=os.environ["VOICE_PUBLIC_DOMAIN"],  # Your ngrok domain
+        host="0.0.0.0",
+        port=8000,
+        welcome_greeting="Hello! How can I assist you today?",
+    ),
+)
+
+# 4. Start server (automatically creates FastAPI app with /twiml and /ws endpoints)
+voice_channel.start()
+```
+
+That's it! The server automatically:
+- Creates FastAPI app
+- Sets up POST /twiml endpoint for call handling
+- Sets up WebSocket /ws endpoint for ConversationRelay
+- Creates conversations and participants
+- Handles all WebSocket protocol details
+
+For manual control over FastAPI configuration, see [`examples/channels/voice.py`](examples/channels/voice.py).
+
 ## Configuration
 
 TAF requires the following configuration parameters:
@@ -126,8 +186,9 @@ TAF requires the following configuration parameters:
 Check out the [examples](examples) directory for complete working examples:
 
 - **[`exec_demo/`](examples/exec_demo)**: Complete multi-channel demo with SMS and Voice support, OpenAI Agents integration, and custom business tools
+- **[`servers/voice.py`](examples/servers/voice.py)**: **Recommended starting point** - Simplified voice server with automatic setup using VoiceServerConfig
 - **[`channels/sms.py`](examples/channels/sms.py)**: SMS webhook server with FastAPI and TAF integration
-- **[`channels/voice.py`](examples/channels/voice.py)**: Simple voice server with FastAPI, TwiML generation, and WebSocket handling
+- **[`channels/voice.py`](examples/channels/voice.py)**: Voice server with manual FastAPI, TwiML generation, and WebSocket handling
 - **[`channels/voice_escalation.py`](examples/channels/voice_escalation.py)**: Voice server with Flex escalation for agent handoff to humans
 - **[`tools/`](examples/tools)**: LLM tool integration examples with OpenAI Chat Completions and Agents SDK
 
