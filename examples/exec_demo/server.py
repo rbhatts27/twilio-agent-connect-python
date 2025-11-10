@@ -67,8 +67,8 @@ taf = TAF(config=taf_config)
 sms_channel = SMSChannel(taf)
 voice_channel = VoiceChannel(taf)
 
-# Initialize LLM service
-llm_service = LLMService()
+# Initialize LLM service with TAF instance
+llm_service = LLMService(taf)
 
 # User-managed conversation history
 # Key: conversation_id, Value: list of messages
@@ -119,7 +119,7 @@ async def handle_message_ready(
         llm_response = await llm_service.process_message(
             user_message=user_message,
             memory_response=memory_response,
-            profile_id=context.profile_id,
+            context=context,
             websocket=active_websocket,
             conversation_history=conversation_messages[conv_id],
         )

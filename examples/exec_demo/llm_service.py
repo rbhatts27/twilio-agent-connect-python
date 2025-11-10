@@ -18,8 +18,14 @@ from openai.types.chat import (
 )
 
 # Import tools from tools.py
-from tools import confirm_order, create_flex_escalation_tool, look_up_discounts, look_up_order_price
+from tools import (
+    create_confirm_order_tool,
+    create_flex_escalation_tool,
+    look_up_discounts,
+    look_up_order_price,
+)
 
+from taf.core.context import ConversationSession
 from taf.models.memory import MemoryRetrievalResponse
 
 logger = logging.getLogger(__name__)
@@ -28,24 +34,29 @@ logger = logging.getLogger(__name__)
 class LLMService:
     """Service for processing messages with LLM using TAF memory context and OpenAI Agents SDK."""
 
-    def __init__(self):
+    def __init__(self, taf):
         """
         Initialize LLM service with OpenAI Agents SDK.
+
+        Args:
+            taf: TAF instance for accessing Maestro/Memora APIs
         """
-        # TODO: migrate more tools from demo repo.
-        self.tools = [
+        self.taf = taf
+        # Base tools that don't need context injection
+        self.base_tools = [
             look_up_order_price,
             look_up_discounts,
-            confirm_order,
         ]
 
-        logger.info(f"LLM service initialized with OpenAI Agents SDK and {len(self.tools)} tools")
+        logger.info(
+            f"LLM service initialized with OpenAI Agents SDK and {len(self.base_tools)} base tools"
+        )
 
     async def process_message(
         self,
         user_message: str,
         memory_response: MemoryRetrievalResponse,
-        profile_id: str,
+        context: ConversationSession,
         websocket: Optional[WebSocket],
         conversation_history: list[ChatCompletionMessageParam] | None = None,
     ) -> str:
@@ -55,7 +66,8 @@ class LLMService:
         Args:
             user_message: The user's message
             memory_response: Memory response from TAF with observations, summaries, and sessions
-            profile_id: User's profile ID
+            context: ConversationSession with conversation details
+            websocket: Optional WebSocket connection for voice channel
             conversation_history: Optional conversation history (OpenAI ChatCompletionMessageParam format).
                                  If provided, uses this instead of building from TAF session memories.
 
@@ -64,12 +76,15 @@ class LLMService:
         """
         try:
             # Build TAF-enhanced instructions with profile context
-            enhanced_instructions = self._build_enhanced_instructions(memory_response, profile_id)
+            enhanced_instructions = self._build_enhanced_instructions(memory_response, context)
+
+            # Create context-aware tools dynamically
+            tools = self.base_tools + [
+                create_confirm_order_tool(self.taf, context),
+            ]
 
             if websocket is not None:
-                tools = self.tools + [create_flex_escalation_tool(websocket)]
-            else:
-                tools = self.tools
+                tools = tools + [create_flex_escalation_tool(websocket)]
 
             # Create agent with TAF-enhanced instructions
             agent = Agent(
@@ -104,7 +119,7 @@ class LLMService:
             # Extract response
             response = str(result.final_output)
 
-            logger.info(f"Generated response for profile {profile_id}: {response[:100]}...")
+            logger.info(f"Generated response for profile {context.profile_id}: {response[:100]}...")
             return response
 
         except Exception as e:
@@ -114,14 +129,14 @@ class LLMService:
             )
 
     def _build_enhanced_instructions(
-        self, memory_response: MemoryRetrievalResponse, profile_id: str
+        self, memory_response: MemoryRetrievalResponse, context: ConversationSession
     ) -> str:
         """
         Build enhanced agent instructions with TAF memory context.
 
         Args:
             memory_response: Memory response from TAF
-            profile_id: User's profile ID
+            context: ConversationSession with conversation details
 
         Returns:
             Enhanced instructions string for the agent
@@ -133,8 +148,7 @@ class LLMService:
             "interaction history and context.",
             "",
             "=== CUSTOMER PROFILE ===",
-            f"- Profile ID: {profile_id}",
-            "",
+            f"- Profile ID: {context.profile_id}",
         ]
 
         # Add relevant context from observations

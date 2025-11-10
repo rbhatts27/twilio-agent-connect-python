@@ -11,8 +11,11 @@ from agents import function_tool
 from business_data import COMPANY_INFO, INTERNET_PLANS
 from fastapi import WebSocket
 
+from taf import TAF
+from taf.core.context import ConversationSession
 from taf.models.handoff_data import HandoffData
 from taf.tools.base import TAFTool
+from taf.tools.messaging import create_messaging_tools
 
 logger = logging.getLogger(__name__)
 
@@ -84,40 +87,74 @@ async def look_up_discounts(customer_type: str, current_plan_price: float = 59.9
     return message
 
 
-@function_tool
-async def confirm_order(
-    confirmation_channel: str, conversation_uid: str, order_details: str = ""
-) -> str:
-    """Send order confirmation via customer's preferred channel.
+def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> TAFTool:
+    """
+    Create confirm_order tool with injected TAF context for dynamic phone lookup.
+
+    This wraps TAF's send_message tool, deriving the phone number from Maestro
+    participants so the LLM doesn't need to provide it.
 
     Args:
-        confirmation_channel: Preferred channel (SMS, email, phone)
-        conversation_uid: Unique conversation identifier
-        order_details: Details of the order to confirm
+        taf: TAF instance with maestro_client for participant lookup
+        context: ConversationSession with conversation_id
 
     Returns:
-        Confirmation of message sent
+        Function tool with phone number derived automatically
     """
-    logger.info(
-        f"Sending confirmation via {confirmation_channel} for conversation {conversation_uid}"
+    # Get TAF's send_message tool
+    messaging_tools = create_messaging_tools(taf.config)
+    send_message_tool = messaging_tools[0]  # The send_message function
+
+    async def get_customer_phone() -> Optional[str]:
+        """Derive customer phone number from Maestro participants."""
+        try:
+            participants = taf.maestro_client.list_participants(context.conversation_id)
+
+            # Find customer participant with SMS address
+            for participant in participants:
+                if participant.label == "Customer":
+                    for address in participant.addresses:
+                        if address.communication_type == "SMS":
+                            return address.value  # Phone number in E.164 format
+            return None
+        except Exception as e:
+            logger.error(f"Failed to lookup customer phone: {e}")
+            return None
+
+    @function_tool(
+        name="confirm_order",
+        description="Send order confirmation via SMS to the customer.",
     )
+    async def confirm_order(order_details: str = "") -> str:
+        """Send order confirmation via customer's SMS.
 
-    # In a real implementation, this would integrate with Twilio's messaging APIs
-    # For demo, we simulate cross-channel confirmation
+        Args:
+            order_details: Details of the order to confirm
 
-    if confirmation_channel.lower() == "sms":
-        message = (
-            f"Order confirmation sent via SMS! You should receive it shortly with order details"
-            f"{f': {order_details}' if order_details else ''}."
-        )
-    elif confirmation_channel.lower() == "email":
-        message = (
-            f"Order confirmation sent to your email address on file"
-            f"{f' with details: {order_details}' if order_details else ''}."
-        )
-    else:
-        message = f"Confirmation will be sent via {confirmation_channel} as requested."
-    return message
+        Returns:
+            Confirmation of message sent
+        """
+        logger.info("Sending order confirmation")
+
+        # Derive phone number dynamically from Maestro participants
+        phone_number = await get_customer_phone()
+
+        if not phone_number:
+            logger.error("Unable to derive customer phone number")
+            return "Unable to send confirmation - customer phone number not found."
+
+        # Use TAF's send_message tool to send SMS
+        success = await send_message_tool(phone_number, order_details)
+
+        if success:
+            return (
+                f"Order confirmation sent via SMS! You should receive it shortly with order details"
+                f"{f': {order_details}' if order_details else ''}."
+            )
+        else:
+            return "Failed to send order confirmation via SMS."
+
+    return confirm_order
 
 
 def create_flex_escalation_tool(
