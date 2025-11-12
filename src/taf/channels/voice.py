@@ -1,5 +1,7 @@
+import asyncio
 import json
-from typing import Any, Optional
+import logging
+from typing import TYPE_CHECKING, Any, Optional
 
 import uvicorn
 from fastapi import FastAPI, Form, Request, Response, WebSocket, WebSocketDisconnect
@@ -15,6 +17,15 @@ from taf.models.voice import (
     VoiceServerConfig,
 )
 
+if TYPE_CHECKING:
+    from taf.channels.session_manager import SessionManager
+
+#
+# TODO See https://www.twilio.com/docs/voice/conversationrelay/websocket-messages
+# for WebSocket reconnection logic
+
+TASK_CANCELLATION_TIMEOUT = 5.0
+
 
 class VoiceChannel(BaseChannel):
     """
@@ -27,6 +38,7 @@ class VoiceChannel(BaseChannel):
     def __init__(
         self,
         taf: TAF,
+        session_manager: Optional["SessionManager"] = None,
         server_config: Optional[VoiceServerConfig] = None,
     ):
         """
@@ -34,10 +46,18 @@ class VoiceChannel(BaseChannel):
 
         Args:
             taf: TAF instance for memory/context operations
+            session_manager: Optional SessionManager for tracking and
+                canceling in-flight streaming tasks. The SessionManager
+                encapsulates the stream_generator for LLM responses
+                If provided, enables task cancellation on interrupts
+                and new prompts.
             server_config: Optional server configuration. If provided, enables the simplified
                          start() method to automatically create and run a FastAPI server.
         """
         super().__init__(taf)
+
+        # Optional session manager for task tracking, cancellation, and streaming
+        self.session_manager = session_manager
 
         # Connection tracking (single connection for first version)
         # TODO: Support multiple concurrent calls
@@ -125,6 +145,7 @@ class VoiceChannel(BaseChannel):
         This method manages the entire websocket connection:
         - Accepts the connection
         - Processes incoming messages
+        - Tracks and cancels in-flight tasks (if session_manager provided)
         - Cleans up on disconnect
 
         Args:
@@ -135,24 +156,293 @@ class VoiceChannel(BaseChannel):
 
         # Store active websocket
         self._active_websocket = websocket
+        conv_id = None
+        session_state = None
+        handler_task = None
 
         try:
-            while True:
-                # Receive data from Twilio
-                data = await websocket.receive_json()
+            # First message should be 'setup'
+            data = await websocket.receive_json()
+            if self.logger.isEnabledFor(logging.DEBUG):
                 self.logger.debug(f"Received WebSocket data: {data}")
-                # Route to handler
-                self.handle_message(data)
+
+            if data.get("type") == "setup":
+                setup_msg = SetupMessage(**data)
+                self._handle_setup(setup_msg)
+                conv_id = self._current_conversation_id
+                session_state = None  # Initialize as None
+
+                # Get or create session state if session manager is available
+                if self.session_manager is not None and conv_id:
+                    try:
+                        session_state = self.session_manager.get_or_create_session(conv_id)
+                        if self.logger.isEnabledFor(logging.DEBUG):
+                            self.logger.info(
+                                f"Session state SUCCESSFULLY created for {conv_id}: {session_state}"
+                            )
+                    except Exception as e:
+                        self.logger.error(f"Error creating session state: {e}", exc_info=True)
+            else:
+                self.logger.warning("First message was not 'setup'. Closing connection.")
+                await websocket.close()
+                return
+
+            # Create dedicated task to handle all subsequent messages
+            handler_task = asyncio.create_task(
+                self._message_handler(websocket, conv_id, session_state)
+            )
+            await handler_task
+
         except WebSocketDisconnect:
-            self.logger.info("WebSocket connection closed")
+            self.logger.info(f"WebSocket connection closed for conversation {conv_id}")
         except Exception as e:
             self.logger.error(f"WebSocket error: {str(e)}")
         finally:
+            # Cancel handler task if still running
+            if handler_task and not handler_task.done():
+                handler_task.cancel()
+                try:
+                    await handler_task
+                except asyncio.CancelledError:
+                    pass
+
             # Clean up
+            self.logger.info(
+                f"Cleanup - active_websocket for conversation {self._current_conversation_id}"
+            )
             self._active_websocket = None
             if self._current_conversation_id:
                 self._end_conversation(self._current_conversation_id)
                 self._current_conversation_id = None
+
+    async def _message_handler(
+        self,
+        websocket: WebSocket,
+        conv_id: Optional[str],
+        session_state: Any,
+    ) -> None:
+        """
+        Handle all incoming messages for a conversation session.
+
+        Args:
+            websocket: WebSocket connection
+            conv_id: Conversation ID
+            session_state: Session state object (if session_manager provided)
+        """
+        try:
+            while True:
+                data = await websocket.receive_json()
+                self.logger.debug(f"Received WebSocket data: {data}")
+                msg_type = data.get("type")
+
+                if msg_type == "prompt":
+                    await self._handle_prompt_async(conv_id, data, session_state)
+                elif msg_type == "interrupt":
+                    await self._handle_interrupt_async(conv_id, data, session_state)
+                elif msg_type == "setup":
+                    self.logger.info(
+                        f"Ignoring subsequent setup message for conversation {conv_id}"
+                    )
+                else:
+                    self.logger.warning(f"Unknown message type received: {msg_type}")
+
+        except WebSocketDisconnect:
+            self.logger.info(
+                f"WebSocket disconnected during message handling for conversation {conv_id}"
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Error in message_handler for conversation {conv_id}: {e}", exc_info=True
+            )
+
+    async def _handle_prompt_async(
+        self,
+        conv_id: Optional[str],
+        data: dict[str, Any],
+        session_state: Any,
+    ) -> None:
+        """
+        Handle prompt message asynchronously with task tracking.
+
+        Args:
+            conv_id: Conversation ID
+            data: Raw message data
+            session_state: Session state object (if session_manager provided)
+        """
+        try:
+            should_process = data.get("final", True)
+            if should_process:
+                prompt_msg = PromptMessage(**data)
+                conv_id = prompt_msg.conversation_id or conv_id
+
+                if not conv_id:
+                    self.logger.error(
+                        "No active conversation ID for prompt message; "
+                        "ensure setup message is processed first"
+                    )
+                    return
+
+                self.logger.info(f"Session state exists for conversation {conv_id}")
+                # Cancel previous stream task if session manager is enabled
+                if session_state:
+                    if session_state.stream_task and not session_state.stream_task.done():
+                        if self.logger.isEnabledFor(logging.DEBUG):
+                            self.logger.debug(f"Cancelling previous stream task for {conv_id}")
+                        session_state.stream_task.cancel()
+                        try:
+                            await asyncio.wait_for(
+                                session_state.stream_task, timeout=TASK_CANCELLATION_TIMEOUT
+                            )
+                        except asyncio.CancelledError:
+                            pass
+                        except asyncio.TimeoutError:
+                            self.logger.error(
+                                f"Task cancellation timed out for {conv_id}. "
+                                f"The stream generator is not handling cancellation properly."
+                            )
+
+                    # Create new streaming task
+                    session_state.stream_task = asyncio.create_task(
+                        self._process_prompt(conv_id, prompt_msg)
+                    )
+                else:
+                    # No session manager - call synchronously
+                    self._handle_prompt(conv_id, prompt_msg)
+        except Exception as e:
+            self.logger.error(f"Failed to handle prompt: {str(e)}")
+
+    async def _handle_interrupt_async(
+        self,
+        conv_id: Optional[str],
+        data: dict[str, Any],
+        session_state: Any,
+    ) -> None:
+        """
+        Handle interrupt message asynchronously with task cancellation.
+
+        Args:
+            conv_id: Conversation ID
+            data: Raw message data
+            session_state: Session state object (if session_manager provided)
+        """
+        try:
+            interrupt_msg = InterruptMessage(**data)
+            conv_id = interrupt_msg.conversation_id or conv_id
+
+            if not conv_id:
+                self.logger.error(
+                    "No active conversation ID for interrupt message; "
+                    "ensure setup message is processed first"
+                )
+                return
+
+            # Cancel in-flight stream task if session manager is enabled
+            if session_state:
+                if session_state.stream_task and not session_state.stream_task.done():
+                    session_state.stream_task.cancel()
+                    self.logger.info(f"Canceled streaming task for {conv_id} due to interrupt.")
+                    try:
+                        await session_state.stream_task
+                    except asyncio.CancelledError:
+                        pass
+
+                # Send acknowledgment to Twilio after cancelling
+                try:
+                    if self._active_websocket:
+                        await self._active_websocket.send_text(
+                            json.dumps({"type": "text", "token": "", "last": True})
+                        )
+                except (WebSocketDisconnect, RuntimeError):
+                    self.logger.info(
+                        f"WebSocket closed before sending interrupt acknowledgment for {conv_id}."
+                    )
+
+            # Call the interrupt handler
+            self._handle_interrupt(conv_id, interrupt_msg)
+
+        except Exception as e:
+            self.logger.error(f"Failed to handle interrupt: {str(e)}")
+
+    async def _process_prompt(self, conv_id: str, message: PromptMessage) -> None:
+        """
+        Process prompt asynchronously with streaming if session_manager is available.
+
+        Args:
+            conv_id: Conversation ID
+            message: Parsed PromptMessage
+        """
+        if self.session_manager:
+            # Use session manager's streaming capability
+            await self._stream_and_send_response(conv_id, message)
+        else:
+            # No session manager - run synchronous handler in executor
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._handle_prompt, conv_id, message)
+
+    async def _stream_and_send_response(self, conv_id: str, message: PromptMessage) -> None:
+        """
+        Stream LLM response using session_manager and send to websocket.
+
+        Args:
+            conv_id: Conversation ID
+            message: Parsed PromptMessage containing user's speech
+        """
+        if not self._active_websocket:
+            self.logger.error(f"No active websocket for conversation {conv_id}")
+            return
+
+        if not self.session_manager:
+            self.logger.error(f"No session_manager available for conversation {conv_id}")
+            return
+
+        prompt = message.voice_prompt or ""
+
+        try:
+            json_template = {"type": "text", "token": "", "last": False}
+            closed = False
+
+            # Stream response chunks from session manager
+            async for chunk in self.session_manager.stream_response(prompt, conv_id):
+                # Handle different chunk types (plain text or dict with metadata)
+                if isinstance(chunk, dict):
+                    if "output" in chunk:
+                        json_template["token"] = chunk["output"]
+                    else:
+                        json_template["token"] = str(chunk)
+                else:
+                    json_template["token"] = chunk
+
+                try:
+                    await self._active_websocket.send_text(json.dumps(json_template))
+                except (WebSocketDisconnect, RuntimeError):
+                    self.logger.info(f"WebSocket closed during streaming for {conv_id}.")
+                    closed = True
+                    break
+
+            # Send final message marker
+            if not closed:
+                try:
+                    await self._active_websocket.send_text(
+                        json.dumps({"type": "text", "token": "", "last": True})
+                    )
+                except (WebSocketDisconnect, RuntimeError):
+                    self.logger.info(f"WebSocket closed before sending final marker for {conv_id}.")
+
+        except asyncio.CancelledError:
+            self.logger.info(f"Streaming cancelled for conversation {conv_id}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Error during streaming for {conv_id}: {e}", exc_info=True)
+            error_msg = json.dumps(
+                {"type": "text", "token": "Sorry, an error occurred.", "last": True}
+            )
+            try:
+                if self._active_websocket:
+                    await self._active_websocket.send_text(error_msg)
+            except (WebSocketDisconnect, RuntimeError):
+                self.logger.info(f"WebSocket closed before sending error message for {conv_id}.")
+        finally:
+            self.logger.info(f"Finished streaming response for {conv_id}.")
 
     # todo: voice does not support webhooks yet
     def process_webhook(self, webhook_data: dict[str, Any]) -> None:
@@ -184,6 +474,10 @@ class VoiceChannel(BaseChannel):
     def handle_message(self, data: dict[str, Any]) -> None:
         """
         Handle incoming WebSocket message from Twilio ConversationRelay.
+
+        DEPRECATED: This synchronous interface is for testing only and does NOT support
+        session_manager streaming or task cancellation. Production code should use
+        handle_websocket() which provides the full async WebSocket flow.
 
         Args:
             data: Raw message data from Twilio (setup, prompt, interrupt, etc.)
@@ -278,6 +572,10 @@ class VoiceChannel(BaseChannel):
         """
         Handle interrupt message when user interrupts the agent.
 
+        Note: Task cancellation is handled by the async wrapper (_handle_interrupt_async)
+        when called from the WebSocket message handler. This method only triggers the
+        TAF interrupt callback.
+
         Args:
             conv_id: Conversation ID
             message: Parsed InterruptMessage with interruption details
@@ -304,6 +602,24 @@ class VoiceChannel(BaseChannel):
         Args:
             conv_id: Conversation ID
         """
+        # Cancel any running stream task and cleanup session if session manager is enabled
+        if self.session_manager and self.session_manager.has_session(conv_id):
+            sessions_before = len(self.session_manager)
+            self.logger.info(
+                f"Cleaning up conversation {conv_id} - sessions before: {sessions_before}"
+            )
+
+            session_state = self.session_manager.get_or_create_session(conv_id)
+            if session_state.stream_task and not session_state.stream_task.done():
+                session_state.stream_task.cancel()
+                self.logger.info(f"Cancelled stream_task for conversation {conv_id}")
+
+            self.session_manager.remove_session(conv_id)
+            sessions_after = len(self.session_manager)
+            self.logger.info(
+                f"Cleaned up conversation {conv_id} - sessions after: {sessions_after}"
+            )
+
         # Call parent implementation to clean up conversation
         super()._end_conversation(conv_id)
 

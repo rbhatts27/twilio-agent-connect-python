@@ -241,3 +241,152 @@ async def handoff(request: Request):
 - Your application integrates with Twilio Flex
 - Conversations require human intervention for complex cases
 - You want intelligent escalation based on user requests
+
+---
+
+## `voice_interrupts.py` - Voice Channel with Custom Streaming Agent
+
+Advanced voice server demonstrating custom agent streaming with session management for handling interrupts and canceling in-flight LLM requests. This example shows how to integrate **any AI agent framework** with TAF's voice channel using a platform-agnostic streaming pattern.
+
+**Additional Environment Variables:**
+```bash
+VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
+WEBSOCKET_PORT=8080  # Port for WebSocket server
+OPENAI_API_KEY=sk-xxxxx...  # For this example (can be any LLM)
+```
+
+**Features:**
+- ✅ Platform-agnostic streaming agent integration
+- ✅ Session management for interrupt handling
+- ✅ Automatic cancellation of in-flight LLM tasks when user interrupts
+- ✅ Custom conversation history management
+- ✅ Works with any LLM provider (OpenAI, Anthropic, local models, etc.)
+- ✅ Real-time streaming response delivery via WebSocket
+
+**Usage:**
+```bash
+# 1. Add configuration to .env
+VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
+WEBSOCKET_PORT=8080
+
+# 2. Start ngrok tunnel
+ngrok http 8080 --domain={your-ngrok-domain}
+
+# 3. Run voice server with streaming
+uv run python examples/channels/voice_interrupts.py
+
+# 4. Configure Twilio phone number webhook to:
+#    https://{your-ngrok-domain}/twiml
+```
+
+**How It Works:**
+
+The key to this example is the `stream_generator` function - a platform-agnostic async generator that yields response chunks:
+
+```python
+async def stream_openai_response(prompt: str, session_id: str) -> AsyncGenerator[str, None]:
+    """
+    Platform-agnostic streaming function.
+    
+    Args:
+        prompt: User's message (e.g., transcribed speech from voice channel)
+        session_id: Conversation/session identifier for context tracking
+        
+    Yields:
+        Text chunks to be sent to the user
+    """
+    # 1. Manage your conversation history however you want
+    if session_id not in conversation_messages:
+        conversation_messages[session_id] = [{"role": "system", "content": system_prompt}]
+    
+    conversation_messages[session_id].append({"role": "user", "content": prompt})
+    
+    # 2. Stream from ANY LLM provider - OpenAI, Anthropic, local models, etc.
+    client = openai.AsyncOpenAI()  # Could be any async streaming client
+    stream = await client.chat.completions.create(
+        model="gpt-4o",
+        messages=conversation_messages[session_id],
+        stream=True,
+    )
+    
+    # 3. Yield chunks - TAF handles WebSocket delivery and cancellation
+    full_response = ""
+    async for chunk in stream:
+        if chunk.choices[0].delta.content:
+            content = chunk.choices[0].delta.content
+            full_response += content
+            yield content  # ← Framework sends this to WebSocket
+    
+    # 4. Save assistant response to your history
+    conversation_messages[session_id].append({"role": "assistant", "content": full_response})
+```
+
+**Session Manager Setup:**
+
+The `ThreadSafeSessionManager` wraps your streaming function and handles task lifecycle:
+
+```python
+from taf.channels.session_manager import ThreadSafeSessionManager
+from taf.channels.voice import VoiceChannel
+
+# Initialize with your custom streaming function
+session_manager = ThreadSafeSessionManager(stream_generator=stream_openai_response)
+
+# Pass to VoiceChannel - enables interrupt handling
+voice_channel = VoiceChannel(taf=taf, session_manager=session_manager)
+```
+
+**What Happens During Interrupts:**
+
+1. User speaks → New prompt arrives
+2. Session manager **cancels** the current streaming task (stops LLM generation)
+3. New streaming task starts immediately with the latest prompt
+4. Previous incomplete response is discarded
+5. User gets responsive experience without waiting for old response to finish
+
+**Adapting for Your Agent:**
+
+This pattern works with **any async streaming source**:
+
+```python
+# Anthropic example
+async def stream_anthropic_response(prompt: str, session_id: str):
+    client = anthropic.AsyncAnthropic()
+    async with client.messages.stream(
+        model="claude-3-5-sonnet-20241022",
+        messages=[{"role": "user", "content": prompt}],
+    ) as stream:
+        async for text in stream.text_stream:
+            yield text
+
+# Local model example (e.g., Ollama)
+async def stream_local_model(prompt: str, session_id: str):
+    async with aiohttp.ClientSession() as session:
+        async with session.post('http://localhost:11434/api/generate',
+            json={"model": "llama2", "prompt": prompt, "stream": True}
+        ) as resp:
+            async for line in resp.content:
+                data = json.loads(line)
+                if 'response' in data:
+                    yield data['response']
+
+# Use with session manager
+session_manager = ThreadSafeSessionManager(stream_generator=stream_local_model)
+```
+
+**Key Benefits:**
+
+- **No vendor lock-in** - Use any LLM provider or custom agent
+- **Full control** - Manage your own context, history, and prompting strategy
+- **Interrupt handling** - Framework handles task cancellation automatically
+- **Minimal overhead** - Just implement one async generator function
+- **Production ready** - Thread-safe session management included
+
+**When to Use:**
+
+- You want full control over your agent's streaming logic
+- You're using a custom LLM or agent framework
+- You need responsive voice interactions with interrupt support
+- You want to manage conversation history your own way
+- You're building a multi-turn conversational voice agent
+
