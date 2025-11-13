@@ -35,7 +35,7 @@ class MemoryClient:
 
     def retrieve_memory(
         self,
-        service_id: str,
+        store_id: str,
         profile_id: str,
         conversation_id: Optional[str] = None,
         query: Optional[str] = None,
@@ -46,7 +46,7 @@ class MemoryClient:
         This endpoint is optimized for conversational AI and memory retrieval use cases.
 
         Args:
-            service_id: Memory service ID (e.g., 'mem_service_01hz123456789abcdefghijkl')
+            store_id: Memory store ID (e.g., 'mem_service_01hz123456789abcdefghijkl')
             profile_id: Profile ID using Twilio Type ID (TTID) format
             conversation_id: Optional conversation ID using Twilio Type ID (TTID) format
             query: Optional semantic search query for finding relevant memories (1-1024 characters)
@@ -60,7 +60,7 @@ class MemoryClient:
         """
 
         # Use the correct endpoint from the API spec
-        endpoint = f"/v1/Services/{service_id}/Profiles/{profile_id}/Recall"
+        endpoint = f"/v1/Services/{store_id}/Profiles/{profile_id}/Recall"
         url = f"{self.base_url}{endpoint}"
 
         # Create the request payload with default values

@@ -154,17 +154,24 @@ class SMSChannel(BaseChannel):
 
         session = self._conversations[conv_id]
 
-        # Retrieve memory for SMS channel
-        try:
-            memory_response = self.taf.retrieve_memory(session, query=message_body)
-        except Exception as e:
-            self.logger.error(
-                f"Failed to retrieve memory for conversation {conv_id}: {e}",
-                exc_info=True,
+        # Retrieve memory only if Twilio Memory is enabled
+        memory_response = None
+        if self.taf.is_twilio_memory_enabled():
+            try:
+                memory_response = self.taf.retrieve_memory(session, query=message_body)
+                self.logger.debug(f"Memory retrieved for conversation {conv_id}")
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to retrieve memory for conversation {conv_id}: {e}",
+                    exc_info=True,
+                )
+                # Continue without memory rather than failing the entire message processing
+        else:
+            self.logger.debug(
+                f"Twilio Memory not enabled, skipping memory retrieval for conversation {conv_id}"
             )
-            return
 
-        # Trigger message ready callback with memory
+        # Trigger message ready callback (with or without memory)
         try:
             self.taf.trigger_message_ready(message_body, session, memory_response)
         except Exception as e:

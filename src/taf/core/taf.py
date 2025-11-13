@@ -63,12 +63,16 @@ class TAF:
         setup_logging(log_level=self.config.log_level)
         self.logger = get_logger(__name__)
 
-        # Initialize Memora client with HTTP Basic Authentication
-        self.memora_client = MemoryClient(
-            base_url=self.config.memora_base_url,
-            account_sid=self.config.twilio_account_sid,
-            auth_token=self.config.twilio_auth_token,
-        )
+        # Initialize Memora client only if memory config is provided
+        self.memora_client: Optional[MemoryClient] = None
+        if self.config.twilio_memory_config:
+            self.memora_client = MemoryClient(
+                base_url=self.config.memora_base_url,
+                account_sid=self.config.twilio_account_sid,
+                auth_token=self.config.twilio_auth_token,
+            )
+            self.logger.info("Twilio Memory client initialized")
+
         self.maestro_client = ConversationClient(
             base_url=self.config.maestro_base_url,
             account_sid=self.config.twilio_account_sid,
@@ -94,6 +98,16 @@ class TAF:
             ]
         ] = None
 
+    def is_twilio_memory_enabled(self) -> bool:
+        """
+        Check if Twilio Memory functionality is enabled.
+
+        Returns:
+            True if twilio_memory_config is provided and memory client is initialized,
+            False otherwise.
+        """
+        return self.config.twilio_memory_config is not None
+
     def retrieve_memory(
         self,
         conversation_context: ConversationSession,
@@ -110,8 +124,16 @@ class TAF:
             MemoryRetrievalResponse containing observations, summaries, sessions, and metadata
 
         Raises:
-            ValueError: If profile_id is not available in conversation context
+            ValueError: If profile_id is not available in conversation context, or if
+                       memory client is not initialized (twilio_memory_config not provided)
         """
+        # Check if memory client is initialized
+        if not self.memora_client or not self.config.twilio_memory_config:
+            raise ValueError(
+                "Memory client is not initialized. To use memory retrieval, provide "
+                "twilio_memory_config when creating TAFConfig."
+            )
+
         # Validate that profile_id is available
         if not conversation_context.profile_id:
             raise ValueError(
@@ -120,9 +142,11 @@ class TAF:
                 "the ConversationSession."
             )
 
+        # Get memory_store_id from config
+
         try:
             memory_response = self.memora_client.retrieve_memory(
-                service_id=self.config.memory_service_sid,
+                store_id=self.config.twilio_memory_config.memory_store_id,
                 profile_id=conversation_context.profile_id,
                 conversation_id=conversation_context.conversation_id,
                 query=query,

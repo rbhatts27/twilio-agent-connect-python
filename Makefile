@@ -15,7 +15,7 @@ test: ## Run tests with coverage
 	uv run pytest
 
 lint: ## Run linting with ruff
-	uv run ruff check .
+	uv run ruff check . && uv run ruff format --check .
 
 format: ## Format code with ruff
 	uv run ruff format .

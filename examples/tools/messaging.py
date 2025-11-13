@@ -7,6 +7,7 @@ from agents.tool_context import ToolContext
 from dotenv import load_dotenv
 
 from taf import TAFConfig
+from taf.core.config import TwilioMemoryConfig
 from taf.tools import TAFTool
 from taf.tools.messaging import create_messaging_tools
 
@@ -32,9 +33,14 @@ def taf_tool_to_agent_tool(taf_tool: TAFTool) -> Tool:
 
 
 async def main() -> None:
+    memory_store_id = os.getenv("MEMORY_STORE_ID")
+    twilio_memory_config = (
+        TwilioMemoryConfig(memory_store_id=memory_store_id) if memory_store_id else None
+    )
+
     config = TAFConfig(
         environment=os.getenv("ENVIRONMENT"),
-        memory_service_sid=os.getenv("MEMORY_SERVICE_SID"),
+        twilio_memory_config=twilio_memory_config,
         conversation_service_sid=os.getenv("CONVERSATION_SERVICE_SID"),
         twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
         twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN"),

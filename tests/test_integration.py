@@ -11,16 +11,18 @@ from taf.core.context import ConversationSession
 from taf.models.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
 
 
-def get_test_config():
+def get_test_config(with_memory=True):
     """Get a valid test configuration."""
-    return {
+    config = {
         "twilio_auth_token": "test_token_123",
-        "memory_service_sid": "MGtest123",
         "environment": "prod",
         "conversation_service_sid": "IStest123",
         "twilio_account_sid": "ACtest123",
         "twilio_phone_number": "+15551234567",
     }
+    if with_memory:
+        config["twilio_memory_config"] = {"memory_store_id": "MGtest123"}
+    return config
 
 
 class TestTAFIntegration:
@@ -418,11 +420,14 @@ class TestTAFIntegration:
 
             # Verify that processing webhook without profile_id doesn't propagate
             # an exception to the caller. The conversation is auto-initialized with
-            # None profile_id, which will cause retrieve_memory to be called and
-            # raise ValueError internally, but it is handled internally
+            # None profile_id, which will cause retrieve_memory to raise ValueError
+            # internally if memory is enabled; otherwise, no exception is raised.
+            # In both cases, the exception (if any) is handled internally and the
+            # callback is still invoked.
             channel.process_webhook(message_webhook)
 
-            # Callback should not be invoked due to the ValueError
-            assert not callback_invoked
+            # Callback should be invoked despite the memory retrieval error
+            # (memory retrieval failure doesn't prevent message processing)
+            assert callback_invoked
             # Verify conversation was auto-initialized despite the error
             assert "CH777" in channel._conversations

@@ -37,8 +37,12 @@ def create_memory_tools(config: TAFConfig, session: ConversationSession) -> list
             Dictionary containing relevant memories, traits, and metadata
         """
         # Use injected config and session context
+        if not config.twilio_memory_config:
+            raise ValueError(
+                "twilio_memory_config is required for memory retrieval but was not provided"
+            )
         url = (
-            f"{config.memora_base_url}/v1/Services/{config.memory_service_sid}"
+            f"{config.memora_base_url}/v1/Services/{config.twilio_memory_config.memory_store_id}"
             f"/Profiles/{session.profile_id}/Recall"
         )
         headers = {

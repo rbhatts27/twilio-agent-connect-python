@@ -75,13 +75,19 @@ from taf.core.config import TAFConfig
 from taf.core.context import ConversationSession
 
 # Configuration and session context (not exposed to LLM)
+from taf.core.config import TwilioMemoryConfig
+
 config = TAFConfig(
-    memora_base_url="https://memora.twilio.com/v1",
-    memora_auth_token="your_token",
-    memory_service_sid="mem_service_123...",
-    # ... other config
+    environment="prod",
+    twilio_account_sid="AC...",
+    twilio_auth_token="your_token",
+    twilio_memory_config=TwilioMemoryConfig(memory_store_id="MG..."),
+    conversation_service_sid="IS...",
+    twilio_phone_number="+1234567890",
 )
-session = ConversationSession(profile_id="profile_456...", conversation_id="conversation_789...")
+session = ConversationSession(
+    profile_id="profile_456...", conversation_id="conversation_789...", channel="sms"
+)
 
 # Create tools with injected config
 memory_tools = create_memory_tools(config, session)

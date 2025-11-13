@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from taf import TAFConfig
+from taf.core.config import TwilioMemoryConfig
 
 
 class TestTAFConfig:
@@ -13,7 +14,6 @@ class TestTAFConfig:
         """Test config with all required fields."""
         config = TAFConfig(
             twilio_auth_token="test_token_123",
-            memory_service_sid="MGtest123",
             environment="prod",
             twilio_account_sid="ACtest123",
             conversation_service_sid="IS123test",
@@ -25,12 +25,12 @@ class TestTAFConfig:
         assert config.maestro_base_url == "https://conversations.twilio.com/v2"
         assert config.twilio_account_sid == "ACtest123"
         assert config.log_level == "INFO"  # Default value
+        assert config.twilio_memory_config is None  # Optional memory config
 
     def test_config_with_custom_log_level(self):
         """Test config with custom log level."""
         config = TAFConfig(
             twilio_auth_token="test_token_123",
-            memory_service_sid="MGtest123",
             environment="dev",
             twilio_account_sid="ACtest123",
             conversation_service_sid="IS123test",
@@ -44,15 +44,29 @@ class TestTAFConfig:
         assert config.twilio_account_sid == "ACtest123"
         assert config.log_level == "DEBUG"
 
+    def test_config_with_memory_enabled(self):
+        """Test config with Twilio Memory enabled."""
+        memory_config = TwilioMemoryConfig(memory_store_id="MGtest123")
+        config = TAFConfig(
+            twilio_auth_token="test_token_123",
+            environment="prod",
+            twilio_account_sid="ACtest123",
+            conversation_service_sid="IS123test",
+            twilio_phone_number="+15551234567",
+            twilio_memory_config=memory_config,
+        )
+        assert config.twilio_memory_config is not None
+        assert config.twilio_memory_config.memory_store_id == "MGtest123"
+
     def test_config_dict_conversion(self):
         """Test converting config to dictionary."""
         config = TAFConfig(
             twilio_auth_token="test_token_123",
-            memory_service_sid="MGtest123",
             environment="stage",
             twilio_account_sid="ACtest123",
             conversation_service_sid="IS123test",
             twilio_phone_number="+15551234567",
+            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest123"),
         )
         config_dict = config.model_dump()
 
@@ -63,21 +77,25 @@ class TestTAFConfig:
         assert config_dict["environment"] == "stage"
         assert "log_level" in config_dict
         assert config_dict["log_level"] == "INFO"
+        assert "twilio_memory_config" in config_dict
+        assert config_dict["twilio_memory_config"]["memory_store_id"] == "MGtest123"
 
     def test_config_from_dict(self):
         """Test creating config from dictionary."""
         config_data = {
             "twilio_auth_token": "test_token_123",
-            "memory_service_sid": "MGtest123",
             "environment": "prod",
             "twilio_account_sid": "ACtest123",
             "conversation_service_sid": "IS123test",
             "twilio_phone_number": "+15551234567",
+            "twilio_memory_config": {"memory_store_id": "MGtest123"},
         }
         config = TAFConfig(**config_data)
         assert config.twilio_auth_token == "test_token_123"
         assert config.memora_base_url == "https://memory.twilio.com/v1"
         assert config.environment == "prod"
+        assert config.twilio_memory_config is not None
+        assert config.twilio_memory_config.memory_store_id == "MGtest123"
 
     def test_config_json_schema(self):
         """Test that config has valid JSON schema."""
@@ -104,7 +122,6 @@ class TestTAFConfig:
         """Test config equality comparison."""
         base_config = {
             "twilio_auth_token": "test_token_123",
-            "memory_service_sid": "MGtest123",
             "environment": "prod",
             "twilio_account_sid": "ACtest123",
             "conversation_service_sid": "IS123test",

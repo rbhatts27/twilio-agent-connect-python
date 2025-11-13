@@ -19,7 +19,6 @@ def test_basic_taf_functionality():
     """Test basic TAF functionality works."""
     config = {
         "twilio_auth_token": "test_token_123",
-        "memory_service_sid": "MGtest123",
         "environment": "prod",
         "twilio_account_sid": "ACtest123",
         "conversation_service_sid": "IS123test",

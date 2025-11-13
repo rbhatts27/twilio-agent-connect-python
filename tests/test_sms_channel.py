@@ -10,16 +10,18 @@ from taf.core.context import ConversationSession
 from taf.models.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
 
 
-def get_test_config() -> dict:
+def get_test_config(with_memory=True) -> dict:
     """Get a valid test configuration."""
-    return {
+    config = {
         "twilio_auth_token": "test_token_123",
-        "memory_service_sid": "MGtest123",
         "environment": "prod",
         "conversation_service_sid": "IStest123",
         "twilio_account_sid": "ACtest123",
         "twilio_phone_number": "+15551234567",
     }
+    if with_memory:
+        config["twilio_memory_config"] = {"memory_store_id": "MGtest123"}
+    return config
 
 
 class TestSMSChannel:

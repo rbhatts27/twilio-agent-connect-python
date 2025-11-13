@@ -1,8 +1,29 @@
 """Configuration models for the Twilio Agentic Framework."""
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+
+class TwilioMemoryConfig(BaseModel):
+    """
+    Configuration for Twilio Memory (Memora) integration.
+
+    This config should only be provided if you have purchased Twilio Memory functionality.
+    When provided, TAF will automatically retrieve memory for SMS conversations.
+    """
+
+    memory_store_id: str = Field(
+        description="Memora Memory Store ID (starts with MG)",
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "memory_store_id": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            }
+        },
+    )
 
 
 class TAFConfig(BaseModel):
@@ -12,7 +33,13 @@ class TAFConfig(BaseModel):
         description="TAF environment (dev, stage, or prod)"
     )
     conversation_service_sid: str = Field(description="Twilio Conversation Service SID")
-    memory_service_sid: str = Field(description="Memora Memory Service SID")
+
+    twilio_memory_config: Optional[TwilioMemoryConfig] = Field(
+        default=None,
+        description="Optional Twilio Memory configuration. Provide this if you have "
+        "purchased Twilio Memory functionality. When provided, memory will be "
+        "automatically retrieved for SMS conversations.",
+    )
 
     twilio_account_sid: str = Field(description="Twilio Account SID")
     twilio_auth_token: str = Field(description="Twilio Auth Token from Twilio Console")
@@ -51,11 +78,13 @@ class TAFConfig(BaseModel):
         json_schema_extra={
             "example": {
                 "environment": "prod",
-                "memory_service_sid": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "conversation_service_sid": "ISxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "twilio_account_sid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "twilio_auth_token": "your_auth_token_here",
                 "twilio_phone_number": "your_phone_number_here",
+                "twilio_memory_config": {
+                    "memory_store_id": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                },
             }
         },
     )

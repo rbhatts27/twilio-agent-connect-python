@@ -59,12 +59,14 @@ from taf.core.context import ConversationSession
 from taf.context.memory import MemoryRetrievalResponse
 
 # 1. Configure TAF with your Twilio credentials
+from taf.core.config import TwilioMemoryConfig
+
 config = TAFConfig(
     environment="prod",  # or "dev" or "stage"
     twilio_account_sid="ACxxxxx...",
     twilio_auth_token="your_auth_token",
     twilio_phone_number="+1234567890",
-    memory_service_sid="MGxxxxx...",
+    twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGxxxxx..."),  # Optional
     conversation_service_sid="ISxxxxx..."
 )
 
@@ -113,12 +115,14 @@ from taf.core.context import ConversationSession
 from taf.models.memory import MemoryRetrievalResponse
 
 # 1. Configure TAF
+from taf.core.config import TwilioMemoryConfig
+
 config = TAFConfig(
     environment="prod",
     twilio_account_sid="ACxxxxx...",
     twilio_auth_token="your_auth_token",
     twilio_phone_number="+1234567890",
-    memory_service_sid="MGxxxxx...",
+    twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGxxxxx..."),  # Optional
     conversation_service_sid="ISxxxxx..."
 )
 
@@ -171,7 +175,7 @@ TAF requires the following configuration parameters:
 | `twilio_account_sid` | Your Twilio Account SID | `ACxxxxx...` |
 | `twilio_auth_token` | Your Twilio Auth Token | From Twilio Console |
 | `twilio_phone_number` | Your Twilio Phone Number | `+1234567890` |
-| `memory_service_sid` | Memora Memory Service SID | `MGxxxxx...` |
+| `twilio_memory_config` | Optional Twilio Memory configuration | `TwilioMemoryConfig(memory_store_id="MGxxxxx...")` |
 | `conversation_service_sid` | Twilio Conversation Service SID | `ISxxxxx...` |
 | `log_level` | Logging level (optional) | `INFO` (default) |
 

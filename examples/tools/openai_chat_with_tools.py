@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 from taf import TAFConfig
+from taf.core.config import TwilioMemoryConfig
 from taf.core.context import ConversationSession
 from taf.tools.knowledge import create_knowledge_tools_from_ids
 from taf.tools.memory import create_memory_tools
@@ -18,9 +19,14 @@ load_dotenv(override=True)
 
 async def main() -> None:
     # Initialize TAF
+    memory_store_id = os.getenv("MEMORY_STORE_ID")
+    twilio_memory_config = (
+        TwilioMemoryConfig(memory_store_id=memory_store_id) if memory_store_id else None
+    )
+
     config = TAFConfig(
         environment=os.getenv("ENVIRONMENT"),
-        memory_service_sid=os.getenv("MEMORY_SERVICE_SID"),
+        twilio_memory_config=twilio_memory_config,
         conversation_service_sid=os.getenv("CONVERSATION_SERVICE_SID"),
         twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
         twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN"),

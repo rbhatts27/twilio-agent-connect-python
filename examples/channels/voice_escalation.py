@@ -43,6 +43,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from taf import TAF, TAFConfig, get_logger
 from taf.channels.voice import VoiceChannel
+from taf.core.config import TwilioMemoryConfig
 from taf.core.context import ConversationSession
 from taf.models.memory import MemoryRetrievalResponse
 
@@ -151,10 +152,15 @@ async def handle_message_ready(
 
 if __name__ == "__main__":
     # Initialize TAF
+    memory_store_id = os.environ.get("MEMORY_STORE_ID")
+    twilio_memory_config = (
+        TwilioMemoryConfig(memory_store_id=memory_store_id) if memory_store_id else None
+    )
+
     taf = TAF(
         config=TAFConfig(
             environment=os.environ["ENVIRONMENT"],
-            memory_service_sid=os.environ["MEMORY_SERVICE_SID"],
+            twilio_memory_config=twilio_memory_config,
             conversation_service_sid=os.environ["CONVERSATION_SERVICE_SID"],
             twilio_account_sid=os.environ["TWILIO_ACCOUNT_SID"],
             twilio_auth_token=os.environ["TWILIO_AUTH_TOKEN"],

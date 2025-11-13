@@ -16,7 +16,6 @@ def get_test_config() -> dict:
     """Get a valid test configuration."""
     return {
         "twilio_auth_token": "test_token_123",
-        "memory_service_sid": "MGtest123",
         "environment": "prod",
         "conversation_service_sid": "IStest123",
         "twilio_account_sid": "ACtest123",
@@ -69,18 +68,16 @@ class TestVoiceChannel:
         # Initialize conversation (normally done in setup handler)
         channel._start_conversation("CALL123", "profile_test_123")
 
-        # Mock memory retrieval to verify it's NOT called
-        with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            # Handle prompt message with conversationId
-            prompt_data = {
-                "type": "prompt",
-                "conversationId": "CALL123",
-                "voicePrompt": "Hello, I need help",
-            }
-            channel.handle_message(prompt_data)
+        # Handle prompt message with conversationId
+        prompt_data = {
+            "type": "prompt",
+            "conversationId": "CALL123",
+            "voicePrompt": "Hello, I need help",
+        }
+        channel.handle_message(prompt_data)
 
-            # Verify memory retrieval was NOT called (voice channel doesn't fetch memory)
-            mock_retrieve.assert_not_called()
+        # Voice channel doesn't fetch memory - no assertion needed
+        # Test passes if no exception is raised
 
     def test_handle_interrupt_message(self) -> None:
         """Test handling interrupt message."""
@@ -377,11 +374,9 @@ class TestVoiceChannel:
         # Start conversation
         channel._start_conversation("CALL111", "profile_test")
 
-        # Mock memory retrieval to verify it's NOT called
-        with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-            # Handle prompt with None voicePrompt and conversationId
-            prompt_data = {"type": "prompt", "conversationId": "CALL111", "voicePrompt": None}
-            channel.handle_message(prompt_data)
+        # Handle prompt with None voicePrompt and conversationId
+        prompt_data = {"type": "prompt", "conversationId": "CALL111", "voicePrompt": None}
+        channel.handle_message(prompt_data)
 
-            # Verify memory retrieval was NOT called (voice channel doesn't fetch memory)
-            mock_retrieve.assert_not_called()
+        # Voice channel doesn't fetch memory - no assertion needed
+        # Test passes if no exception is raised

@@ -108,7 +108,7 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
    - `onMessageAdded`: Channel validates message → auto-initializes conversation if needed → creates `ConversationSession` with all fields → calls `taf.retrieve_memory(conversation_context, query)`
    - `onConversationRemoved`: Channel calls `_end_conversation(conv_id)` → cleans up session
 
-3. **Message Processing**: `TAF.retrieve_memory(conversation_context, query)` → retrieves memories from Memora using `conversation_context.conversation_id` and `config.memory_service_sid` → triggers `on_message_ready()` callback with optional memory response → returns `MemoryRetrievalResponse`
+3. **Message Processing**: `TAF.retrieve_memory(conversation_context, query)` → retrieves memories from Memora using `conversation_context.conversation_id` and `config.twilio_memory_config.memory_store_id` (if memory is enabled) → triggers `on_message_ready()` callback with optional memory response → returns `MemoryRetrievalResponse`
 
 4. **Message Ready Hook**: Developers register callbacks via `taf.on_message_ready(callback)` to handle incoming messages
    - For SMS: Receives `user_message`, `context` (ConversationSession), and `memory_response` (MemoryRetrievalResponse)
@@ -184,8 +184,8 @@ When initializing TAF, developers must provide:
 - `twilio_account_sid` - From Twilio Console
 - `twilio_auth_token` - From Twilio Console
 - `twilio_phone_number` - Twilio Phone Number to use for sending messages (required for messaging tools)
-- `memory_service_sid` - Memora service ID for memory retrieval (starts with `MG`)
 - `conversation_service_sid` - Twilio Conversation Service SID (starts with `IS`)
+- `twilio_memory_config` - Optional TwilioMemoryConfig object with `memory_store_id` field (starts with `MG`). Only needed if using Twilio Memory functionality. When provided, memory is automatically retrieved for SMS conversations.
 - `log_level` - Optional, defaults to "INFO"
 
 ## Common Patterns
@@ -195,6 +195,7 @@ When initializing TAF, developers must provide:
 ```python
 from taf import TAF, TAFConfig
 from taf.channels import SMSChannel
+from taf.core.config import TwilioMemoryConfig
 
 # 1. Setup TAF and SMS Channel
 config = TAFConfig(
@@ -202,8 +203,10 @@ config = TAFConfig(
     twilio_account_sid="AC...",
     twilio_auth_token="...",
     twilio_phone_number="+1234567890",
-    memory_service_sid="MG...",
-    conversation_service_sid="IS..."
+    conversation_service_sid="IS...",
+    twilio_memory_config=TwilioMemoryConfig(
+        memory_store_id="MG..."
+    )  # Optional - only if using Twilio Memory
 )
 taf = TAF(config)
 sms_channel = SMSChannel(taf)
@@ -253,6 +256,7 @@ Use `VoiceServerConfig` for automatic server setup with minimal boilerplate:
 ```python
 from taf import TAF, TAFConfig, VoiceServerConfig
 from taf.channels.voice import VoiceChannel
+from taf.core.config import TwilioMemoryConfig
 
 # 1. Setup TAF and Voice Channel with server config
 config = TAFConfig(
@@ -260,8 +264,10 @@ config = TAFConfig(
     twilio_account_sid="AC...",
     twilio_auth_token="...",
     twilio_phone_number="+1234567890",
-    memory_service_sid="MG...",
-    conversation_service_sid="IS..."
+    conversation_service_sid="IS...",
+    twilio_memory_config=TwilioMemoryConfig(
+        memory_store_id="MG..."
+    )  # Optional - only if using Twilio Memory
 )
 taf = TAF(config)
 
@@ -298,6 +304,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.responses import Response
 from taf import TAF, TAFConfig
 from taf.channels.voice import VoiceChannel
+from taf.core.config import TwilioMemoryConfig
 
 # 1. Setup TAF and Voice Channel
 config = TAFConfig(
@@ -305,8 +312,10 @@ config = TAFConfig(
     twilio_account_sid="AC...",
     twilio_auth_token="...",
     twilio_phone_number="+1234567890",
-    memory_service_sid="MG...",
-    conversation_service_sid="IS..."
+    conversation_service_sid="IS...",
+    twilio_memory_config=TwilioMemoryConfig(
+        memory_store_id="MG..."
+    )  # Optional - only if using Twilio Memory
 )
 taf = TAF(config)
 voice_channel = VoiceChannel(taf)

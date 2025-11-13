@@ -5,16 +5,18 @@ import pytest
 from taf import TAF, TAFConfig
 
 
-def get_test_config():
+def get_test_config(with_memory=False):
     """Get a valid test configuration."""
-    return {
+    config = {
         "twilio_auth_token": "test_token_123",
-        "memory_service_sid": "MGtest123",
         "environment": "prod",
         "twilio_account_sid": "ACtest123",
         "conversation_service_sid": "IS123test",
         "twilio_phone_number": "+15551234567",
     }
+    if with_memory:
+        config["twilio_memory_config"] = {"memory_store_id": "MGtest123"}
+    return config
 
 
 class TestTAF:
