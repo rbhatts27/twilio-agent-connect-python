@@ -109,9 +109,14 @@ async def handle_message_ready(
 
 if __name__ == "__main__":
     # Initialize TAF
+    # Memory service is optional - only include if all required environment variables are set
     memory_store_id = os.environ.get("MEMORY_STORE_ID")
+    api_key = os.environ.get("TWILIO_API_KEY")
+    api_token = os.environ.get("TWILIO_API_TOKEN")
     twilio_memory_config = (
-        TwilioMemoryConfig(memory_store_id=memory_store_id) if memory_store_id else None
+        TwilioMemoryConfig(memory_store_id=memory_store_id, api_key=api_key, api_token=api_token)
+        if memory_store_id and api_key and api_token
+        else None
     )
 
     taf = TAF(

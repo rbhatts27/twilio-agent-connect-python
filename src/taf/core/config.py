@@ -1,8 +1,8 @@
 """Configuration models for the Twilio Agentic Framework."""
 
-from typing import Literal, Optional
+from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 
 class TwilioMemoryConfig(BaseModel):
@@ -16,11 +16,19 @@ class TwilioMemoryConfig(BaseModel):
     memory_store_id: str = Field(
         description="Memora Memory Store ID (starts with MG)",
     )
+    api_key: str = Field(
+        description="API Key for Memora authentication",
+    )
+    api_token: str = Field(
+        description="API Token for Memora authentication",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "memory_store_id": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "api_key": "your_api_key_here",
+                "api_token": "your_api_token_here",
             }
         },
     )
@@ -29,10 +37,17 @@ class TwilioMemoryConfig(BaseModel):
 class TAFConfig(BaseModel):
     """Configuration model for Twilio Agentic Framework settings."""
 
-    environment: Literal["dev", "stage", "prod"] = Field(
-        description="TAF environment (dev, stage, or prod)"
-    )
+    environment: str = Field(description="TAF environment (dev, stage, or prod)")
     conversation_service_sid: str = Field(description="Twilio Conversation Service SID")
+
+    @field_validator("environment")
+    @classmethod
+    def validate_environment(cls, v: str) -> str:
+        """Validate that environment is one of the allowed values."""
+        allowed = {"dev", "stage", "prod"}
+        if v not in allowed:
+            raise ValueError(f"environment must be one of {allowed}, got '{v}'")
+        return v
 
     twilio_memory_config: Optional[TwilioMemoryConfig] = Field(
         default=None,
@@ -84,6 +99,8 @@ class TAFConfig(BaseModel):
                 "twilio_phone_number": "your_phone_number_here",
                 "twilio_memory_config": {
                     "memory_store_id": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "api_key": "your_api_key_here",
+                    "api_token": "your_api_token_here",
                 },
             }
         },

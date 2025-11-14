@@ -21,7 +21,11 @@ def get_test_config(with_memory=True):
         "twilio_phone_number": "+15551234567",
     }
     if with_memory:
-        config["twilio_memory_config"] = {"memory_store_id": "MGtest123"}
+        config["twilio_memory_config"] = {
+            "memory_store_id": "MGtest123",
+            "api_key": "test_api_key",
+            "api_token": "test_api_token",
+        }
     return config
 
 

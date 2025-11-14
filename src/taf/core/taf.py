@@ -68,8 +68,8 @@ class TAF:
         if self.config.twilio_memory_config:
             self.memora_client = MemoryClient(
                 base_url=self.config.memora_base_url,
-                account_sid=self.config.twilio_account_sid,
-                auth_token=self.config.twilio_auth_token,
+                api_key=self.config.twilio_memory_config.api_key,
+                api_token=self.config.twilio_memory_config.api_token,
             )
             self.logger.info("Twilio Memory client initialized")
 

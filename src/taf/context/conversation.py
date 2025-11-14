@@ -5,6 +5,7 @@ from requests.auth import HTTPBasicAuth
 
 from taf.core.logging import get_logger
 from taf.models.conversation import (
+    ConversationConfiguration,
     ConversationRequest,
     ConversationResponse,
     ParticipantAddress,
@@ -61,7 +62,7 @@ class ConversationClient:
             f"{conversation_id}/Participants"
         )
 
-        request_data = ParticipantRequest(addresses=addresses)
+        request_data = ParticipantRequest(addresses=addresses, type="CUSTOMER")
         request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
 
         try:
@@ -103,16 +104,14 @@ class ConversationClient:
     def create_conversation(
         self,
         name: Optional[str] = None,
-        layers: Optional[list[str]] = None,
-        intelligence_agents: Optional[list[str]] = None,
+        configuration: Optional[ConversationConfiguration] = None,
     ) -> ConversationResponse:
         """
         Create a new conversation.
 
         Args:
             name: Conversation name (optional)
-            layers: List of available conversation layers (optional)
-            intelligence_agents: List of intelligence agent TTIDs (optional)
+            configuration: Conversation configuration settings (optional)
 
         Returns:
             ConversationResponse object containing the created conversation details
@@ -122,9 +121,7 @@ class ConversationClient:
         """
         url = f"{self.base_url}/Services/{self.service_id}/Conversations"
 
-        request_data = ConversationRequest(
-            name=name, layers=layers, intelligence_agents=intelligence_agents
-        )
+        request_data = ConversationRequest(name=name, configuration=configuration)
         request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
 
         try:

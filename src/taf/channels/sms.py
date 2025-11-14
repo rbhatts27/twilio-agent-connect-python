@@ -97,18 +97,18 @@ class SMSChannel(BaseChannel):
             return
 
         for participant in participants:
-            if participant.label != "Customer":
+            if participant.type != "CUSTOMER":
                 self.logger.debug("Found non-customer participant; skipping")
                 continue
 
             for address in participant.addresses:
-                if address.communication_type != "SMS":
+                if address.channel != "SMS":
                     self.logger.debug("Found non-SMS address; skipping")
                     continue
 
                 self.logger.debug(f"[SMS] Sending response: {response}")
                 self.twilio.messages.create(
-                    to=address.value,
+                    to=address.address,
                     from_=self.taf.config.twilio_phone_number,
                     body=response,
                 )

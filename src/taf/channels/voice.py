@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
 import uvicorn
@@ -90,13 +91,15 @@ class VoiceChannel(BaseChannel):
             TwiML XML string for call connection
         """
         # Create a new conversation for each call
-        conversation = self.taf.maestro_client.create_conversation()
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        conversation_name = f"taf-voice-{called_phone_number}-{timestamp}"
+        conversation = self.taf.maestro_client.create_conversation(name=conversation_name)
         conversation_id = conversation.id
 
         # Add participant with the caller's phone number
         participant_response = self.taf.maestro_client.add_participant(
             conversation_id=conversation_id,
-            addresses=[ParticipantAddress(communicationType="VOICE", value=called_phone_number)],
+            addresses=[ParticipantAddress(channel="VOICE", address=called_phone_number)],
         )
         profile_id = participant_response.profile_id
 

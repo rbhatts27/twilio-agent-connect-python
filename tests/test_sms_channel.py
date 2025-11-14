@@ -20,7 +20,11 @@ def get_test_config(with_memory=True) -> dict:
         "twilio_phone_number": "+15551234567",
     }
     if with_memory:
-        config["twilio_memory_config"] = {"memory_store_id": "MGtest123"}
+        config["twilio_memory_config"] = {
+            "memory_store_id": "MGtest123",
+            "api_key": "test_api_key",
+            "api_token": "test_api_token",
+        }
     return config
 
 
@@ -236,8 +240,8 @@ class TestSMSChannel:
                 service_id="IStest123",
                 conversation_id="CH123456",
                 name="Test Customer",
-                label="Customer",
-                addresses=[ParticipantAddress(communication_type="SMS", value="+12345678901")],
+                type="CUSTOMER",
+                addresses=[ParticipantAddress(channel="SMS", address="+12345678901")],
             )
 
             with patch.object(

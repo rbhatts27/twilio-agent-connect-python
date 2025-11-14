@@ -52,7 +52,11 @@ config = TAFConfig(
     environment="prod",
     twilio_account_sid="AC...",
     twilio_auth_token="your_token",
-    twilio_memory_config=TwilioMemoryConfig(memory_store_id="MG..."),
+    twilio_memory_config=TwilioMemoryConfig(
+        memory_store_id="MG...",
+        api_key="your_api_key",
+        api_token="your_api_token"
+    ),
     conversation_service_sid="IS...",
     twilio_phone_number="+1234567890"
 )

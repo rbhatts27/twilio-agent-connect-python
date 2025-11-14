@@ -7,6 +7,7 @@ import requests
 
 from taf.context.conversation import ConversationClient
 from taf.models.conversation import (
+    ConversationConfiguration,
     ConversationRequest,
     ConversationResponse,
     ParticipantRequest,
@@ -27,8 +28,7 @@ class TestConversationModels:
             "name": "Test Conversation",
             "created_at": "2025-01-01T00:00:00Z",
             "updated_at": "2025-01-01T01:00:00Z",
-            "layers": ["layer1", "layer2"],
-            "intelligence_agents": ["agent1", "agent2"],
+            "configuration": {"intelligenceServiceIds": ["IS001", "IS002"]},
         }
 
         conversation = ConversationResponse(**response_data)
@@ -40,83 +40,79 @@ class TestConversationModels:
         assert conversation.name == "Test Conversation"
         assert conversation.created_at == "2025-01-01T00:00:00Z"
         assert conversation.updated_at == "2025-01-01T01:00:00Z"
-        assert conversation.layers == ["layer1", "layer2"]
-        assert conversation.intelligence_agents == ["agent1", "agent2"]
+        assert conversation.configuration is not None
+        assert conversation.configuration.intelligence_service_ids == ["IS001", "IS002"]
 
     def test_conversation_response_minimal_fields(self):
         """Test ConversationResponse with only required fields."""
         response_data = {
             "id": "CH123456",
-            "account_id": "AC123456",
         }
 
         conversation = ConversationResponse(**response_data)
 
         assert conversation.id == "CH123456"
-        assert conversation.account_id == "AC123456"
+        assert conversation.account_id is None
         assert conversation.service_id is None
         assert conversation.status is None
         assert conversation.name is None
         assert conversation.created_at is None
         assert conversation.updated_at is None
-        assert conversation.layers == []
-        assert conversation.intelligence_agents == []
+        assert conversation.configuration is None
 
     def test_conversation_request_model(self):
         """Test ConversationRequest model with all fields."""
         request_data = {
             "name": "Test Conversation",
-            "layers": ["layer1", "layer2"],
-            "intelligence_agents": ["agent1", "agent2"],
+            "configuration": {"intelligenceServiceIds": ["IS001", "IS002"]},
         }
 
         request = ConversationRequest(**request_data)
 
         assert request.name == "Test Conversation"
-        assert request.layers == ["layer1", "layer2"]
-        assert request.intelligence_agents == ["agent1", "agent2"]
+        assert request.configuration is not None
+        assert request.configuration.intelligence_service_ids == ["IS001", "IS002"]
 
     def test_conversation_request_minimal(self):
         """Test ConversationRequest with no fields (all optional)."""
         request = ConversationRequest()
 
         assert request.name is None
-        assert request.layers is None
-        assert request.intelligence_agents is None
+        assert request.configuration is None
 
     def test_conversation_request_model_dump(self):
         """Test ConversationRequest model_dump excludes None values."""
-        request = ConversationRequest(name="Test", layers=["layer1"])
+        config = ConversationConfiguration(intelligence_service_ids=["IS001"])
+        request = ConversationRequest(name="Test", configuration=config)
 
         payload = request.model_dump(by_alias=True, exclude_none=True)
 
-        assert payload == {"name": "Test", "layers": ["layer1"]}
-        assert "intelligence_agents" not in payload
+        assert payload == {"name": "Test", "configuration": {"intelligenceServiceIds": ["IS001"]}}
 
     def test_participant_request_model(self):
         """Test ParticipantRequest model with all fields."""
         request_data = {
             "name": "John Doe",
-            "label": "customer",
+            "type": "CUSTOMER",
             "profile_id": "profile_123",
-            "addresses": [{"communicationType": "SMS", "value": "+15551234567"}],
+            "addresses": [{"channel": "SMS", "address": "+15551234567"}],
         }
 
         request = ParticipantRequest(**request_data)
 
         assert request.name == "John Doe"
-        assert request.label == "customer"
+        assert request.type == "CUSTOMER"
         assert request.profile_id == "profile_123"
         assert len(request.addresses) == 1
-        assert request.addresses[0].communication_type == "SMS"
-        assert request.addresses[0].value == "+15551234567"
+        assert request.addresses[0].channel == "SMS"
+        assert request.addresses[0].address == "+15551234567"
 
     def test_participant_request_minimal(self):
         """Test ParticipantRequest with no fields (all optional)."""
         request = ParticipantRequest()
 
         assert request.name is None
-        assert request.label is None
+        assert request.type is None
         assert request.profile_id is None
         assert request.addresses == []
 
@@ -127,23 +123,22 @@ class TestConversationModels:
         payload = request.model_dump(by_alias=True, exclude_none=True)
 
         # addresses has default_factory=list, so it's included as empty list
-        assert payload == {"name": "John", "profile_id": "profile_123", "addresses": []}
-        assert "label" not in payload
+        assert payload == {"name": "John", "profileId": "profile_123", "addresses": []}
+        assert "type" not in payload
 
     def test_participant_response_model(self):
         """Test ParticipantResponse model with all fields."""
         response_data = {
             "id": "MB123456",
-            "conversation_id": "CH123456",
-            "account_id": "AC123456",
-            "service_id": "IS123456",
+            "conversationId": "CH123456",
+            "accountId": "AC123456",
+            "serviceId": "IS123456",
             "name": "John Doe",
-            "label": "customer",
-            "profile_id": "profile_123",
-            "status": "active",
-            "addresses": [{"communicationType": "SMS", "value": "+15551234567"}],
-            "created_at": "2025-01-01T00:00:00Z",
-            "updated_at": "2025-01-01T01:00:00Z",
+            "type": "CUSTOMER",
+            "profileId": "profile_123",
+            "addresses": [{"channel": "SMS", "address": "+15551234567"}],
+            "createdAt": "2025-01-01T00:00:00Z",
+            "updatedAt": "2025-01-01T01:00:00Z",
         }
 
         participant = ParticipantResponse(**response_data)
@@ -153,12 +148,11 @@ class TestConversationModels:
         assert participant.account_id == "AC123456"
         assert participant.service_id == "IS123456"
         assert participant.name == "John Doe"
-        assert participant.label == "customer"
+        assert participant.type == "CUSTOMER"
         assert participant.profile_id == "profile_123"
-        assert participant.status == "active"
         assert len(participant.addresses) == 1
-        assert participant.addresses[0].communication_type == "SMS"
-        assert participant.addresses[0].value == "+15551234567"
+        assert participant.addresses[0].channel == "SMS"
+        assert participant.addresses[0].address == "+15551234567"
         assert participant.created_at == "2025-01-01T00:00:00Z"
         assert participant.updated_at == "2025-01-01T01:00:00Z"
 
@@ -166,9 +160,8 @@ class TestConversationModels:
         """Test ParticipantResponse with only required fields."""
         response_data = {
             "id": "MB123456",
-            "conversation_id": "CH123456",
-            "account_id": "AC123456",
-            "name": "John Doe",
+            "conversationId": "CH123456",
+            "accountId": "AC123456",
         }
 
         participant = ParticipantResponse(**response_data)
@@ -176,11 +169,10 @@ class TestConversationModels:
         assert participant.id == "MB123456"
         assert participant.conversation_id == "CH123456"
         assert participant.account_id == "AC123456"
-        assert participant.name == "John Doe"
         assert participant.service_id is None
-        assert participant.label is None
+        assert participant.name is None
+        assert participant.type is None
         assert participant.profile_id is None
-        assert participant.status is None
         assert participant.addresses == []
         assert participant.created_at is None
         assert participant.updated_at is None
@@ -244,8 +236,7 @@ class TestConversationClient:
             "account_id": "AC123456",
             "service_id": "IS123456",
             "name": "Customer Support",
-            "layers": ["layer1", "layer2"],
-            "intelligence_agents": ["agent1"],
+            "configuration": {"intelligenceServiceIds": ["IS001", "IS002"]},
             "status": "active",
         }
         mock_response.raise_for_status = Mock()
@@ -258,10 +249,10 @@ class TestConversationClient:
             service_id="IS123456",
         )
 
+        config = ConversationConfiguration(intelligence_service_ids=["IS001", "IS002"])
         result = client.create_conversation(
             name="Customer Support",
-            layers=["layer1", "layer2"],
-            intelligence_agents=["agent1"],
+            configuration=config,
         )
 
         # Verify API call includes all parameters
@@ -269,8 +260,7 @@ class TestConversationClient:
             "https://maestro.twilio.com/v1/Services/IS123456/Conversations",
             json={
                 "name": "Customer Support",
-                "layers": ["layer1", "layer2"],
-                "intelligence_agents": ["agent1"],
+                "configuration": {"intelligenceServiceIds": ["IS001", "IS002"]},
             },
         )
 
@@ -278,8 +268,8 @@ class TestConversationClient:
         assert isinstance(result, ConversationResponse)
         assert result.id == "CH123456"
         assert result.name == "Customer Support"
-        assert result.layers == ["layer1", "layer2"]
-        assert result.intelligence_agents == ["agent1"]
+        assert result.configuration is not None
+        assert result.configuration.intelligence_service_ids == ["IS001", "IS002"]
 
     @patch("requests.Session.post")
     def test_create_conversation_api_error(self, mock_post):
@@ -332,7 +322,7 @@ class TestConversationClient:
         )
         mock_post.assert_called_once_with(
             expected_url,
-            json={},
+            json={"type": "CUSTOMER"},
         )
 
         # Verify response
@@ -370,8 +360,8 @@ class TestConversationClient:
             conversation_id="CH123456",
         )
 
-        # Verify only non-None values are sent
-        assert mock_post.call_args[1]["json"] == {}
+        # Verify only non-None values are sent (type is always included)
+        assert mock_post.call_args[1]["json"] == {"type": "CUSTOMER"}
 
         # Verify response
         assert isinstance(result, ParticipantResponse)

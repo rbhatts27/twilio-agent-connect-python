@@ -445,7 +445,9 @@ class TestMemoryTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -465,7 +467,9 @@ class TestMemoryTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -492,7 +496,9 @@ class TestMemoryTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -519,7 +525,9 @@ class TestMemoryTools:
         config1 = TAFConfig(
             twilio_account_sid="ACtest1",
             twilio_auth_token="token1",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest1"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest1", api_key="api_key1", api_token="api_token1"
+            ),
             environment="prod",
             conversation_service_sid="IStest1",
             twilio_phone_number="+15551234567",
@@ -529,7 +537,9 @@ class TestMemoryTools:
         config2 = TAFConfig(
             twilio_account_sid="ACtest2",
             twilio_auth_token="token2",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest2"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest2", api_key="api_key2", api_token="api_token2"
+            ),
             environment="prod",
             conversation_service_sid="IStest2",
             twilio_phone_number="+15551234567",
@@ -552,7 +562,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -573,7 +585,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -596,7 +610,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -621,7 +637,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -645,7 +663,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -679,7 +699,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -721,7 +743,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -746,7 +770,9 @@ class TestKnowledgeTools:
         config1 = TAFConfig(
             twilio_account_sid="ACtest1",
             twilio_auth_token="token1",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest1"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest1", api_key="api_key1", api_token="api_token1"
+            ),
             environment="prod",
             conversation_service_sid="IStest1",
             twilio_phone_number="+15551234567",
@@ -756,7 +782,9 @@ class TestKnowledgeTools:
         config2 = TAFConfig(
             twilio_account_sid="ACtest2",
             twilio_auth_token="token2",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest2"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest2", api_key="api_key2", api_token="api_token2"
+            ),
             environment="prod",
             conversation_service_sid="IStest2",
             twilio_phone_number="+15551234567",
@@ -774,7 +802,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -795,7 +825,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -817,7 +849,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -842,7 +876,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -858,7 +894,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",
@@ -890,7 +928,9 @@ class TestKnowledgeTools:
         config = TAFConfig(
             twilio_account_sid="ACtest",
             twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
+            ),
             environment="prod",
             conversation_service_sid="IStest",
             twilio_phone_number="+15551234567",

@@ -33,9 +33,14 @@ def taf_tool_to_agent_tool(taf_tool: TAFTool) -> Tool:
 
 
 async def main() -> None:
+    # Memory service is optional - only include if all required environment variables are set
     memory_store_id = os.getenv("MEMORY_STORE_ID")
+    api_key = os.getenv("TWILIO_API_KEY")
+    api_token = os.getenv("TWILIO_API_TOKEN")
     twilio_memory_config = (
-        TwilioMemoryConfig(memory_store_id=memory_store_id) if memory_store_id else None
+        TwilioMemoryConfig(memory_store_id=memory_store_id, api_key=api_key, api_token=api_token)
+        if memory_store_id and api_key and api_token
+        else None
     )
 
     config = TAFConfig(

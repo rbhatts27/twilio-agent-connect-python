@@ -17,21 +17,21 @@ class MemoryClient:
     def __init__(
         self,
         base_url: str,
-        account_sid: str,
-        auth_token: str,
+        api_key: str,
+        api_token: str,
     ) -> None:
         """
         Initialize the Memory client.
 
         Args:
             base_url: Base URL for the Memora data plane API.
-            account_sid: Twilio Account SID for authentication.
-            auth_token: Twilio Auth Token for authentication.
+            api_key: API Key for Memora authentication.
+            api_token: API Token for Memora authentication.
         """
         self.base_url = base_url
         self.session = requests.Session()
         self.logger = get_logger(__name__)
-        self.session.auth = HTTPBasicAuth(account_sid, auth_token)
+        self.session.auth = HTTPBasicAuth(api_key, api_token)
 
     def retrieve_memory(
         self,

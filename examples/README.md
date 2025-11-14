@@ -15,7 +15,12 @@ This directory contains examples demonstrating how to use the Twilio Agentic Fra
    Copy `.env.example` to `.env` and fill in your credentials:
    ```bash
    ENVIRONMENT=dev  # Required: 'dev', 'stage', or 'prod'
-   MEMORY_STORE_ID=MGxxxxx...  # Optional: only required if using Twilio Memory
+
+   # Memory Service Configuration (all three required if using Twilio Memory)
+   MEMORY_STORE_ID=MGxxxxx...  # Optional: only if using Twilio Memory
+   TWILIO_API_KEY=your_api_key  # Optional: only if using Twilio Memory
+   TWILIO_API_TOKEN=your_api_token  # Optional: only if using Twilio Memory
+
    CONVERSATION_SERVICE_SID=ISxxxxx...
    TWILIO_ACCOUNT_SID=ACxxxxx...
    TWILIO_AUTH_TOKEN=your_auth_token

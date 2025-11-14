@@ -46,7 +46,9 @@ class TestTAFConfig:
 
     def test_config_with_memory_enabled(self):
         """Test config with Twilio Memory enabled."""
-        memory_config = TwilioMemoryConfig(memory_store_id="MGtest123")
+        memory_config = TwilioMemoryConfig(
+            memory_store_id="MGtest123", api_key="test_api_key", api_token="test_api_token"
+        )
         config = TAFConfig(
             twilio_auth_token="test_token_123",
             environment="prod",
@@ -57,6 +59,8 @@ class TestTAFConfig:
         )
         assert config.twilio_memory_config is not None
         assert config.twilio_memory_config.memory_store_id == "MGtest123"
+        assert config.twilio_memory_config.api_key == "test_api_key"
+        assert config.twilio_memory_config.api_token == "test_api_token"
 
     def test_config_dict_conversion(self):
         """Test converting config to dictionary."""
@@ -66,7 +70,9 @@ class TestTAFConfig:
             twilio_account_sid="ACtest123",
             conversation_service_sid="IS123test",
             twilio_phone_number="+15551234567",
-            twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGtest123"),
+            twilio_memory_config=TwilioMemoryConfig(
+                memory_store_id="MGtest123", api_key="test_api_key", api_token="test_api_token"
+            ),
         )
         config_dict = config.model_dump()
 
@@ -79,6 +85,8 @@ class TestTAFConfig:
         assert config_dict["log_level"] == "INFO"
         assert "twilio_memory_config" in config_dict
         assert config_dict["twilio_memory_config"]["memory_store_id"] == "MGtest123"
+        assert config_dict["twilio_memory_config"]["api_key"] == "test_api_key"
+        assert config_dict["twilio_memory_config"]["api_token"] == "test_api_token"
 
     def test_config_from_dict(self):
         """Test creating config from dictionary."""
@@ -88,7 +96,11 @@ class TestTAFConfig:
             "twilio_account_sid": "ACtest123",
             "conversation_service_sid": "IS123test",
             "twilio_phone_number": "+15551234567",
-            "twilio_memory_config": {"memory_store_id": "MGtest123"},
+            "twilio_memory_config": {
+                "memory_store_id": "MGtest123",
+                "api_key": "test_api_key",
+                "api_token": "test_api_token",
+            },
         }
         config = TAFConfig(**config_data)
         assert config.twilio_auth_token == "test_token_123"
@@ -96,6 +108,8 @@ class TestTAFConfig:
         assert config.environment == "prod"
         assert config.twilio_memory_config is not None
         assert config.twilio_memory_config.memory_store_id == "MGtest123"
+        assert config.twilio_memory_config.api_key == "test_api_key"
+        assert config.twilio_memory_config.api_token == "test_api_token"
 
     def test_config_json_schema(self):
         """Test that config has valid JSON schema."""
@@ -108,8 +122,8 @@ class TestTAFConfig:
         assert "twilio_phone_number" in schema["properties"]
         assert "log_level" in schema["properties"]
 
-        # Check that environment has the correct enum values
-        assert schema["properties"]["environment"]["enum"] == ["dev", "stage", "prod"]
+        # Check that environment is a string type
+        assert schema["properties"]["environment"]["type"] == "string"
 
         # Check required fields
         assert "required" in schema
@@ -151,3 +165,18 @@ class TestTAFConfig:
         """Test that partial config raises validation error."""
         with pytest.raises(ValidationError):
             TAFConfig(twilio_auth_token="test_token_123")  # Missing other required fields
+
+    def test_invalid_environment_fails(self):
+        """Test that invalid environment value raises validation error."""
+        with pytest.raises(ValidationError) as exc_info:
+            TAFConfig(
+                twilio_auth_token="test_token_123",
+                environment="invalid",  # Invalid environment
+                twilio_account_sid="ACtest123",
+                conversation_service_sid="IS123test",
+                twilio_phone_number="+15551234567",
+            )
+
+        error = exc_info.value
+        assert "environment" in str(error)
+        assert "must be one of" in str(error)

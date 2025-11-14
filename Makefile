@@ -51,7 +51,7 @@ exec-demo: ## Start the exec_demo server with hot reloading (watches both exampl
 	cd examples/exec_demo && uv run uvicorn server:app --host 0.0.0.0 --port 8000 --reload --reload-dir . --reload-dir ../../src/taf
 
 ngrok: ## Start ngrok tunnel to local server with custom domain
-	ngrok http 8000 --domain=taf-voice-local.ngrok.dev
+	ngrok http 8000 --domain=taf-stage.ngrok.app
 
 dev-setup: sync install-pre-commit ## Complete development environment setup
 

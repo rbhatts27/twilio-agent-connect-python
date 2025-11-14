@@ -66,7 +66,11 @@ config = TAFConfig(
     twilio_account_sid="ACxxxxx...",
     twilio_auth_token="your_auth_token",
     twilio_phone_number="+1234567890",
-    twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGxxxxx..."),  # Optional
+    twilio_memory_config=TwilioMemoryConfig(
+        memory_store_id="MGxxxxx...",
+        api_key="your_api_key",
+        api_token="your_api_token"
+    ),  # Optional
     conversation_service_sid="ISxxxxx..."
 )
 
@@ -122,7 +126,11 @@ config = TAFConfig(
     twilio_account_sid="ACxxxxx...",
     twilio_auth_token="your_auth_token",
     twilio_phone_number="+1234567890",
-    twilio_memory_config=TwilioMemoryConfig(memory_store_id="MGxxxxx..."),  # Optional
+    twilio_memory_config=TwilioMemoryConfig(
+        memory_store_id="MGxxxxx...",
+        api_key="your_api_key",
+        api_token="your_api_token"
+    ),  # Optional
     conversation_service_sid="ISxxxxx..."
 )
 
@@ -175,7 +183,7 @@ TAF requires the following configuration parameters:
 | `twilio_account_sid` | Your Twilio Account SID | `ACxxxxx...` |
 | `twilio_auth_token` | Your Twilio Auth Token | From Twilio Console |
 | `twilio_phone_number` | Your Twilio Phone Number | `+1234567890` |
-| `twilio_memory_config` | Optional Twilio Memory configuration | `TwilioMemoryConfig(memory_store_id="MGxxxxx...")` |
+| `twilio_memory_config` | Optional Twilio Memory configuration (requires `memory_store_id`, `api_key`, and `api_token`) | `TwilioMemoryConfig(memory_store_id="MGxxxxx...", api_key="...", api_token="...")` |
 | `conversation_service_sid` | Twilio Conversation Service SID | `ISxxxxx...` |
 | `log_level` | Logging level (optional) | `INFO` (default) |
 
