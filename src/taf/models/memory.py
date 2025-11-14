@@ -33,14 +33,6 @@ class MemoryRetrievalRequest(BaseModel):
         description="End date for filtering memories (exclusive)",
         json_schema_extra={"example": "2025-01-31T23:59:59Z"},
     )
-    sessions_limit: Optional[int] = Field(
-        default=10,
-        alias="sessionsLimit",
-        ge=1,
-        le=100,
-        description="Maximum number of conversational session memories to return",
-        json_schema_extra={"example": 10},
-    )
     observations_limit: Optional[int] = Field(
         default=20,
         alias="observationsLimit",
@@ -56,6 +48,14 @@ class MemoryRetrievalRequest(BaseModel):
         le=100,
         description="Maximum number of summary memories to return",
         json_schema_extra={"example": 5},
+    )
+    communications_limit: Optional[int] = Field(
+        default=10,
+        alias="communicationsLimit",
+        ge=1,
+        le=100,
+        description="Maximum number of communication memories to return",
+        json_schema_extra={"example": 10},
     )
 
     model_config = {"populate_by_name": True}
@@ -140,16 +140,6 @@ class ObservationInfo(BaseModel):
         description="Array of conversation IDs associated with this observation",
         json_schema_extra={"example": ["comms_conversation_00000000000000000000000000"]},
     )
-    ci_operator: Optional[CiOperator] = Field(
-        default=None,
-        alias="ciOperator",
-        description="Information about the CI operator that extracted this observation",
-    )
-    confidence: Optional[Literal["HIGH", "MEDIUM", "LOW"]] = Field(
-        default=None,
-        description="Confidence level for the observation extraction",
-        json_schema_extra={"example": "HIGH"},
-    )
 
     model_config = {"populate_by_name": True}
 
@@ -204,71 +194,122 @@ class SummaryInfo(BaseModel):
         description="Timestamp when the summary was originally created",
         json_schema_extra={"example": "2025-01-15T10:15:30Z"},
     )
-    ci_operator: Optional[CiOperator] = Field(
+
+    model_config = {"populate_by_name": True}
+
+
+class Participant(BaseModel):
+    """Participant in a communication."""
+
+    id: str = Field(
+        ...,
+        description="Participant identifier",
+        json_schema_extra={"example": "comms_participant_00000000000000000000000000"},
+    )
+    name: str = Field(..., description="Participant display name")
+    address: str = Field(
+        ...,
+        max_length=254,
+        description="Address of the Participant (e.g., phone number, email address)",
+        json_schema_extra={"example": "+12025551234"},
+    )
+    channel: Literal["VOICE", "SMS", "RCS", "EMAIL", "WHATSAPP", "CHAT", "API", "SYSTEM"] = Field(
+        ..., description="The channel on which the message originated"
+    )
+    type: Optional[Literal["HUMAN_AGENT", "CUSTOMER", "AI_AGENT"]] = Field(
+        default=None, description="Type of Participant in the Conversation"
+    )
+    profile_id: Optional[str] = Field(
         default=None,
-        alias="ciOperator",
-        description="Information about the CI operator that extracted this observation",
+        alias="profileId",
+        description="The canonical profile ID",
+        json_schema_extra={"example": "mem_profile_00000000000000000000000000"},
     )
 
     model_config = {"populate_by_name": True}
 
 
-class SessionMessage(BaseModel):
-    """A message within a conversational session."""
+class CommunicationContent(BaseModel):
+    """Content of a communication."""
 
-    timestamp: str = Field(
-        ...,
-        max_length=30,
-        description="When the message was sent",
-        json_schema_extra={"example": "2025-01-15T15:58:10Z"},
-    )
-    direction: Literal["inbound", "outbound"] = Field(
-        ..., description="Message direction relative to the profile"
-    )
-    channel: str = Field(
-        ...,
-        max_length=30,
-        description="Communication channel (case-insensitive)",
-        json_schema_extra={"example": "sms"},
-    )
-    from_address: str = Field(
-        ...,
-        alias="from",
-        max_length=128,
-        description="Sender address (phone number or identifier)",
-        json_schema_extra={"example": "+15551234567"},
-    )
-    to_address: str = Field(
-        ...,
-        alias="to",
-        max_length=128,
-        description="Recipient address (phone number or identifier)",
-        json_schema_extra={"example": "+15557654321"},
-    )
-    content: str = Field(
-        ...,
-        max_length=4096,
-        description="Message body content (may be truncated)",
-        json_schema_extra={"example": "Thanks for checking in."},
+    text: Optional[str] = Field(
+        default=None,
+        max_length=8388608,
+        description="Primary text content (optional)",
+        json_schema_extra={"example": "Hello, I need help with my account"},
     )
 
     model_config = {"populate_by_name": True}
 
 
-class SessionInfo(BaseModel):
-    """A session memory containing recent conversation context."""
+class Recipient(BaseModel):
+    """Recipient of a communication."""
 
-    conversation_id: str = Field(
+    id: str = Field(
         ...,
-        alias="conversationId",
-        description="Unique identifier for the conversation using Twilio Type ID (TTID) format",
-        json_schema_extra={"example": "comms_conversation_00000000000000000000000000"},
+        description="Participant identifier",
+        json_schema_extra={"example": "comms_participant_00000000000000000000000000"},
     )
-    messages: list[SessionMessage] = Field(
+    name: str = Field(..., description="Participant display name")
+    address: str = Field(
         ...,
-        min_length=1,
-        max_length=100,
-        description="Chronologically ordered list of recent messages (oldest first)",
+        max_length=254,
+        description="Address of the Participant (e.g., phone number, email address)",
+        json_schema_extra={"example": "+12025551234"},
+    )
+    channel: Literal["VOICE", "SMS", "RCS", "EMAIL", "WHATSAPP", "CHAT", "API", "SYSTEM"] = Field(
+        ..., description="The channel on which the message originated"
+    )
+    type: Optional[Literal["HUMAN_AGENT", "CUSTOMER", "AI_AGENT"]] = Field(
+        default=None, description="Type of Participant in the Conversation"
+    )
+    profile_id: Optional[str] = Field(
+        default=None,
+        alias="profileId",
+        description="The canonical profile ID",
+        json_schema_extra={"example": "mem_profile_00000000000000000000000000"},
+    )
+    delivery_status: Optional[
+        Literal["INITIATED", "IN_PROGRESS", "DELIVERED", "COMPLETED", "FAILED"]
+    ] = Field(
+        default=None,
+        alias="deliveryStatus",
+        description="Delivery status of the Communication to this recipient",
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class Communication(BaseModel):
+    """A communication memory representing a message exchanged in a conversation."""
+
+    id: str = Field(
+        ...,
+        description="Unique communication identifier",
+        json_schema_extra={"example": "comms_communication_00000000000000000000000000"},
+    )
+    author: Participant = Field(..., description="Author of the communication")
+    content: CommunicationContent = Field(..., description="Content of the communication")
+    recipients: list[Recipient] = Field(..., description="Communication recipients")
+    channel_id: Optional[str] = Field(
+        default=None,
+        alias="channelId",
+        description="Channel-specific ID (optional)",
+        json_schema_extra={"example": "SM00000000000000000000000000000000"},
+    )
+    created_at: str = Field(
+        ...,
+        alias="createdAt",
+        max_length=30,
+        description="When communication was created",
+        json_schema_extra={"example": "2025-01-15T10:15:30Z"},
+    )
+    updated_at: Optional[str] = Field(
+        default=None,
+        alias="updatedAt",
+        max_length=30,
+        description="When communication was last updated",
+        json_schema_extra={"example": "2025-01-15T10:20:30Z"},
     )
 
     model_config = {"populate_by_name": True}
@@ -298,10 +339,8 @@ class MemoryRetrievalResponse(BaseModel):
     summaries: list[SummaryInfo] = Field(
         ..., max_length=100, description="Array of summary memories from end of conversations"
     )
-    sessions: list[SessionInfo] = Field(
-        ...,
-        max_length=100,
-        description="Array of session memories with recent conversation context",
+    communications: Optional[list[Communication]] = Field(
+        default=None, max_length=100, description="Array of communication memories"
     )
     meta: MemoryRetrievalMeta = Field(..., description="Metadata about the retrieval operation")
 

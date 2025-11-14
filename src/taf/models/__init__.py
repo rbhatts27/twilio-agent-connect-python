@@ -12,17 +12,35 @@ from taf.models.conversation_event import (
     TwilioConversationEvent,
 )
 from taf.models.knowledge import Knowledge
+from taf.models.memory import (
+    Communication,
+    CommunicationContent,
+    MemoryRetrievalRequest,
+    MemoryRetrievalResponse,
+    ObservationInfo,
+    Participant,
+    Recipient,
+    SummaryInfo,
+)
 from taf.models.voice import VoiceServerConfig
 from taf.models.webhook import TwilioWebhookEvent, WebhookEventType
 
 __all__ = [
+    "Communication",
+    "CommunicationContent",
     "ConversationEvent",
     "ConversationRequest",
     "ConversationResponse",
     "Knowledge",
+    "MemoryRetrievalRequest",
+    "MemoryRetrievalResponse",
+    "ObservationInfo",
+    "Participant",
     "ParticipantAddress",
     "ParticipantRequest",
     "ParticipantResponse",
+    "Recipient",
+    "SummaryInfo",
     "TwilioConversationEvent",
     "TwilioWebhookEvent",
     "VoiceServerConfig",

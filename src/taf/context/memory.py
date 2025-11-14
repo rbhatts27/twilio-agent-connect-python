@@ -60,12 +60,11 @@ class MemoryClient:
         """
 
         # Use the correct endpoint from the API spec
-        endpoint = f"/v1/Services/{store_id}/Profiles/{profile_id}/Recall"
+        endpoint = f"/Services/{store_id}/Profiles/{profile_id}/Recall"
         url = f"{self.base_url}{endpoint}"
 
         # Create the request payload with default values
         request_data = MemoryRetrievalRequest(
-            conversationId=conversation_id,
             query=query,
         )
         request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
@@ -92,7 +91,6 @@ class MemoryClient:
             return MemoryRetrievalResponse(
                 observations=[],
                 summaries=[],
-                sessions=[],
                 meta=MemoryRetrievalMeta(queryTime=0),
             )
 
@@ -102,6 +100,5 @@ class MemoryClient:
             return MemoryRetrievalResponse(
                 observations=[],
                 summaries=[],
-                sessions=[],
                 meta=MemoryRetrievalMeta(queryTime=0),
             )

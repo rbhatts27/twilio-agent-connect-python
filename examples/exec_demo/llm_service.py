@@ -7,20 +7,15 @@ Uses OpenAI Agents SDK for tool integration and conversation management.
 """
 
 import logging
-from typing import Optional
 
-from agents import Agent, Runner
-from fastapi import WebSocket
+from agents import Agent, RunConfig, Runner
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
     ChatCompletionMessageParam,
     ChatCompletionUserMessageParam,
 )
-
-# Import tools from tools.py
 from tools import (
     create_confirm_order_tool,
-    create_flex_escalation_tool,
     look_up_discounts,
     look_up_order_price,
 )
@@ -48,16 +43,11 @@ class LLMService:
             look_up_discounts,
         ]
 
-        logger.info(
-            f"LLM service initialized with OpenAI Agents SDK and {len(self.base_tools)} base tools"
-        )
-
     async def process_message(
         self,
         user_message: str,
-        memory_response: MemoryRetrievalResponse,
+        memory_response: MemoryRetrievalResponse | None,
         context: ConversationSession,
-        websocket: Optional[WebSocket],
         conversation_history: list[ChatCompletionMessageParam] | None = None,
     ) -> str:
         """
@@ -83,8 +73,7 @@ class LLMService:
                 create_confirm_order_tool(self.taf, context),
             ]
 
-            if websocket is not None:
-                tools = tools + [create_flex_escalation_tool(websocket)]
+            logger.info(f"[LLM] Processing message with {len(tools)} tools available")
 
             # Create agent with TAF-enhanced instructions
             agent = Agent(
@@ -103,6 +92,7 @@ class LLMService:
             # Format conversation history for agent context
             # Exclude the current user message to avoid duplication (it's at the end of the history)
             previous_messages = messages_history[:-1] if messages_history else []
+            logger.info(f"[LLM] Conversation history: {len(previous_messages)} previous messages")
 
             if previous_messages:
                 # Format previous messages as context
@@ -114,22 +104,25 @@ class LLMService:
                 agent_input = user_message
 
             # Run the agent with the message (tools are executed automatically)
-            result = await Runner.run(agent, input=agent_input)
+            # Disable tracing to avoid ZDR warnings
+            logger.info(f"[AGENT] Running agent with input: {user_message[:50]}...")
+            run_config = RunConfig(tracing_disabled=True)
+            result = await Runner.run(agent, input=agent_input, run_config=run_config)
 
             # Extract response
             response = str(result.final_output)
+            logger.info("[AGENT] Agent execution completed")
 
-            logger.info(f"Generated response for profile {context.profile_id}: {response[:100]}...")
             return response
 
         except Exception as e:
-            logger.error(f"Error processing message with LLM: {e}", exc_info=True)
+            logger.error(f"[LLM] Error processing message: {e}", exc_info=True)
             return (
                 "I'm sorry, I'm having trouble processing your message right now. Please try again."
             )
 
     def _build_enhanced_instructions(
-        self, memory_response: MemoryRetrievalResponse, context: ConversationSession
+        self, memory_response: MemoryRetrievalResponse | None, context: ConversationSession
     ) -> str:
         """
         Build enhanced agent instructions with TAF memory context.
@@ -152,14 +145,20 @@ class LLMService:
         ]
 
         # Add relevant context from observations
-        if memory_response.observations:
+        if memory_response and memory_response.observations:
+            logger.info(
+                f"[CONTEXT] Including {len(memory_response.observations)} observations in instructions"
+            )
             instruction_parts.append("=== RELEVANT OBSERVATIONS (from TAF Memory) ===")
             for obs in memory_response.observations:
                 instruction_parts.append(f"- {obs.content}")
             instruction_parts.append("")
 
         # Add conversation summaries
-        if memory_response.summaries:
+        if memory_response and memory_response.summaries:
+            logger.info(
+                f"[CONTEXT] Including {len(memory_response.summaries)} summaries in instructions"
+            )
             instruction_parts.append("=== CONVERSATION SUMMARIES ===")
             for summary in memory_response.summaries:
                 instruction_parts.append(f"- {summary.content}")
@@ -187,10 +186,37 @@ class LLMService:
             ]
         )
 
+        # Add channel-specific formatting instructions
+        if context.channel == "voice":
+            instruction_parts.extend(
+                [
+                    "=== IMPORTANT: VOICE/PHONE FORMATTING ===",
+                    "This conversation is over the PHONE using text-to-speech.",
+                    "- Use PLAIN TEXT ONLY - no markdown formatting",
+                    "- Do NOT use asterisks (**bold**), hashtags (#headings), or brackets",
+                    "- Do NOT use numbered lists (1. 2. 3.) - say 'first, second, third' instead",
+                    "- Do NOT use bullet points (- or *) - speak naturally",
+                    "- Speak as you would in a natural phone conversation",
+                    "",
+                ]
+            )
+        elif context.channel == "sms":
+            instruction_parts.extend(
+                [
+                    "=== SMS FORMATTING ===",
+                    "This conversation is via SMS text message.",
+                    "- Use markdown formatting for clarity (bold, lists, etc.)",
+                    "- Use **bold** for emphasis on important information",
+                    "- Use numbered lists (1. 2. 3.) for multiple options",
+                    "- Keep messages concise but well-formatted",
+                    "",
+                ]
+            )
+
         return "\n".join(instruction_parts)
 
     def _build_conversation_history(
-        self, memory_response: MemoryRetrievalResponse
+        self, memory_response: MemoryRetrievalResponse | None
     ) -> list[ChatCompletionMessageParam]:
         """
         Build conversation history from session memories.
@@ -205,22 +231,23 @@ class LLMService:
         """
         messages: list[ChatCompletionMessageParam] = []
 
+        if not memory_response or not memory_response.communications:
+            return messages
+
         # Extract messages from session memories
-        for session in memory_response.sessions:
-            # Each session contains a list of structured messages
-            for msg in session.messages:
-                # Map direction to role (inbound=user, outbound=assistant)
-                if msg.direction == "inbound":
-                    user_msg: ChatCompletionUserMessageParam = {
-                        "role": "user",
-                        "content": msg.content,
-                    }
-                    messages.append(user_msg)
-                else:
-                    assistant_msg: ChatCompletionAssistantMessageParam = {
-                        "role": "assistant",
-                        "content": msg.content,
-                    }
-                    messages.append(assistant_msg)
+        for communication in memory_response.communications:
+            # Map direction to role (inbound=user, outbound=assistant)
+            if communication.author.type == "CUSTOMER":
+                user_msg: ChatCompletionUserMessageParam = {
+                    "role": "user",
+                    "content": communication.content.text or "",
+                }
+                messages.append(user_msg)
+            else:
+                assistant_msg: ChatCompletionAssistantMessageParam = {
+                    "role": "assistant",
+                    "content": communication.content.text or "",
+                }
+                messages.append(assistant_msg)
 
         return messages

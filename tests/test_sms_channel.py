@@ -107,7 +107,6 @@ class TestSMSChannel:
                 empty_response = MemoryRetrievalResponse(
                     observations=[],
                     summaries=[],
-                    sessions=[],
                     meta=MemoryRetrievalMeta(queryTime=0),
                 )
                 mock_retrieve.return_value = empty_response
@@ -156,7 +155,6 @@ class TestSMSChannel:
                 empty_response = MemoryRetrievalResponse(
                     observations=[],
                     summaries=[],
-                    sessions=[],
                     meta=MemoryRetrievalMeta(queryTime=0),
                 )
                 mock_retrieve.return_value = empty_response

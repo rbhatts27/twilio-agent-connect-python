@@ -236,7 +236,6 @@ class TestConversationClient:
             "account_id": "AC123456",
             "service_id": "IS123456",
             "name": "Customer Support",
-            "configuration": {"intelligenceServiceIds": ["IS001", "IS002"]},
             "status": "active",
         }
         mock_response.raise_for_status = Mock()
@@ -249,27 +248,18 @@ class TestConversationClient:
             service_id="IS123456",
         )
 
-        config = ConversationConfiguration(intelligence_service_ids=["IS001", "IS002"])
-        result = client.create_conversation(
-            name="Customer Support",
-            configuration=config,
-        )
+        result = client.create_conversation(name="Customer Support")
 
         # Verify API call includes all parameters
         mock_post.assert_called_once_with(
             "https://maestro.twilio.com/v1/Services/IS123456/Conversations",
-            json={
-                "name": "Customer Support",
-                "configuration": {"intelligenceServiceIds": ["IS001", "IS002"]},
-            },
+            json={"name": "Customer Support"},
         )
 
         # Verify response
         assert isinstance(result, ConversationResponse)
         assert result.id == "CH123456"
         assert result.name == "Customer Support"
-        assert result.configuration is not None
-        assert result.configuration.intelligence_service_ids == ["IS001", "IS002"]
 
     @patch("requests.Session.post")
     def test_create_conversation_api_error(self, mock_post):

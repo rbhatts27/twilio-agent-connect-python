@@ -2,25 +2,20 @@
 Order management and pricing tools for OpenAI Agents SDK.
 """
 
-import asyncio
-import json
 import logging
 from typing import Any, Optional
 
-from agents import function_tool
+from agents import function_tool as agents_function_tool
 from business_data import COMPANY_INFO, INTERNET_PLANS
-from fastapi import WebSocket
 
 from taf import TAF
 from taf.core.context import ConversationSession
-from taf.models.handoff_data import HandoffData
-from taf.tools.base import TAFTool
 from taf.tools.messaging import create_messaging_tools
 
 logger = logging.getLogger(__name__)
 
 
-@function_tool
+@agents_function_tool
 async def look_up_order_price(plan_speed: str) -> str:
     """Get pricing for internet plan upgrade.
 
@@ -30,7 +25,7 @@ async def look_up_order_price(plan_speed: str) -> str:
     Returns:
         Pricing information for the requested plan
     """
-    logger.info(f"Looking up pricing for: {plan_speed}")
+    logger.info(f"[TOOL:PRICING] Called with plan_speed: {plan_speed}")
 
     # Extract speed number from input
     speed_num = "".join(filter(str.isdigit, plan_speed))
@@ -40,6 +35,7 @@ async def look_up_order_price(plan_speed: str) -> str:
         if plan_key in INTERNET_PLANS:
             plan = INTERNET_PLANS[plan_key]
             message = f"The {plan['name']} plan is {plan['price']}/month for {plan_speed} speeds."
+            logger.info(f"[TOOL:PRICING] Result: {message}")
             return message
 
     if speed_num in INTERNET_PLANS:
@@ -48,10 +44,11 @@ async def look_up_order_price(plan_speed: str) -> str:
     else:
         message = f"Pricing for {plan_speed} plans: Contact customer service for custom enterprise pricing at {COMPANY_INFO['phone']}."
 
+    logger.info(f"[TOOL:PRICING] Result: {message}")
     return message
 
 
-@function_tool
+@agents_function_tool
 async def look_up_discounts(customer_type: str, current_plan_price: float = 59.99) -> str:
     """Look up available discounts for customer.
 
@@ -62,7 +59,10 @@ async def look_up_discounts(customer_type: str, current_plan_price: float = 59.9
     Returns:
         Available discounts and promotions
     """
-    logger.info(f"Looking up discounts for: {customer_type}")
+    logger.info(
+        f"[TOOL:DISCOUNTS] Called with customer_type: {customer_type}, "
+        f"current_plan_price: {current_plan_price}"
+    )
 
     discounts = []
 
@@ -84,10 +84,11 @@ async def look_up_discounts(customer_type: str, current_plan_price: float = 59.9
     else:
         message = "Let me check for any current promotions that might apply to your account."
 
+    logger.info(f"[TOOL:DISCOUNTS] Result: Found {len(discounts)} discounts")
     return message
 
 
-def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> TAFTool:
+def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> Any:
     """
     Create confirm_order tool with injected TAF context for dynamic phone lookup.
 
@@ -99,11 +100,11 @@ def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> TAFTool
         context: ConversationSession with conversation_id
 
     Returns:
-        Function tool with phone number derived automatically
+        Function tool compatible with OpenAI Agents SDK
     """
-    # Get TAF's send_message tool
+    # Get TAF's send_message tool (TAFTool instance)
     messaging_tools = create_messaging_tools(taf.config)
-    send_message_tool = messaging_tools[0]  # The send_message function
+    send_message_impl = messaging_tools[0].implementation  # Extract the actual function
 
     async def get_customer_phone() -> Optional[str]:
         """Derive customer phone number from Maestro participants."""
@@ -112,21 +113,18 @@ def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> TAFTool
 
             # Find customer participant with SMS address
             for participant in participants:
-                if participant.label == "Customer":
+                if participant.type == "CUSTOMER":
                     for address in participant.addresses:
-                        if address.communication_type == "SMS":
-                            return address.value  # Phone number in E.164 format
+                        if address.channel == "SMS":
+                            return address.address  # Phone number in E.164 format
             return None
         except Exception as e:
             logger.error(f"Failed to lookup customer phone: {e}")
             return None
 
-    @function_tool(
-        name="confirm_order",
-        description="Send order confirmation via SMS to the customer.",
-    )
+    @agents_function_tool
     async def confirm_order(order_details: str = "") -> str:
-        """Send order confirmation via customer's SMS.
+        """Send order confirmation via SMS to the customer.
 
         Args:
             order_details: Details of the order to confirm
@@ -134,60 +132,30 @@ def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> TAFTool
         Returns:
             Confirmation of message sent
         """
-        logger.info("Sending order confirmation")
+        logger.info(f"[TOOL:CONFIRM] Called with order_details: {order_details[:50]}...")
 
         # Derive phone number dynamically from Maestro participants
         phone_number = await get_customer_phone()
 
+        logger.info(f"[TOOL:CONFIRM] Derived phone number {phone_number} for customer confirmation")
+
         if not phone_number:
-            logger.error("Unable to derive customer phone number")
+            logger.error("[TOOL:CONFIRM] Unable to derive customer phone number")
             return "Unable to send confirmation - customer phone number not found."
 
-        # Use TAF's send_message tool to send SMS
-        success = await send_message_tool(phone_number, order_details)
+        logger.info(f"[TOOL:CONFIRM] Sending SMS to: {phone_number}")
+
+        # Use TAF's send_message implementation to send SMS
+        success = send_message_impl(phone_number, order_details)
 
         if success:
+            logger.info("[TOOL:CONFIRM] SMS sent successfully")
             return (
                 f"Order confirmation sent via SMS! You should receive it shortly with order details"
                 f"{f': {order_details}' if order_details else ''}."
             )
         else:
+            logger.error("[TOOL:CONFIRM] Failed to send SMS")
             return "Failed to send order confirmation via SMS."
 
     return confirm_order
-
-
-def create_flex_escalation_tool(
-    websocket: Optional[WebSocket] = None,
-) -> TAFTool:
-    """
-    Create a Flex escalation tool with injected websocket context.
-    This tool, when called, will end the websocket and signal handoff intent.
-    Args:
-        websocket: Active WebSocket connection (if any)
-    Returns:
-        TAFTool instance for escalation
-    """
-
-    @function_tool(
-        name="flex_escalate_to_human",
-        description="Escalate the conversation to a human agent in Flex with optional reason.",
-    )
-    def flex_escalate_to_human(reason: str = "User requested human help") -> dict[str, Any]:
-        """
-        Escalate the conversation to a human agent in Flex, ending websocket and signaling handoff
-        Args:
-            reason: The reason for escalation (default: user requested human help).
-        Returns:
-            dict with escalation status and reason.
-        """
-        if websocket is not None:
-            handoff_data = HandoffData(reason="handoff", call_summary=reason, sentiment="neutral")
-            asyncio.create_task(
-                websocket.send_text(
-                    json.dumps({"type": "end", "handoffData": handoff_data.model_dump_json()})
-                )
-            )
-        return {"status": "escalated", "reason": reason}
-
-    return flex_escalate_to_human

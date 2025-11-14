@@ -117,7 +117,6 @@ class TestTAFIntegration:
                 empty_response = MemoryRetrievalResponse(
                     observations=[],
                     summaries=[],
-                    sessions=[],
                     meta=MemoryRetrievalMeta(queryTime=0),
                 )
                 mock_retrieve.return_value = empty_response
@@ -136,7 +135,6 @@ class TestTAFIntegration:
                 assert received_memories == empty_response
                 assert len(received_memories.observations) == 0
                 assert len(received_memories.summaries) == 0
-                assert len(received_memories.sessions) == 0
 
     def test_sms_channel_auto_initialize_conversation(self):
         """Test SMS channel auto-initializes conversation on first message."""
@@ -169,7 +167,6 @@ class TestTAFIntegration:
                 empty_response = MemoryRetrievalResponse(
                     observations=[],
                     summaries=[],
-                    sessions=[],
                     meta=MemoryRetrievalMeta(queryTime=0),
                 )
                 mock_retrieve.return_value = empty_response
@@ -320,7 +317,6 @@ class TestTAFIntegration:
                 empty_response = MemoryRetrievalResponse(
                     observations=[],
                     summaries=[],
-                    sessions=[],
                     meta=MemoryRetrievalMeta(queryTime=0),
                 )
                 mock_retrieve.return_value = empty_response
@@ -382,7 +378,6 @@ class TestTAFIntegration:
                 empty_response = MemoryRetrievalResponse(
                     observations=[],
                     summaries=[],
-                    sessions=[],
                     meta=MemoryRetrievalMeta(queryTime=0),
                 )
                 mock_retrieve.return_value = empty_response

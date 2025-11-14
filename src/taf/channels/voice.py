@@ -247,7 +247,8 @@ class VoiceChannel(BaseChannel):
                         f"Ignoring subsequent setup message for conversation {conv_id}"
                     )
                 else:
-                    self.logger.warning(f"Unknown message type received: {msg_type}")
+                    # ignore unknown message types
+                    self.logger.debug(f"Unknown message type received: {msg_type}")
 
         except WebSocketDisconnect:
             self.logger.info(
@@ -285,7 +286,6 @@ class VoiceChannel(BaseChannel):
                     )
                     return
 
-                self.logger.info(f"Session state exists for conversation {conv_id}")
                 # Cancel previous stream task if session manager is enabled
                 if session_state:
                     if session_state.stream_task and not session_state.stream_task.done():
