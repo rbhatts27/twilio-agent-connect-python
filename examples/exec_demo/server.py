@@ -30,8 +30,8 @@ from openai.types.chat import (
 from taf import TAF, TAFConfig
 from taf.channels.voice import VoiceChannel
 from taf.core.config import TwilioMemoryConfig
-from taf.core.context import ConversationSession
 from taf.models.memory import MemoryRetrievalResponse
+from taf.models.session import ConversationSession
 
 load_dotenv()
 

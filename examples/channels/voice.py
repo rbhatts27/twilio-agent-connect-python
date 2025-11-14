@@ -38,8 +38,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from taf import TAF, TAFConfig, get_logger
 from taf.channels.voice import VoiceChannel
 from taf.core.config import TwilioMemoryConfig
-from taf.core.context import ConversationSession
 from taf.models.memory import MemoryRetrievalResponse
+from taf.models.session import ConversationSession
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -64,9 +64,11 @@ async def handle_message_ready(
 
     Processes user message with OpenAI, using retrieved memories for context
     (if available) and maintaining conversation history for coherent multi-turn interactions.
-    For voice channel, memory_response will be None.
+    For voice channel, memory_response will be None, but profile is fetched once
+    at conversation start and available throughout.
     """
     logger.info(f"Processing message for conversation {context.conversation_id}")
+
     if memory_response:
         logger.info(
             f"Retrieved memories: {len(memory_response.observations)} observations, "
@@ -80,6 +82,42 @@ async def handle_message_ready(
     if conv_id not in conversation_messages:
         system_msg: ChatCompletionSystemMessageParam = {"role": "system", "content": system_prompt}
         conversation_messages[conv_id] = [system_msg]
+
+        # Add profile traits as context if available (fetched once at conversation start)
+        if context.profile:
+            traits = context.profile.traits
+            logger.info(f"Profile traits available: {list(traits.keys())}")
+
+            # Build a personalized context message with profile information
+            profile_context_parts = []
+            if "Contact" in traits:
+                contact = traits["Contact"]
+                if "firstName" in contact:
+                    profile_context_parts.append(f"Caller's name: {contact['firstName']}")
+                if "lastName" in contact:
+                    profile_context_parts.append(f"Last name: {contact['lastName']}")
+                if "address" in contact:
+                    address = contact["address"]
+                    city = address.get("city", "")
+                    state = address.get("state", "")
+                    if city and state:
+                        profile_context_parts.append(f"Location: {city}, {state}")
+
+            if "Preferences" in traits:
+                prefs = traits["Preferences"]
+                if "language" in prefs:
+                    profile_context_parts.append(f"Preferred language: {prefs['language']}")
+
+            if profile_context_parts:
+                profile_context = "Caller Profile Information:\n" + "\n".join(
+                    f"- {part}" for part in profile_context_parts
+                )
+                context_msg: ChatCompletionSystemMessageParam = {
+                    "role": "system",
+                    "content": profile_context,
+                }
+                conversation_messages[conv_id].append(context_msg)
+                logger.info(f"Added profile context to conversation: {profile_context}")
 
     # Add user message to history
     user_msg: ChatCompletionUserMessageParam = {"role": "user", "content": user_message}
@@ -113,8 +151,19 @@ if __name__ == "__main__":
     memory_store_id = os.environ.get("MEMORY_STORE_ID")
     api_key = os.environ.get("TWILIO_API_KEY")
     api_token = os.environ.get("TWILIO_API_TOKEN")
+
+    # Trait groups are optional - specify which trait groups to retrieve
+    # Example: TRAIT_GROUPS="Contact,Preferences" or leave unset for all groups
+    trait_groups_str = os.environ.get("TRAIT_GROUPS")
+    trait_groups = [g.strip() for g in trait_groups_str.split(",")] if trait_groups_str else None
+
     twilio_memory_config = (
-        TwilioMemoryConfig(memory_store_id=memory_store_id, api_key=api_key, api_token=api_token)
+        TwilioMemoryConfig(
+            memory_store_id=memory_store_id,
+            api_key=api_key,
+            api_token=api_token,
+            trait_groups=trait_groups,
+        )
         if memory_store_id and api_key and api_token
         else None
     )

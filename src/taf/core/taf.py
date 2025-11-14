@@ -12,9 +12,9 @@ from pydantic import ValidationError
 from taf.context.conversation import ConversationClient
 from taf.context.memory import MemoryClient
 from taf.core.config import TAFConfig
-from taf.core.context import ConversationSession
 from taf.core.logging import get_logger, setup_logging
-from taf.models.memory import MemoryRetrievalResponse
+from taf.models.memory import MemoryRetrievalResponse, ProfileResponse
+from taf.models.session import ConversationSession
 
 
 class TAF:
@@ -68,6 +68,7 @@ class TAF:
         if self.config.twilio_memory_config:
             self.memora_client = MemoryClient(
                 base_url=self.config.memora_base_url,
+                store_id=self.config.twilio_memory_config.memory_store_id,
                 api_key=self.config.twilio_memory_config.api_key,
                 api_token=self.config.twilio_memory_config.api_token,
             )
@@ -146,7 +147,6 @@ class TAF:
 
         try:
             memory_response = self.memora_client.retrieve_memory(
-                store_id=self.config.twilio_memory_config.memory_store_id,
                 profile_id=conversation_context.profile_id,
                 conversation_id=conversation_context.conversation_id,
                 query=query,
@@ -155,6 +155,48 @@ class TAF:
         except Exception as e:
             self.logger.error(f"Failed to retrieve memory: {e}")
             raise
+
+    def fetch_profile(self, profile_id: str) -> Optional[ProfileResponse]:
+        """
+        Fetch profile information with traits for a given profile ID.
+
+        This method retrieves profile data including traits from Twilio Memory.
+        If trait_groups are configured in TwilioMemoryConfig, only those trait
+        groups will be included in the response.
+
+        Args:
+            profile_id: Profile ID using Twilio Type ID (TTID) format
+
+        Returns:
+            ProfileResponse with id, created_at, and traits, or None if fetch fails
+        """
+        # Check if memory client is initialized
+        if not self.memora_client or not self.config.twilio_memory_config:
+            self.logger.warning(
+                "Memory client is not initialized. Cannot fetch profile. "
+                "Provide twilio_memory_config when creating TAFConfig to enable profile fetching."
+            )
+            return None
+
+        # Validate profile_id
+        if not profile_id:
+            self.logger.warning("profile_id is required for profile fetching but was not provided")
+            return None
+
+        try:
+            # Get trait_groups from config if provided
+            trait_groups = self.config.twilio_memory_config.trait_groups
+
+            # Fetch profile
+            profile_response = self.memora_client.get_profile(
+                profile_id=profile_id,
+                trait_groups=trait_groups,
+            )
+            return profile_response
+
+        except Exception as e:
+            self.logger.error(f"Failed to fetch profile for {profile_id}: {e}")
+            return None
 
     def on_message_ready(
         self,

@@ -154,6 +154,13 @@ class SMSChannel(BaseChannel):
 
         session = self._conversations[conv_id]
 
+        # Fetch profile for each message if profile_id is available
+        if session.profile_id:
+            profile = self.taf.fetch_profile(session.profile_id)
+            if profile:
+                # Update session with fresh profile data
+                session.profile = profile
+
         # Retrieve memory only if Twilio Memory is enabled
         memory_response = None
         if self.taf.is_twilio_memory_enabled():

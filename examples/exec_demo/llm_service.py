@@ -20,8 +20,8 @@ from tools import (
     look_up_order_price,
 )
 
-from taf.core.context import ConversationSession
 from taf.models.memory import MemoryRetrievalResponse
+from taf.models.session import ConversationSession
 
 logger = logging.getLogger(__name__)
 

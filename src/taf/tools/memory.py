@@ -5,7 +5,7 @@ from typing import Any
 import requests
 
 from taf.core.config import TAFConfig
-from taf.core.context import ConversationSession
+from taf.models.session import ConversationSession
 from taf.tools.base import TAFTool, function_tool
 
 

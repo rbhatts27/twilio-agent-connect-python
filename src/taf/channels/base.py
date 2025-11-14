@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 from taf import TAF
-from taf.core.context import ConversationSession
 from taf.core.logging import get_logger
+from taf.models.session import ConversationSession
 
 
 class BaseChannel(ABC):
@@ -79,7 +79,7 @@ class BaseChannel(ABC):
         profile_id: Optional[str] = None,
     ) -> None:
         """
-        Initialize new conversation session.
+        Initialize new conversation session and fetch profile if available.
 
         Args:
             conv_id: Conversation ID
@@ -89,11 +89,17 @@ class BaseChannel(ABC):
             self.logger.warning(f"Conversation {conv_id} already exists, skipping initialization")
             return
 
+        # Fetch profile if profile_id is provided
+        profile = None
+        if profile_id:
+            profile = self.taf.fetch_profile(profile_id)
+
         # Store conversation session
         self._conversations[conv_id] = ConversationSession(
             conversation_id=conv_id,
             profile_id=profile_id,
             channel=self.get_channel_name(),
+            profile=profile,
         )
 
     def _end_conversation(self, conv_id: str) -> None:

@@ -72,7 +72,7 @@ anthropic_schema = calculate_tip.to_anthropic_format()
 ```python
 from taf.tools.memory import create_memory_tools
 from taf.core.config import TAFConfig
-from taf.core.context import ConversationSession
+from taf.models.session import ConversationSession
 
 # Configuration and session context (not exposed to LLM)
 from taf.core.config import TwilioMemoryConfig

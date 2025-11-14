@@ -8,6 +8,7 @@ from taf.models.memory import (
     MemoryRetrievalMeta,
     MemoryRetrievalRequest,
     MemoryRetrievalResponse,
+    ProfileResponse,
 )
 
 
@@ -17,6 +18,7 @@ class MemoryClient:
     def __init__(
         self,
         base_url: str,
+        store_id: str,
         api_key: str,
         api_token: str,
     ) -> None:
@@ -25,17 +27,18 @@ class MemoryClient:
 
         Args:
             base_url: Base URL for the Memora data plane API.
+            store_id: Memory store ID (starts with MG).
             api_key: API Key for Memora authentication.
             api_token: API Token for Memora authentication.
         """
         self.base_url = base_url
+        self.store_id = store_id
         self.session = requests.Session()
         self.logger = get_logger(__name__)
         self.session.auth = HTTPBasicAuth(api_key, api_token)
 
     def retrieve_memory(
         self,
-        store_id: str,
         profile_id: str,
         conversation_id: Optional[str] = None,
         query: Optional[str] = None,
@@ -46,7 +49,6 @@ class MemoryClient:
         This endpoint is optimized for conversational AI and memory retrieval use cases.
 
         Args:
-            store_id: Memory store ID (e.g., 'mem_service_01hz123456789abcdefghijkl')
             profile_id: Profile ID using Twilio Type ID (TTID) format
             conversation_id: Optional conversation ID using Twilio Type ID (TTID) format
             query: Optional semantic search query for finding relevant memories (1-1024 characters)
@@ -60,7 +62,7 @@ class MemoryClient:
         """
 
         # Use the correct endpoint from the API spec
-        endpoint = f"/Services/{store_id}/Profiles/{profile_id}/Recall"
+        endpoint = f"/v1/Services/{self.store_id}/Profiles/{profile_id}/Recall"
         url = f"{self.base_url}{endpoint}"
 
         # Create the request payload with default values
@@ -102,3 +104,51 @@ class MemoryClient:
                 summaries=[],
                 meta=MemoryRetrievalMeta(queryTime=0),
             )
+
+    def get_profile(
+        self,
+        profile_id: str,
+        trait_groups: Optional[list[str]] = None,
+    ) -> ProfileResponse:
+        """
+        Retrieve a profile by ID with optional trait group selection.
+
+        Args:
+            profile_id: Profile ID using Twilio Type ID (TTID) format
+            trait_groups: Optional list of trait group names to include in the response
+
+        Returns:
+            ProfileResponse containing profile ID, creation timestamp, and traits
+
+        Raises:
+            requests.RequestException: If the API request fails
+            ValueError: If the response cannot be parsed
+        """
+        # Build the endpoint URL
+        endpoint = f"/v1/Services/{self.store_id}/Profiles/{profile_id}"
+        url = f"{self.base_url}{endpoint}"
+
+        # Build query parameters
+        params = {}
+        if trait_groups:
+            # Convert list to comma-separated string
+            params["traitGroups"] = ",".join(trait_groups)
+
+        try:
+            # GET request with query parameters
+            response = self.session.get(url, params=params)
+            response.raise_for_status()
+
+            # Parse the response
+            data = response.json()
+            profile_response = ProfileResponse(**data)
+
+            return profile_response
+
+        except requests.RequestException as e:
+            self.logger.error(f"Failed to retrieve profile from Memora: {e}")
+            raise
+
+        except Exception as e:
+            self.logger.error(f"Failed to parse Memora profile response: {e}")
+            raise

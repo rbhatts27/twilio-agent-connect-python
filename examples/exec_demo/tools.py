@@ -9,7 +9,7 @@ from agents import function_tool as agents_function_tool
 from business_data import COMPANY_INFO, INTERNET_PLANS
 
 from taf import TAF
-from taf.core.context import ConversationSession
+from taf.models.session import ConversationSession
 from taf.tools.messaging import create_messaging_tools
 
 logger = logging.getLogger(__name__)

@@ -9,7 +9,7 @@ from openai import AsyncOpenAI
 
 from taf import TAFConfig
 from taf.core.config import TwilioMemoryConfig
-from taf.core.context import ConversationSession
+from taf.models.session import ConversationSession
 from taf.tools.knowledge import create_knowledge_tools_from_ids
 from taf.tools.memory import create_memory_tools
 

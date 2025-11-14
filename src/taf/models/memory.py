@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -343,5 +343,43 @@ class MemoryRetrievalResponse(BaseModel):
         default=None, max_length=100, description="Array of communication memories"
     )
     meta: MemoryRetrievalMeta = Field(..., description="Metadata about the retrieval operation")
+
+    model_config = {"populate_by_name": True}
+
+
+class ProfileResponse(BaseModel):
+    """Response from the profile retrieval API."""
+
+    id: str = Field(
+        ...,
+        description="Unique identifier for the profile",
+        json_schema_extra={"example": "mem_profile_00000000000000000000000000"},
+    )
+    created_at: str = Field(
+        ...,
+        alias="createdAt",
+        max_length=30,
+        description="Timestamp when the profile was created",
+        json_schema_extra={"example": "2025-01-15T10:30:45Z"},
+    )
+    traits: dict[str, Any] = Field(
+        ...,
+        description="Profile traits organized by trait groups",
+        json_schema_extra={
+            "example": {
+                "Contact": {
+                    "firstName": "Alyssa",
+                    "lastName": "Mock",
+                    "address": {
+                        "street": "123 Main St",
+                        "city": "San Francisco",
+                        "state": "CA",
+                        "postalCode": "94107",
+                        "country": "US",
+                    },
+                }
+            }
+        },
+    )
 
     model_config = {"populate_by_name": True}

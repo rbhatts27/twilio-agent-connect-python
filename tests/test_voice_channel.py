@@ -7,9 +7,9 @@ import pytest
 
 from taf import TAF
 from taf.channels.voice import VoiceChannel
-from taf.core.context import ConversationSession
 from taf.models.conversation import ConversationResponse, ParticipantResponse
 from taf.models.memory import MemoryRetrievalResponse
+from taf.models.session import ConversationSession
 
 
 def get_test_config() -> dict:

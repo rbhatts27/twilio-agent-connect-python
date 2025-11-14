@@ -23,10 +23,16 @@ class TwilioMemoryConfig(BaseModel):
         description="API Token for Memora authentication",
     )
 
+    trait_groups: Optional[list[str]] = Field(
+        default=None,
+        description="Optional list of trait group names to include when retrieving profiles",
+    )
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "memory_store_id": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "trait_groups": ["Contact", "Preferences"],
                 "api_key": "your_api_key_here",
                 "api_token": "your_api_token_here",
             }
@@ -101,6 +107,7 @@ class TAFConfig(BaseModel):
                     "memory_store_id": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                     "api_key": "your_api_key_here",
                     "api_token": "your_api_token_here",
+                    "trait_groups": ["Contact", "Preferences"],
                 },
             }
         },

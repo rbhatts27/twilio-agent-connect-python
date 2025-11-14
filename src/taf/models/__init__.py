@@ -19,6 +19,7 @@ from taf.models.memory import (
     MemoryRetrievalResponse,
     ObservationInfo,
     Participant,
+    ProfileResponse,
     Recipient,
     SummaryInfo,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "ParticipantAddress",
     "ParticipantRequest",
     "ParticipantResponse",
+    "ProfileResponse",
     "Recipient",
     "SummaryInfo",
     "TwilioConversationEvent",

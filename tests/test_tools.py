@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from taf.core.config import TAFConfig, TwilioMemoryConfig
-from taf.core.context import ConversationSession
 from taf.models.knowledge import Knowledge
+from taf.models.session import ConversationSession
 from taf.tools.base import (
     TAFTool,
     _extract_schema_from_function,

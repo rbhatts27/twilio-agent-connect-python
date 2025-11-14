@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+from taf.models.memory import ProfileResponse
 
 
 class ConversationSession(BaseModel):
@@ -21,3 +23,8 @@ class ConversationSession(BaseModel):
         default_factory=datetime.now,
         description="When the conversation session was started",
     )
+    profile: Optional[ProfileResponse] = Field(
+        None, description="Profile information with traits (optional)"
+    )
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)

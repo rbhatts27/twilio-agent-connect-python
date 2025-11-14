@@ -4,6 +4,58 @@ Production-ready channel implementation examples for Twilio Agentic Framework (T
 
 > **Prerequisites:** Complete the [Quick Start setup](../README.md#quick-start) in the main examples README before running these servers.
 
+## Profile Traits (Optional Feature)
+
+All examples support optional profile trait retrieval from Twilio Memory. When configured, profile traits are automatically fetched and made available in the callback context.
+
+**Environment Variable:**
+```bash
+TRAIT_GROUPS="Contact,Preferences"  # Optional: Specify which trait groups to fetch
+```
+
+**Accessing Profile Traits in Callbacks:**
+```python
+async def handle_message_ready(user_message, context, memory_response=None):
+    # Initialize conversation with system message
+    if conv_id not in conversation_messages:
+        system_msg = {"role": "system", "content": system_prompt}
+        conversation_messages[conv_id] = [system_msg]
+
+        # Add profile traits as context for personalized responses
+        if context.profile:
+            traits = context.profile.traits
+            profile_context_parts = []
+
+            # Extract contact information
+            if "Contact" in traits:
+                contact = traits["Contact"]
+                if "firstName" in contact:
+                    profile_context_parts.append(f"User's name: {contact['firstName']}")
+                if "address" in contact:
+                    city = contact["address"].get("city", "")
+                    state = contact["address"].get("state", "")
+                    if city and state:
+                        profile_context_parts.append(f"Location: {city}, {state}")
+
+            # Add as system message so LLM can personalize responses
+            if profile_context_parts:
+                profile_context = "User Profile:\n" + "\n".join(f"- {part}" for part in profile_context_parts)
+                context_msg = {"role": "system", "content": profile_context}
+                conversation_messages[conv_id].append(context_msg)
+
+    # Now LLM can greet user by name: "Hello, John! How can I help you today?"
+    # ...rest of your logic
+```
+
+**Behavior by Channel:**
+- **SMS**: Profile fetched for each incoming message (fresh data)
+- **Voice**: Profile fetched once at conversation start (cached for duration of call)
+
+**When to Use:**
+- Personalize responses based on user information
+- Access user preferences and settings
+- Retrieve contact details for context-aware assistance
+
 ## `sms.py` - SMS Webhook Server
 
 FastAPI server to receive and process Twilio SMS webhooks with TAF, featuring complete OpenAI LLM integration.

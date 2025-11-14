@@ -68,16 +68,16 @@ make ngrok
 The codebase follows a modular design matching the architecture diagram in TAF.md:
 
 - **`src/taf/core/`** - Core TAF class, configuration, and context models
-  - `taf.py` - Main `TAF` class with `retrieve_memory()` and `on_message_ready()` hook
-  - `config.py` - `TAFConfig` Pydantic model for SDK configuration
-  - `context.py` - `SessionIdentity`, `Profile`, `Memory`, `ConversationSession` models (Note: `ConversationSession` does not store message history)
+  - `taf.py` - Main `TAF` class with `retrieve_memory()`, `fetch_profile()`, and `on_message_ready()` hook
+  - `config.py` - `TAFConfig` Pydantic model for SDK configuration; `TwilioMemoryConfig` with optional `trait_groups`
+  - `context.py` - `SessionIdentity`, `Profile`, `Memory`, `ConversationSession` models (Note: `ConversationSession` does not store message history but includes optional `profile` field)
 
 - **`src/taf/context/`** - Integration with Twilio Sierra primitives
-  - `memory.py` - `MemoryClient` for memory retrieval (traits, observations, sessions)
+  - `memory.py` - `MemoryClient` for memory retrieval (traits, observations, sessions) and profile retrieval with `get_profile()`
   - `conversation.py` - `ConversationClient` for conversation/participant management
 
 - **`src/taf/models/`** - Data models
-  - `memory.py` - Memory API models: `MemoryRetrievalRequest`, `MemoryRetrievalResponse`, `ObservationInfo`, `SummaryInfo`, `SessionInfo`, `SessionMessage`
+  - `memory.py` - Memory API models: `MemoryRetrievalRequest`, `MemoryRetrievalResponse`, `ObservationInfo`, `SummaryInfo`, `SessionInfo`, `SessionMessage`, `ProfileResponse`
   - `conversation.py` - Conversation API models: `ConversationRequest`, `ConversationResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`
   - `voice.py` - Voice WebSocket message models: `SetupMessage`, `PromptMessage`, `InterruptMessage`, `CustomParameters`, `VoiceServerConfig`
   - `webhook.py` - `TwilioWebhookEvent` model for parsing Twilio webhook events
@@ -117,8 +117,13 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 ### API Clients
 
 **MemoryClient** (`src/taf/context/memory.py`):
-- Endpoint: `POST /Services/{service_id}/Conversations/{conversation_id}/Recall`
-- Returns: `MemoryRetrievalResponse` with `observations`, `summaries`, `sessions` fields
+- `retrieve_memory()`: Retrieve conversation memories
+  - Endpoint: `POST /Services/{service_id}/Profiles/{profile_id}/Recall`
+  - Returns: `MemoryRetrievalResponse` with `observations`, `summaries`, `sessions` fields
+- `get_profile()`: Retrieve profile with traits
+  - Endpoint: `GET /Services/{service_id}/Profiles/{profile_id}`
+  - Query param: `traitGroups` (comma-separated list)
+  - Returns: `ProfileResponse` with `id`, `createdAt`, `traits` fields
 - Auth: Uses HTTP Basic Authentication (Account SID as username, Auth Token as password)
 - Models (from `src/taf/models/memory.py`):
   - `MemoryRetrievalRequest`: Request with `conversation_id`, `query`, optional date filters
@@ -127,6 +132,7 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
   - `SummaryInfo`: Summarized insights from conversations
   - `SessionInfo`: Historical conversation sessions with messages
   - `SessionMessage`: Individual messages within sessions (includes `timestamp`, `direction`, `channel`, `from_address`, `to_address`, `content`)
+  - `ProfileResponse`: Profile information with `id`, `createdAt`, `traits` (dict)
 
 **ConversationClient** (`src/taf/context/conversation.py`):
 - `create_conversation(name, layers, intelligence_agents)`: Creates new conversation, returns `ConversationResponse`
@@ -170,6 +176,7 @@ Tests are located in `tests/` directory:
 - `test_conversation.py` - Conversation client tests
 - `test_webhook.py` - Webhook event parsing tests
 - `test_tools.py` - Tools module tests (function_tool decorator, TAFTool format conversions)
+- `test_profile_retrieval.py` - Profile retrieval tests (trait_groups, fetch_profile, context.profile)
 - `test_init.py` - Package initialization tests
 
 Test requirements (pytest.ini_options in pyproject.toml):
@@ -185,7 +192,10 @@ When initializing TAF, developers must provide:
 - `twilio_auth_token` - From Twilio Console
 - `twilio_phone_number` - Twilio Phone Number to use for sending messages (required for messaging tools)
 - `conversation_service_sid` - Twilio Conversation Service SID (starts with `IS`)
-- `twilio_memory_config` - Optional TwilioMemoryConfig object with `memory_store_id` field (starts with `MG`). Only needed if using Twilio Memory functionality. When provided, memory is automatically retrieved for SMS conversations.
+- `twilio_memory_config` - Optional TwilioMemoryConfig object with:
+  - `memory_store_id` field (starts with `MG`) - Required for Twilio Memory functionality
+  - `trait_groups` field (list of strings) - Optional, specifies which trait groups to include in profile retrieval
+  - When provided, memory is automatically retrieved for SMS conversations and profile is fetched (once for Voice, per message for SMS)
 - `log_level` - Optional, defaults to "INFO"
 
 ## Common Patterns
@@ -205,7 +215,8 @@ config = TAFConfig(
     twilio_phone_number="+1234567890",
     conversation_service_sid="IS...",
     twilio_memory_config=TwilioMemoryConfig(
-        memory_store_id="MG..."
+        memory_store_id="MG...",
+        trait_groups=["Contact", "Preferences"]  # Optional: specify trait groups
     )  # Optional - only if using Twilio Memory
 )
 taf = TAF(config)
@@ -213,7 +224,12 @@ sms_channel = SMSChannel(taf)
 
 # 2. Register callback to handle message processing
 def handle_message(user_message, context, memory_response=None):
-    llm_response = call_your_llm(user_message, memory_response)
+    # Access profile traits if available (fetched per message for SMS)
+    if context.profile:
+        traits = context.profile.traits
+        # Profile includes name, location, preferences, etc.
+
+    llm_response = call_your_llm(user_message, memory_response, context.profile)
     sms_channel.send_response(context.conversation_id, llm_response)
 
 taf.on_message_ready(handle_message)
@@ -231,14 +247,17 @@ The SMS channel handles three webhook events:
 
 1. **`onConversationAdded`**: Initializes conversation session
    - Extracts `profile_id` from webhook data (supports both `profile_id` and `ProfileId`)
-   - Calls `_start_conversation(conv_id, profile_id)` to store conversation session
+   - Fetches profile if `profile_id` is available (for Voice, this is the only fetch)
+   - Calls `_start_conversation(conv_id, profile_id)` to store conversation session with profile
 
 2. **`onMessageAdded`**: Processes incoming message
    - Validates message body (ignores empty/whitespace messages)
    - Auto-initializes conversation if not already started (extracts `profile_id` from webhook)
-   - Creates `ConversationSession` with `conversation_id`, `profile_id`, `channel`, and `started_at`
+   - Fetches profile if `profile_id` is available (updates `context.profile` with fresh data)
+   - Creates `ConversationSession` with `conversation_id`, `profile_id`, `channel`, `started_at`, and `profile`
    - Calls `taf.retrieve_memory(conversation_context, query=message_body)`
    - This triggers `on_message_ready` callback with `user_message`, `context`, and optional `memory_response`
+   - `context.profile` contains profile traits if memory config includes `trait_groups`
 
 3. **`onConversationRemoved`**: Cleans up conversation state
    - Calls `_end_conversation(conv_id)` to remove conversation from internal tracking
@@ -266,12 +285,14 @@ config = TAFConfig(
     twilio_phone_number="+1234567890",
     conversation_service_sid="IS...",
     twilio_memory_config=TwilioMemoryConfig(
-        memory_store_id="MG..."
+        memory_store_id="MG...",
+        trait_groups=["Contact", "Preferences"]  # Optional: specify trait groups
     )  # Optional - only if using Twilio Memory
 )
 taf = TAF(config)
 
 # 2. Register callback to handle memory-ready events
+# Note: context.profile available (fetched once at conversation start for Voice)
 async def handle_memory(context, memory_response, user_message):
     llm_response = await call_your_llm(user_message, memory_response)
     await voice_channel.send_response(context.conversation_id, llm_response)
@@ -314,7 +335,8 @@ config = TAFConfig(
     twilio_phone_number="+1234567890",
     conversation_service_sid="IS...",
     twilio_memory_config=TwilioMemoryConfig(
-        memory_store_id="MG..."
+        memory_store_id="MG...",
+        trait_groups=["Contact", "Preferences"]  # Optional: specify trait groups
     )  # Optional - only if using Twilio Memory
 )
 taf = TAF(config)
@@ -322,7 +344,12 @@ voice_channel = VoiceChannel(taf)
 
 # 2. Register callback to handle message processing
 async def handle_message(user_message, context, memory_response=None):
-    llm_response = await call_your_llm(user_message, memory_response)
+    # Access profile traits if available (fetched once at conversation start for Voice)
+    if context.profile:
+        traits = context.profile.traits
+        # Profile includes name, location, preferences, etc.
+
+    llm_response = await call_your_llm(user_message, memory_response, context.profile)
     await voice_channel.send_response(context.conversation_id, llm_response)
 
 taf.on_message_ready(handle_message)

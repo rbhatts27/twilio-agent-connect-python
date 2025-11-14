@@ -7,8 +7,8 @@ import pytest
 
 from taf import TAF, TAFConfig
 from taf.channels.sms import SMSChannel
-from taf.core.context import ConversationSession
 from taf.models.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
+from taf.models.session import ConversationSession
 
 
 def get_test_config(with_memory=True):
