@@ -7,8 +7,10 @@ Uses OpenAI Agents SDK for tool integration and conversation management.
 """
 
 import logging
+from typing import Optional
 
 from agents import Agent, RunConfig, Runner
+from fastapi import WebSocket
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
     ChatCompletionMessageParam,
@@ -16,6 +18,7 @@ from openai.types.chat import (
 )
 from tools import (
     create_confirm_order_tool,
+    create_flex_escalation_tool,
     look_up_discounts,
     look_up_order_price,
 )
@@ -48,6 +51,7 @@ class LLMService:
         user_message: str,
         memory_response: MemoryRetrievalResponse | None,
         context: ConversationSession,
+        websocket: Optional[WebSocket],
         conversation_history: list[ChatCompletionMessageParam] | None = None,
     ) -> str:
         """
@@ -72,6 +76,9 @@ class LLMService:
             tools = self.base_tools + [
                 create_confirm_order_tool(self.taf, context),
             ]
+
+            if websocket is not None:
+                tools = tools + [create_flex_escalation_tool(websocket)]
 
             logger.info(f"[LLM] Processing message with {len(tools)} tools available")
 
