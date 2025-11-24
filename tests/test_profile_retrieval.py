@@ -167,13 +167,27 @@ class TestProfileInSMSChannel:
 
             mock_profile = get_mock_profile_response()
 
+            # Simulate participant.added webhook with profile
+            participant_webhook = {
+                "EventType": "participant.added",
+                "ConversationId": "CH123456",
+                "ParticipantId": "MB123",
+                "ParticipantType": "CUSTOMER",
+                "ProfileId": "profile_test_123",
+                "ParticipantName": "+12345678901",
+                "Timestamp": "2025-11-18T00:00:00.000Z",
+            }
+
             # Simulate message webhook
             message_webhook = {
-                "EventType": "onMessageAdded",
-                "ConversationSid": "CH123456",
-                "ProfileId": "profile_test_123",
-                "Body": "Hello!",
-                "Author": "+12345678901",
+                "EventType": "communication.created",
+                "ConversationId": "CH123456",
+                "CommunicationId": "IM123",
+                "AuthorParticipantId": "MB123",
+                "AuthorAddress": "+12345678901",
+                "AuthorChannel": "SMS",
+                "Body": '{"type":"TEXT","text":"Hello!"}',
+                "Timestamp": "2025-11-18T00:00:01.000Z",
             }
 
             with patch.object(
@@ -188,13 +202,17 @@ class TestProfileInSMSChannel:
                     )
                     mock_retrieve.return_value = empty_memory
 
-                    channel.process_webhook(message_webhook)
+                    # Process participant.added first (triggers profile fetch)
+                    channel.process_webhook(participant_webhook)
 
-                    # Verify profile was fetched
+                    # Verify profile was fetched on participant.added
                     mock_get_profile.assert_called_with(
                         profile_id="profile_test_123",
                         trait_groups=["Contact"],
                     )
+
+                    # Process message
+                    channel.process_webhook(message_webhook)
 
                     # Verify profile is in context
                     assert received_context is not None
@@ -219,20 +237,23 @@ class TestProfileInSMSChannel:
 
             mock_profile = get_mock_profile_response()
 
-            # Simulate conversation started webhook
-            conversation_started = {
-                "EventType": "onConversationAdded",
-                "ConversationSid": "CH123456",
+            # Simulate participant.added webhook (this is when profile is fetched)
+            participant_added = {
+                "EventType": "participant.added",
+                "ConversationId": "CH123456",
+                "ParticipantId": "MB123",
+                "ParticipantType": "CUSTOMER",
                 "ProfileId": "profile_test_123",
-                "Author": "+12345678901",
+                "ParticipantName": "+12345678901",
+                "Timestamp": "2025-11-18T00:00:00.000Z",
             }
 
             with patch.object(
                 taf.memora_client, "get_profile", return_value=mock_profile
             ) as mock_get_profile:
-                channel.process_webhook(conversation_started)
+                channel.process_webhook(participant_added)
 
-                # Verify profile was fetched on conversation start
+                # Verify profile was fetched when participant was added
                 mock_get_profile.assert_called_once_with(
                     profile_id="profile_test_123",
                     trait_groups=["Contact"],
@@ -253,13 +274,27 @@ class TestProfileInSMSChannel:
 
             mock_profile = get_mock_profile_response()
 
+            # Simulate participant.added first
+            participant_webhook = {
+                "EventType": "participant.added",
+                "ConversationId": "CH123456",
+                "ParticipantId": "MB123",
+                "ParticipantType": "CUSTOMER",
+                "ProfileId": "profile_test_123",
+                "ParticipantName": "+12345678901",
+                "Timestamp": "2025-11-18T00:00:00.000Z",
+            }
+
             # Simulate first message
             message_webhook_1 = {
-                "EventType": "onMessageAdded",
-                "ConversationSid": "CH123456",
-                "ProfileId": "profile_test_123",
-                "Body": "First message",
-                "Author": "+12345678901",
+                "EventType": "communication.created",
+                "ConversationId": "CH123456",
+                "CommunicationId": "IM123",
+                "AuthorParticipantId": "MB123",
+                "AuthorAddress": "+12345678901",
+                "AuthorChannel": "SMS",
+                "Body": '{"type":"TEXT","text":"First message"}',
+                "Timestamp": "2025-11-18T00:00:01.000Z",
             }
 
             with patch.object(
@@ -274,24 +309,34 @@ class TestProfileInSMSChannel:
                     )
                     mock_retrieve.return_value = empty_memory
 
-                    # Process first message
-                    channel.process_webhook(message_webhook_1)
+                    # Process participant.added (first profile fetch)
+                    channel.process_webhook(participant_webhook)
                     first_call_count = mock_get_profile.call_count
+
+                    # Process first message (second profile fetch)
+                    channel.process_webhook(message_webhook_1)
+                    second_call_count = mock_get_profile.call_count
 
                     # Simulate second message
                     message_webhook_2 = {
-                        "EventType": "onMessageAdded",
-                        "ConversationSid": "CH123456",
-                        "Body": "Second message",
-                        "Author": "+12345678901",
+                        "EventType": "communication.created",
+                        "ConversationId": "CH123456",
+                        "CommunicationId": "IM124",
+                        "AuthorParticipantId": "MB123",
+                        "AuthorAddress": "+12345678901",
+                        "AuthorChannel": "SMS",
+                        "Body": '{"type":"TEXT","text":"Second message"}',
+                        "Timestamp": "2025-11-18T00:00:02.000Z",
                     }
 
-                    # Process second message
+                    # Process second message (third profile fetch)
                     channel.process_webhook(message_webhook_2)
-                    second_call_count = mock_get_profile.call_count
+                    third_call_count = mock_get_profile.call_count
 
-                    # Verify profile was fetched for both messages
+                    # Verify profile was fetched multiple times
+                    # (once on participant.added, once per message)
                     assert second_call_count > first_call_count
+                    assert third_call_count > second_call_count
 
     def test_sms_profile_updates_session(self) -> None:
         """Test that profile updates the session for each message."""
@@ -312,13 +357,27 @@ class TestProfileInSMSChannel:
                 traits={"Contact": {"firstName": "Jane"}},  # Updated name
             )
 
-            # First message with first profile version
-            message_webhook = {
-                "EventType": "onMessageAdded",
-                "ConversationSid": "CH123456",
+            # Participant added event
+            participant_webhook = {
+                "EventType": "participant.added",
+                "ConversationId": "CH123456",
+                "ParticipantId": "MB123",
+                "ParticipantType": "CUSTOMER",
                 "ProfileId": "profile_test_123",
-                "Body": "Hello",
-                "Author": "+12345678901",
+                "ParticipantName": "+12345678901",
+                "Timestamp": "2025-11-18T00:00:00.000Z",
+            }
+
+            # First message
+            message_webhook = {
+                "EventType": "communication.created",
+                "ConversationId": "CH123456",
+                "CommunicationId": "IM123",
+                "AuthorParticipantId": "MB123",
+                "AuthorAddress": "+12345678901",
+                "AuthorChannel": "SMS",
+                "Body": '{"type":"TEXT","text":"Hello"}',
+                "Timestamp": "2025-11-18T00:00:01.000Z",
             }
 
             with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
@@ -330,13 +389,14 @@ class TestProfileInSMSChannel:
                 )
                 mock_retrieve.return_value = empty_memory
 
+                # Process participant.added with first profile version
                 with patch.object(taf.memora_client, "get_profile", return_value=mock_profile_v1):
-                    channel.process_webhook(message_webhook)
+                    channel.process_webhook(participant_webhook)
                     session = channel._conversations["CH123456"]
                     assert session.profile is not None
                     assert session.profile.traits["Contact"]["firstName"] == "John"
 
-                # Second message with updated profile
+                # Process message with updated profile
                 with patch.object(taf.memora_client, "get_profile", return_value=mock_profile_v2):
                     channel.process_webhook(message_webhook)
                     session = channel._conversations["CH123456"]

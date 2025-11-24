@@ -19,7 +19,7 @@ from typing import Optional
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request, WebSocket
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from llm_service import LLMService
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
@@ -28,6 +28,7 @@ from openai.types.chat import (
 )
 
 from taf import TAF, TAFConfig
+from taf.channels import SMSChannel
 from taf.channels.voice import VoiceChannel
 from taf.core.config import TwilioMemoryConfig
 from taf.models.memory import MemoryRetrievalResponse
@@ -56,7 +57,12 @@ memory_store_id = os.getenv("MEMORY_STORE_ID")
 api_key = os.getenv("TWILIO_API_KEY")
 api_token = os.getenv("TWILIO_API_TOKEN")
 twilio_memory_config = (
-    TwilioMemoryConfig(memory_store_id=memory_store_id, api_key=api_key, api_token=api_token)
+    TwilioMemoryConfig(
+        memory_store_id=memory_store_id,
+        api_key=api_key,
+        api_token=api_token,
+        trait_groups=["Contact"],
+    )
     if memory_store_id and api_key and api_token
     else None
 )
@@ -72,6 +78,7 @@ taf_config = TAFConfig(
 
 taf = TAF(config=taf_config)
 voice_channel = VoiceChannel(taf)
+sms_channel = SMSChannel(taf)
 
 llm_service = LLMService(taf)
 
@@ -105,7 +112,7 @@ async def handle_message_ready(
         logger.info("-" * 80)
         logger.info(
             f"[CALLBACK] Message ready - Channel: {context.channel}, "
-            f"Conv ID: {context.conversation_id[:8]}..."
+            f"Conv ID: {context.conversation_id}"
         )
         logger.info(f"[CALLBACK] User message: {user_message}")
 
@@ -160,12 +167,18 @@ async def handle_message_ready(
 
         # Send response through appropriate channel
         if llm_response:
-            logger.info(f"[RESPONSE] Sending via {context.channel}: {llm_response[:100]}...")
+            logger.info(f"[RESPONSE] Sending via {context.channel}: {llm_response}...")
 
             if context.channel == "voice":
                 await voice_channel.send_response(
                     context.conversation_id, llm_response, role="assistant"
                 )
+            elif context.channel == "sms":
+                await sms_channel.send_response(
+                    context.conversation_id, llm_response, role="assistant"
+                )
+            else:
+                logger.error("[RESPONSE] Unknown channel, cannot send response")
 
             logger.info(f"[RESPONSE] Successfully sent via {context.channel}")
             logger.info("=" * 80)
@@ -185,11 +198,30 @@ taf.on_message_ready(handle_message_ready)
 taf.on_handoff(flex_handoff_handler)
 
 
+@app.post("/sms")
+async def sms_webhook(request: Request) -> JSONResponse:
+    """Handle incoming SMS webhooks from Twilio."""
+    try:
+        form_data = await request.json()
+        webhook_data = dict(form_data)
+
+        # Debug: Log the raw webhook data to see what Twilio is sending
+        logger.debug(f"Received webhook data: {webhook_data}")
+
+        # Process all events (including deduplicated communication.created)
+        sms_channel.process_webhook(webhook_data)
+        return JSONResponse(content={"status": "ok"}, status_code=200)
+
+    except Exception as e:
+        logger.error(f"Error processing SMS webhook: {str(e)}")
+        return JSONResponse(content={"status": "error", "message": str(e)}, status_code=400)
+
+
 @app.post("/twiml")
-async def post_twiml(From: str = Form(...)) -> Response:
+async def post_twiml(from_number: str = Form(..., alias="From")) -> Response:
     """Generate TwiML for Twilio voice calls."""
     logger.info("=" * 80)
-    logger.info(f"[VOICE] Incoming call from: {From}")
+    logger.info(f"[VOICE] Incoming call from: {from_number}")
 
     # Get WebSocket URL from environment
     public_domain = os.environ.get("VOICE_PUBLIC_DOMAIN", "")

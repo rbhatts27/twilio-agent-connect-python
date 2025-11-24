@@ -100,8 +100,15 @@ class VoiceChannel(BaseChannel):
         participant_response = self.taf.maestro_client.add_participant(
             conversation_id=conversation_id,
             addresses=[ParticipantAddress(channel="VOICE", address=called_phone_number)],
+            participant_type="CUSTOMER",
         )
         profile_id = participant_response.profile_id
+
+        self.taf.maestro_client.add_participant(
+            conversation_id=conversation_id,
+            addresses=[ParticipantAddress(channel="VOICE", address="outbound")],
+            participant_type="AI_AGENT",
+        )
 
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>

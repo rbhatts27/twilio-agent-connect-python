@@ -20,9 +20,9 @@ class TestTAFConfig:
             twilio_phone_number="+15551234567",
         )
         assert config.twilio_auth_token == "test_token_123"
-        assert config.memora_base_url == "https://memory.twilio.com/v1"
+        assert config.memora_base_url == "https://memory.twilio.com"
         assert config.environment == "prod"
-        assert config.maestro_base_url == "https://conversations.twilio.com/v2"
+        assert config.maestro_base_url == "https://conversations.twilio.com"
         assert config.twilio_account_sid == "ACtest123"
         assert config.log_level == "INFO"  # Default value
         assert config.twilio_memory_config is None  # Optional memory config
@@ -39,8 +39,8 @@ class TestTAFConfig:
         )
         assert config.twilio_auth_token == "test_token_123"
         assert config.environment == "dev"
-        assert config.memora_base_url == "https://memory.dev.twilio.com/v1"
-        assert config.maestro_base_url == "https://conversations.dev.twilio.com/v2"
+        assert config.memora_base_url == "https://memory.dev.twilio.com"
+        assert config.maestro_base_url == "https://conversations.dev.twilio.com"
         assert config.twilio_account_sid == "ACtest123"
         assert config.log_level == "DEBUG"
 
@@ -104,7 +104,7 @@ class TestTAFConfig:
         }
         config = TAFConfig(**config_data)
         assert config.twilio_auth_token == "test_token_123"
-        assert config.memora_base_url == "https://memory.twilio.com/v1"
+        assert config.memora_base_url == "https://memory.twilio.com"
         assert config.environment == "prod"
         assert config.twilio_memory_config is not None
         assert config.twilio_memory_config.memory_store_id == "MGtest123"

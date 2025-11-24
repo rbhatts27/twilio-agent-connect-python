@@ -1,8 +1,8 @@
 """Tests for SMS Channel."""
 
 import asyncio
-from typing import Optional
-from unittest.mock import MagicMock, patch
+from typing import Any, Optional
+from unittest.mock import patch
 
 from taf import TAF
 from taf.channels.sms import SMSChannel
@@ -10,9 +10,9 @@ from taf.models.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
 from taf.models.session import ConversationSession
 
 
-def get_test_config(with_memory=True) -> dict:
+def get_test_config(with_memory: bool = True) -> dict[str, Any]:
     """Get a valid test configuration."""
-    config = {
+    config: dict[str, Any] = {
         "twilio_auth_token": "test_token_123",
         "environment": "prod",
         "conversation_service_sid": "IStest123",
@@ -33,313 +33,307 @@ class TestSMSChannel:
 
     def test_initialization(self) -> None:
         """Test SMS channel initialization."""
-        with patch("taf.channels.sms.Client") as mock_client:
-            taf = TAF(get_test_config())
-            channel = SMSChannel(taf)
+        taf = TAF(get_test_config())
+        channel = SMSChannel(taf)
 
-            assert channel.taf == taf
-            # Verify Twilio client was initialized
-            mock_client.assert_called_once_with(
-                taf.config.twilio_account_sid, taf.config.twilio_auth_token
-            )
+        assert channel.taf == taf
 
     def test_process_conversation_started(self) -> None:
-        """Test processing onConversationAdded event."""
-        with patch("taf.channels.sms.Client") as mock_client_class:
-            # Mock participant creation
-            mock_client = MagicMock()
-            mock_client_class.return_value = mock_client
-            mock_participants_create = MagicMock()
-            mock_client.conversations.v1.conversations.return_value.participants.create = (
-                mock_participants_create
-            )
+        """Test processing conversation.created and participant.added events."""
+        taf = TAF(get_test_config())
+        channel = SMSChannel(taf)
 
-            taf = TAF(get_test_config())
-            channel = SMSChannel(taf)
+        # Process conversation.created
+        conversation_webhook = {
+            "EventType": "conversation.created",
+            "ConversationId": "CH123456",
+            "ConversationStatus": "ACTIVE",
+            "Timestamp": "2025-11-18T00:00:00.000Z",
+        }
+        channel.process_webhook(conversation_webhook)
 
-            webhook_data = {
-                "EventType": "onConversationAdded",
-                "ConversationSid": "CH123456",
-                "ProfileId": "profile_test_123",
-                "Author": "+12345678901",
-            }
+        # Process participant.added
+        participant_webhook = {
+            "EventType": "participant.added",
+            "ConversationId": "CH123456",
+            "ParticipantId": "MB123",
+            "ParticipantType": "CUSTOMER",
+            "ProfileId": "profile_test_123",
+            "ParticipantName": "+12345678901",
+            "Timestamp": "2025-11-18T00:00:01.000Z",
+        }
+        channel.process_webhook(participant_webhook)
 
-            channel.process_webhook(webhook_data)
-
-            # Verify conversation was started
-            assert "CH123456" in channel._conversations
-            assert channel._conversations["CH123456"].profile_id == "profile_test_123"
-
-            # Verify participant was created
-            mock_client.conversations.v1.conversations.assert_called_once_with("CH123456")
-            mock_participants_create.assert_called_once()
+        # Verify conversation was started with profile
+        assert "CH123456" in channel._conversations
+        assert channel._conversations["CH123456"].profile_id == "profile_test_123"
 
     def test_process_message_auto_initialize(self) -> None:
         """Test processing message auto-initializes conversation if not started."""
-        with patch("taf.channels.sms.Client"):
-            taf = TAF(get_test_config())
-            channel = SMSChannel(taf)
+        taf = TAF(get_test_config())
+        channel = SMSChannel(taf)
 
-            # Callback to capture context
-            captured_context = None
-            captured_memories = None
+        # Callback to capture context
+        captured_context = None
+        captured_memories = None
 
-            def message_callback(
-                user_message: str,
-                context: ConversationSession,
-                memory_response: Optional[MemoryRetrievalResponse],
-            ) -> None:
-                nonlocal captured_context, captured_memories
-                captured_context = context
-                captured_memories = memory_response
+        def message_callback(
+            user_message: str,
+            context: ConversationSession,
+            memory_response: Optional[MemoryRetrievalResponse],
+        ) -> None:
+            nonlocal captured_context, captured_memories
+            captured_context = context
+            captured_memories = memory_response
 
-            taf.on_message_ready(message_callback)
+        taf.on_message_ready(message_callback)
 
-            webhook_data = {
-                "EventType": "onMessageAdded",
-                "ConversationSid": "CH123456",
-                "Body": "Hello, I need help",
-                "Author": "+12345678901",
-                "ProfileId": "profile_test_123",
-            }
+        webhook_data = {
+            "EventType": "communication.created",
+            "ConversationId": "CH123456",
+            "CommunicationId": "IM123",
+            "AuthorParticipantId": "MB123",
+            "AuthorAddress": "+12345678901",
+            "AuthorChannel": "SMS",
+            "Body": '{"type":"TEXT","text":"Hello, I need help"}',
+            "Timestamp": "2025-11-18T00:00:00.000Z",
+        }
 
-            with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-                empty_response = MemoryRetrievalResponse(
-                    observations=[],
-                    summaries=[],
-                    meta=MemoryRetrievalMeta(queryTime=0),
-                )
-                mock_retrieve.return_value = empty_response
+        with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
+            empty_response = MemoryRetrievalResponse(
+                observations=[],
+                summaries=[],
+                meta=MemoryRetrievalMeta(queryTime=0),
+            )
+            mock_retrieve.return_value = empty_response
 
-                channel.process_webhook(webhook_data)
+            channel.process_webhook(webhook_data)
 
-                # Verify callback was invoked
-                assert captured_context is not None
-                assert captured_context.conversation_id == "CH123456"
-                assert captured_context.profile_id == "profile_test_123"
-                assert captured_context.channel == "sms"
+            # Verify callback was invoked
+            assert captured_context is not None
+            assert captured_context.conversation_id == "CH123456"
+            # No profile_id since message auto-initialized without participant.added event
+            assert captured_context.profile_id is None
+            assert captured_context.channel == "sms"
 
     def test_process_message_with_existing_conversation(self) -> None:
         """Test processing message with pre-existing conversation."""
-        with patch("taf.channels.sms.Client") as mock_client_class:
-            # Mock participant creation
-            mock_client = MagicMock()
-            mock_client_class.return_value = mock_client
-            mock_participants_create = MagicMock()
-            mock_client.conversations.v1.conversations.return_value.participants.create = (
-                mock_participants_create
+        taf = TAF(get_test_config())
+        channel = SMSChannel(taf)
+
+        # Start conversation first
+        conversation_webhook = {
+            "EventType": "conversation.created",
+            "ConversationId": "CH123456",
+            "ConversationStatus": "ACTIVE",
+            "Timestamp": "2025-11-18T00:00:00.000Z",
+        }
+        channel.process_webhook(conversation_webhook)
+
+        participant_webhook = {
+            "EventType": "participant.added",
+            "ConversationId": "CH123456",
+            "ParticipantId": "MB123",
+            "ParticipantType": "CUSTOMER",
+            "ProfileId": "profile_test_123",
+            "ParticipantName": "+12345678901",
+            "Timestamp": "2025-11-18T00:00:01.000Z",
+        }
+        channel.process_webhook(participant_webhook)
+
+        # Now process message
+        message_webhook = {
+            "EventType": "communication.created",
+            "ConversationId": "CH123456",
+            "CommunicationId": "IM123",
+            "AuthorParticipantId": "MB123",
+            "AuthorAddress": "+12345678901",
+            "AuthorChannel": "SMS",
+            "Body": '{"type":"TEXT","text":"Test message"}',
+            "Timestamp": "2025-11-18T00:00:02.000Z",
+        }
+
+        with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
+            empty_response = MemoryRetrievalResponse(
+                observations=[],
+                summaries=[],
+                meta=MemoryRetrievalMeta(queryTime=0),
             )
+            mock_retrieve.return_value = empty_response
 
-            taf = TAF(get_test_config())
-            channel = SMSChannel(taf)
+            channel.process_webhook(message_webhook)
 
-            # Start conversation first
-            start_webhook = {
-                "EventType": "onConversationAdded",
-                "ConversationSid": "CH123456",
-                "ProfileId": "profile_test_123",
-                "Author": "+12345678901",
-            }
-
-            channel.process_webhook(start_webhook)
-
-            # Now process message
-            message_webhook = {
-                "EventType": "onMessageAdded",
-                "ConversationSid": "CH123456",
-                "Body": "Test message",
-                "Author": "+12345678901",
-            }
-
-            with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-                empty_response = MemoryRetrievalResponse(
-                    observations=[],
-                    summaries=[],
-                    meta=MemoryRetrievalMeta(queryTime=0),
-                )
-                mock_retrieve.return_value = empty_response
-
-                channel.process_webhook(message_webhook)
-
-                # Verify memory retrieval was called
-                mock_retrieve.assert_called_once()
+            # Verify memory retrieval was called
+            mock_retrieve.assert_called_once()
 
     def test_process_empty_message_ignored(self) -> None:
         """Test that empty messages are ignored."""
-        with patch("taf.channels.sms.Client"):
-            taf = TAF(get_test_config())
-            channel = SMSChannel(taf)
+        taf = TAF(get_test_config())
+        channel = SMSChannel(taf)
 
-            webhook_data = {
-                "EventType": "onMessageAdded",
-                "ConversationSid": "CH123456",
-                "Body": "",
-                "Author": "+12345678901",
-                "ProfileId": "profile_test_123",
-            }
+        webhook_data = {
+            "EventType": "communication.created",
+            "ConversationId": "CH123456",
+            "CommunicationId": "IM123",
+            "AuthorParticipantId": "MB123",
+            "AuthorAddress": "+12345678901",
+            "AuthorChannel": "SMS",
+            "Body": '{"type":"TEXT","text":""}',
+            "Timestamp": "2025-11-18T00:00:00.000Z",
+        }
 
-            with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-                channel.process_webhook(webhook_data)
+        with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
+            channel.process_webhook(webhook_data)
 
-                # Verify memory retrieval was NOT called
-                mock_retrieve.assert_not_called()
+            # Verify memory retrieval was NOT called
+            mock_retrieve.assert_not_called()
 
     def test_process_conversation_ended(self) -> None:
         """Test processing onConversationRemoved event."""
-        with patch("taf.channels.sms.Client") as mock_client_class:
-            # Mock participant creation
-            mock_client = MagicMock()
-            mock_client_class.return_value = mock_client
-            mock_participants_create = MagicMock()
-            mock_client.conversations.v1.conversations.return_value.participants.create = (
-                mock_participants_create
-            )
+        taf = TAF(get_test_config())
+        channel = SMSChannel(taf)
 
-            taf = TAF(get_test_config())
-            channel = SMSChannel(taf)
+        # Start conversation
+        start_webhook = {
+            "EventType": "conversation.created",
+            "ConversationId": "CH123456",
+            "ConversationStatus": "ACTIVE",
+            "Timestamp": "2025-11-18T00:00:00.000Z",
+        }
+        channel.process_webhook(start_webhook)
 
-            # Start conversation
-            start_webhook = {
-                "EventType": "onConversationAdded",
-                "ConversationSid": "CH123456",
-                "ProfileId": "profile_test_123",
-                "Author": "+12345678901",
-            }
+        # End conversation (status changed to CLOSED)
+        end_webhook = {
+            "EventType": "conversation.updated",
+            "ConversationId": "CH123456",
+            "ConversationStatus": "CLOSED",
+            "Timestamp": "2025-11-18T00:10:00.000Z",
+        }
 
-            channel.process_webhook(start_webhook)
-
-            # End conversation
-            end_webhook = {
-                "EventType": "onConversationRemoved",
-                "ConversationSid": "CH123456",
-            }
-
-            # Should not raise
-            channel.process_webhook(end_webhook)
+        # Should not raise
+        channel.process_webhook(end_webhook)
 
     def test_send_response_with_active_conversation(self) -> None:
         """Test sending response to active conversation."""
-        with patch("taf.channels.sms.Client") as mock_client_class:
-            # Setup mock Twilio client
-            mock_client = MagicMock()
-            mock_client_class.return_value = mock_client
-            mock_messages_create = MagicMock()
-            mock_client.messages.create = mock_messages_create
+        taf = TAF(get_test_config())
+        channel = SMSChannel(taf)
 
-            taf = TAF(get_test_config())
-            channel = SMSChannel(taf)
+        # Mock list_participants to return customer participant with matching profile_id
+        from taf.models.conversation import ParticipantResponse
 
-            # Mock list_participants to return a customer participant
-            from taf.models.conversation import ParticipantAddress, ParticipantResponse
+        mock_customer_participant = ParticipantResponse(
+            **{  # type: ignore[arg-type]
+                "id": "PA_CUSTOMER",
+                "accountId": "ACtest123",
+                "serviceId": "IStest123",
+                "conversationId": "CH123456",
+                "name": "Test Customer",
+                "type": "CUSTOMER",
+                "profileId": "profile_test_123",  # Matching profile_id
+                "addresses": [{"channel": "SMS", "address": "+12345678901"}],
+            }
+        )
 
-            mock_participant = ParticipantResponse(
-                id="PA123",
-                account_id="ACtest123",
-                service_id="IStest123",
-                conversation_id="CH123456",
-                name="Test Customer",
-                type="CUSTOMER",
-                addresses=[ParticipantAddress(channel="SMS", address="+12345678901")],
+        # Start conversation with profile_id
+        start_webhook = {
+            "EventType": "conversation.created",
+            "ConversationId": "CH123456",
+            "ConversationStatus": "ACTIVE",
+            "Timestamp": "2025-11-18T00:00:00.000Z",
+        }
+        channel.process_webhook(start_webhook)
+
+        # Add participant to set profile_id
+        participant_webhook = {
+            "EventType": "participant.added",
+            "ConversationId": "CH123456",
+            "ParticipantId": "PA_CUSTOMER",
+            "ParticipantType": "CUSTOMER",
+            "ProfileId": "profile_test_123",
+            "ParticipantName": "+12345678901",
+            "Timestamp": "2025-11-18T00:00:01.000Z",
+        }
+        channel.process_webhook(participant_webhook)
+
+        with (
+            patch.object(
+                taf.maestro_client,
+                "list_participants",
+                return_value=[mock_customer_participant],
+            ),
+            patch.object(channel.twilio.messages, "create") as mock_twilio_send,
+        ):
+            # Send response
+            asyncio.run(channel.send_response("CH123456", "Test response"))
+
+            # Verify Twilio message was sent to the correct recipient
+            mock_twilio_send.assert_called_once_with(
+                to="+12345678901",
+                from_=taf.config.twilio_phone_number,
+                body="Test response",
             )
-
-            with patch.object(
-                taf.maestro_client, "list_participants", return_value=[mock_participant]
-            ):
-                # Start conversation
-                start_webhook = {
-                    "EventType": "onConversationAdded",
-                    "ConversationSid": "CH123456",
-                    "ProfileId": "profile_test_123",
-                    "Author": "+12345678901",
-                }
-
-                channel.process_webhook(start_webhook)
-
-                # Send response
-                asyncio.run(channel.send_response("CH123456", "Test response"))
-
-                # Verify Twilio messages API was called
-                mock_messages_create.assert_called_once_with(
-                    to="+12345678901",
-                    from_=taf.config.twilio_phone_number,
-                    body="Test response",
-                )
 
     def test_send_response_to_unknown_conversation(self) -> None:
         """Test sending response to non-existent conversation logs error."""
-        with patch("taf.channels.sms.Client") as mock_client_class:
-            mock_client = MagicMock()
-            mock_client_class.return_value = mock_client
+        taf = TAF(get_test_config())
+        channel = SMSChannel(taf)
 
-            taf = TAF(get_test_config())
-            channel = SMSChannel(taf)
-
-            # Should log error but not raise
-            asyncio.run(channel.send_response("CH_UNKNOWN", "Test response"))
-
-            # Verify Twilio messages API was NOT called
-            mock_client.messages.create.assert_not_called()
+        # Should log error but not raise
+        asyncio.run(channel.send_response("CH_UNKNOWN", "Test response"))
 
     def test_multiple_concurrent_conversations(self) -> None:
         """Test handling multiple concurrent conversations."""
-        with patch("taf.channels.sms.Client") as mock_client_class:
-            # Mock participant creation
-            mock_client = MagicMock()
-            mock_client_class.return_value = mock_client
-            mock_participants_create = MagicMock()
-            mock_client.conversations.v1.conversations.return_value.participants.create = (
-                mock_participants_create
-            )
+        taf = TAF(get_test_config())
+        channel = SMSChannel(taf)
 
-            taf = TAF(get_test_config())
-            channel = SMSChannel(taf)
+        # Start first conversation
+        channel.process_webhook(
+            {
+                "EventType": "conversation.created",
+                "ConversationId": "CH111",
+                "ConversationStatus": "ACTIVE",
+                "Timestamp": "2025-11-18T00:00:00.000Z",
+            }
+        )
 
-            # Start first conversation
-            channel.process_webhook(
-                {
-                    "EventType": "onConversationAdded",
-                    "ConversationSid": "CH111",
-                    "ProfileId": "profile_1",
-                    "Author": "+11111111111",
-                }
-            )
+        # Start second conversation
+        channel.process_webhook(
+            {
+                "EventType": "conversation.created",
+                "ConversationId": "CH222",
+                "ConversationStatus": "ACTIVE",
+                "Timestamp": "2025-11-18T00:00:01.000Z",
+            }
+        )
 
-            # Start second conversation
-            channel.process_webhook(
-                {
-                    "EventType": "onConversationAdded",
-                    "ConversationSid": "CH222",
-                    "ProfileId": "profile_2",
-                    "Author": "+12222222222",
-                }
-            )
+        # Verify both conversations started successfully
+        assert "CH111" in channel._conversations
+        assert "CH222" in channel._conversations
 
-            # Verify both conversations started successfully
-            assert "CH111" in channel._conversations
-            assert "CH222" in channel._conversations
+        # End first conversation (should not raise)
+        channel.process_webhook(
+            {
+                "EventType": "conversation.updated",
+                "ConversationId": "CH111",
+                "ConversationStatus": "CLOSED",
+                "Timestamp": "2025-11-18T00:10:00.000Z",
+            }
+        )
 
-            # End first conversation (should not raise)
-            channel.process_webhook(
-                {
-                    "EventType": "onConversationRemoved",
-                    "ConversationSid": "CH111",
-                }
-            )
-
-            # Verify first conversation was removed
-            assert "CH111" not in channel._conversations
-            assert "CH222" in channel._conversations
+        # Verify first conversation was removed
+        assert "CH111" not in channel._conversations
+        assert "CH222" in channel._conversations
 
     def test_ignores_unsupported_event_types(self) -> None:
         """Test that unsupported event types are ignored."""
-        with patch("taf.channels.sms.Client"):
-            taf = TAF(get_test_config())
-            channel = SMSChannel(taf)
+        taf = TAF(get_test_config())
+        channel = SMSChannel(taf)
 
-            webhook_data = {
-                "EventType": "onParticipantAdded",
-                "ConversationSid": "CH123456",
-            }
+        webhook_data = {
+            "EventType": "some.unsupported.event",
+            "ConversationId": "CH123456",
+            "Timestamp": "2025-11-18T00:00:00.000Z",
+        }
 
-            # Should not raise, just log debug message
-            channel.process_webhook(webhook_data)
+        # Should not raise, just log debug message
+        channel.process_webhook(webhook_data)

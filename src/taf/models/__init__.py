@@ -1,16 +1,15 @@
 """Shared models for the Twilio Agentic Framework."""
 
 from taf.models.conversation import (
+    CommunicationRequest,
+    CommunicationResponse,
     ConversationRequest,
     ConversationResponse,
     ParticipantAddress,
     ParticipantRequest,
     ParticipantResponse,
 )
-from taf.models.conversation_event import (
-    ConversationEvent,
-    TwilioConversationEvent,
-)
+from taf.models.conversation_event import ConversationEvent, ConversationEventType
 from taf.models.knowledge import Knowledge
 from taf.models.memory import (
     Communication,
@@ -23,15 +22,21 @@ from taf.models.memory import (
     Recipient,
     SummaryInfo,
 )
+from taf.models.session import AuthorInfo, ConversationSession
 from taf.models.voice import VoiceServerConfig
 from taf.models.webhook import TwilioWebhookEvent, WebhookEventType
 
 __all__ = [
+    "AuthorInfo",
     "Communication",
     "CommunicationContent",
+    "CommunicationRequest",
+    "CommunicationResponse",
     "ConversationEvent",
+    "ConversationEventType",
     "ConversationRequest",
     "ConversationResponse",
+    "ConversationSession",
     "Knowledge",
     "MemoryRetrievalRequest",
     "MemoryRetrievalResponse",
@@ -43,7 +48,6 @@ __all__ = [
     "ProfileResponse",
     "Recipient",
     "SummaryInfo",
-    "TwilioConversationEvent",
     "TwilioWebhookEvent",
     "VoiceServerConfig",
     "WebhookEventType",

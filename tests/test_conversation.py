@@ -7,6 +7,11 @@ import requests
 
 from taf.context.conversation import ConversationClient
 from taf.models.conversation import (
+    CommunicationAuthor,
+    CommunicationContent,
+    CommunicationRecipient,
+    CommunicationRequest,
+    CommunicationResponse,
     ConversationConfiguration,
     ConversationRequest,
     ConversationResponse,
@@ -177,6 +182,105 @@ class TestConversationModels:
         assert participant.created_at is None
         assert participant.updated_at is None
 
+    def test_communication_request_model(self):
+        """Test CommunicationRequest model with all fields."""
+        request_data = {
+            "author": {
+                "address": "+12025551234",
+                "channel": "SMS",
+                "participantId": "comms_participant_01k1etx3jbfx88476ccja0889c",
+            },
+            "content": {"type": "TEXT", "text": "Hello World!"},
+            "recipients": [
+                {
+                    "address": "+12025551234",
+                    "channel": "SMS",
+                    "participantId": "comms_participant_01k1etx3jbfx88476ccja0889c",
+                }
+            ],
+        }
+
+        request = CommunicationRequest(**request_data)
+
+        assert request.author.address == "+12025551234"
+        assert request.author.channel == "SMS"
+        assert request.author.participant_id == "comms_participant_01k1etx3jbfx88476ccja0889c"
+        assert request.content.type == "TEXT"
+        assert request.content.text == "Hello World!"
+        assert len(request.recipients) == 1
+        assert request.recipients[0].address == "+12025551234"
+
+    def test_communication_request_model_dump(self):
+        """Test CommunicationRequest model_dump with alias mapping."""
+        author = CommunicationAuthor(
+            address="+12025551234",
+            channel="SMS",
+            participant_id="comms_participant_123",
+        )
+        content = CommunicationContent(type="TEXT", text="Hello World!")
+        recipient = CommunicationRecipient(
+            address="+12025555678", channel="SMS", participant_id="comms_participant_456"
+        )
+        request = CommunicationRequest(author=author, content=content, recipients=[recipient])
+
+        payload = request.model_dump(by_alias=True, exclude_none=True)
+
+        assert payload == {
+            "author": {
+                "address": "+12025551234",
+                "channel": "SMS",
+                "participantId": "comms_participant_123",
+            },
+            "content": {"type": "TEXT", "text": "Hello World!"},
+            "recipients": [
+                {
+                    "address": "+12025555678",
+                    "channel": "SMS",
+                    "participantId": "comms_participant_456",
+                }
+            ],
+        }
+
+    def test_communication_response_model(self):
+        """Test CommunicationResponse model with all fields."""
+        response_data = {
+            "id": "comms_communication_01k1etk2y5f1y9fpe2epfdtvv2",
+            "conversationId": "CH123456",
+            "accountId": "AC123456",
+            "serviceId": "IS123456",
+            "author": {
+                "address": "+12025551234",
+                "channel": "SMS",
+                "participantId": "comms_participant_01k1etx3jbfx88476ccja0889c",
+            },
+            "content": {"type": "TEXT", "text": "Hello World!"},
+            "channelId": "SM123456",
+            "recipients": [
+                {
+                    "address": "+12025551234",
+                    "channel": "SMS",
+                    "participantId": "comms_participant_01k1etx3jbfx88476ccja0889c",
+                    "deliveryStatus": "INITIATED",
+                }
+            ],
+            "createdAt": "2019-08-24T14:15:22Z",
+            "updatedAt": "2019-08-24T14:15:22Z",
+        }
+
+        response = CommunicationResponse(**response_data)
+
+        assert response.id == "comms_communication_01k1etk2y5f1y9fpe2epfdtvv2"
+        assert response.conversation_id == "CH123456"
+        assert response.account_id == "AC123456"
+        assert response.service_id == "IS123456"
+        assert response.author.address == "+12025551234"
+        assert response.content.text == "Hello World!"
+        assert response.channel_id == "SM123456"
+        assert len(response.recipients) == 1
+        assert response.recipients[0].delivery_status == "INITIATED"
+        assert response.created_at == "2019-08-24T14:15:22Z"
+        assert response.updated_at == "2019-08-24T14:15:22Z"
+
 
 class TestConversationClient:
     """Test ConversationClient API interactions."""
@@ -184,13 +288,13 @@ class TestConversationClient:
     def test_client_initialization(self):
         """Test ConversationClient initialization."""
         client = ConversationClient(
-            base_url="https://maestro.twilio.com/v1",
+            base_url="https://maestro.twilio.com",
             account_sid="AC123456",
             auth_token="test_token",
             service_id="IS123456",
         )
 
-        assert client.base_url == "https://maestro.twilio.com/v1"
+        assert client.base_url == "https://maestro.twilio.com"
         assert client.service_id == "IS123456"
         assert client.session.auth is not None
 
@@ -208,7 +312,7 @@ class TestConversationClient:
         mock_post.return_value = mock_response
 
         client = ConversationClient(
-            base_url="https://maestro.twilio.com/v1",
+            base_url="https://maestro.twilio.com",
             account_sid="AC123456",
             auth_token="test_token",
             service_id="IS123456",
@@ -218,7 +322,7 @@ class TestConversationClient:
 
         # Verify API call (headers are set in session, not passed explicitly)
         mock_post.assert_called_once_with(
-            "https://maestro.twilio.com/v1/Services/IS123456/Conversations",
+            "https://maestro.twilio.com/v2/Services/IS123456/Conversations",
             json={},
         )
 
@@ -242,7 +346,7 @@ class TestConversationClient:
         mock_post.return_value = mock_response
 
         client = ConversationClient(
-            base_url="https://maestro.twilio.com/v1",
+            base_url="https://maestro.twilio.com",
             account_sid="AC123456",
             auth_token="test_token",
             service_id="IS123456",
@@ -252,7 +356,7 @@ class TestConversationClient:
 
         # Verify API call includes all parameters
         mock_post.assert_called_once_with(
-            "https://maestro.twilio.com/v1/Services/IS123456/Conversations",
+            "https://maestro.twilio.com/v2/Services/IS123456/Conversations",
             json={"name": "Customer Support"},
         )
 
@@ -267,7 +371,7 @@ class TestConversationClient:
         mock_post.side_effect = requests.RequestException("API Error")
 
         client = ConversationClient(
-            base_url="https://maestro.twilio.com/v1",
+            base_url="https://maestro.twilio.com",
             account_sid="AC123456",
             auth_token="test_token",
             service_id="IS123456",
@@ -296,7 +400,7 @@ class TestConversationClient:
         mock_post.return_value = mock_response
 
         client = ConversationClient(
-            base_url="https://maestro.twilio.com/v1",
+            base_url="https://maestro.twilio.com",
             account_sid="AC123456",
             auth_token="test_token",
             service_id="IS123456",
@@ -308,7 +412,7 @@ class TestConversationClient:
 
         # Verify API call (headers are set in session, not passed explicitly)
         expected_url = (
-            "https://maestro.twilio.com/v1/Services/IS123456/Conversations/CH123456/Participants"
+            "https://maestro.twilio.com/v2/Services/IS123456/Conversations/CH123456/Participants"
         )
         mock_post.assert_called_once_with(
             expected_url,
@@ -340,7 +444,7 @@ class TestConversationClient:
         mock_post.return_value = mock_response
 
         client = ConversationClient(
-            base_url="https://maestro.twilio.com/v1",
+            base_url="https://maestro.twilio.com",
             account_sid="AC123456",
             auth_token="test_token",
             service_id="IS123456",
@@ -363,7 +467,7 @@ class TestConversationClient:
         mock_post.side_effect = requests.RequestException("API Error")
 
         client = ConversationClient(
-            base_url="https://maestro.twilio.com/v1",
+            base_url="https://maestro.twilio.com",
             account_sid="AC123456",
             auth_token="test_token",
             service_id="IS123456",
@@ -378,7 +482,7 @@ class TestConversationClient:
         """Test that ConversationClient uses correct authentication headers."""
         # Headers are set on the session during initialization, not passed to each call
         client = ConversationClient(
-            base_url="https://maestro.twilio.com/v1",
+            base_url="https://maestro.twilio.com",
             account_sid="AC123456",
             auth_token="test_token",
             service_id="IS123456",
@@ -402,7 +506,7 @@ class TestConversationClient:
         mock_post.return_value = mock_response
 
         client = ConversationClient(
-            base_url="https://maestro.twilio.com/v1",
+            base_url="https://maestro.twilio.com",
             account_sid="AC123456",
             auth_token="test_token",
             service_id="IS999999",
@@ -412,7 +516,7 @@ class TestConversationClient:
         client.create_conversation()
         assert (
             mock_post.call_args[0][0]
-            == "https://maestro.twilio.com/v1/Services/IS999999/Conversations"
+            == "https://maestro.twilio.com/v2/Services/IS999999/Conversations"
         )
 
         # Test add_participant URL
@@ -431,6 +535,102 @@ class TestConversationClient:
         client.add_participant(conversation_id="CH123456")
 
         expected_url = (
-            "https://maestro.twilio.com/v1/Services/IS999999/Conversations/CH123456/Participants"
+            "https://maestro.twilio.com/v2/Services/IS999999/Conversations/CH123456/Participants"
         )
         assert mock_post.call_args[0][0] == expected_url
+
+    @patch("requests.Session.post")
+    def test_add_communication_success(self, mock_post):
+        """Test successful communication addition."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "id": "comms_communication_01k1etk2y5f1y9fpe2epfdtvv2",
+            "conversationId": "CH123456",
+            "accountId": "AC123456",
+            "serviceId": "IS123456",
+            "author": {
+                "address": "+12025551234",
+                "channel": "SMS",
+                "participantId": "comms_participant_123",
+            },
+            "content": {"type": "TEXT", "text": "Hello World!"},
+            "channelId": "SM123456",
+            "recipients": [
+                {
+                    "address": "+12025555678",
+                    "channel": "SMS",
+                    "participantId": "comms_participant_456",
+                    "deliveryStatus": "INITIATED",
+                }
+            ],
+            "createdAt": "2019-08-24T14:15:22Z",
+            "updatedAt": "2019-08-24T14:15:22Z",
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+
+        client = ConversationClient(
+            base_url="https://maestro.twilio.com",
+            account_sid="AC123456",
+            auth_token="test_token",
+            service_id="IS123456",
+        )
+
+        # Create communication request
+        author = CommunicationAuthor(
+            address="+12025551234", channel="SMS", participant_id="comms_participant_123"
+        )
+        content = CommunicationContent(type="TEXT", text="Hello World!")
+        recipient = CommunicationRecipient(
+            address="+12025555678", channel="SMS", participant_id="comms_participant_456"
+        )
+        comm_request = CommunicationRequest(author=author, content=content, recipients=[recipient])
+
+        result = client.add_communication(
+            conversation_id="CH123456", communication_request=comm_request
+        )
+
+        # Verify API call
+        expected_url = (
+            "https://maestro.twilio.com/v2/Services/IS123456/Conversations/CH123456/Communications"
+        )
+        mock_post.assert_called_once()
+        assert mock_post.call_args[0][0] == expected_url
+
+        # Verify request payload
+        payload = mock_post.call_args[1]["json"]
+        assert payload["author"]["address"] == "+12025551234"
+        assert payload["content"]["text"] == "Hello World!"
+        assert len(payload["recipients"]) == 1
+
+        # Verify response
+        assert isinstance(result, CommunicationResponse)
+        assert result.id == "comms_communication_01k1etk2y5f1y9fpe2epfdtvv2"
+        assert result.conversation_id == "CH123456"
+        assert result.author.address == "+12025551234"
+        assert result.content.text == "Hello World!"
+
+    @patch("requests.Session.post")
+    def test_add_communication_api_error(self, mock_post):
+        """Test add_communication handles API errors."""
+        mock_post.side_effect = requests.RequestException("API Error")
+
+        client = ConversationClient(
+            base_url="https://maestro.twilio.com",
+            account_sid="AC123456",
+            auth_token="test_token",
+            service_id="IS123456",
+        )
+
+        # Create communication request
+        author = CommunicationAuthor(
+            address="+12025551234", channel="SMS", participant_id="comms_participant_123"
+        )
+        content = CommunicationContent(type="TEXT", text="Hello World!")
+        recipient = CommunicationRecipient(
+            address="+12025555678", channel="SMS", participant_id="comms_participant_456"
+        )
+        comm_request = CommunicationRequest(author=author, content=content, recipients=[recipient])
+
+        with pytest.raises(requests.RequestException, match="API Error"):
+            client.add_communication(conversation_id="CH123456", communication_request=comm_request)

@@ -6,6 +6,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from taf.models.memory import ProfileResponse
 
 
+class AuthorInfo(BaseModel):
+    """Information about the author of a communication."""
+
+    address: str = Field(..., description="Author address (phone number or identifier)")
+    participant_id: str = Field(..., description="Participant ID of the author in the conversation")
+
+
 class ConversationSession(BaseModel):
     """
     Context information for a conversation session that's passed to callbacks.
@@ -25,6 +32,9 @@ class ConversationSession(BaseModel):
     )
     profile: Optional[ProfileResponse] = Field(
         None, description="Profile information with traits (optional)"
+    )
+    author_info: Optional[AuthorInfo] = Field(
+        None, description="Author information from communication event (optional)"
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

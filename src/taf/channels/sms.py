@@ -8,7 +8,14 @@ from taf import TAF
 from taf.channels.base import BaseChannel
 
 # TODO: Use Vnext Conversation Event when it is ready
-from taf.models.conversation_event import TwilioConversationEvent
+from taf.models.conversation import (
+    CommunicationAuthor,
+    CommunicationContent,
+    CommunicationRecipient,
+    CommunicationRequest,
+)
+from taf.models.conversation_event import ConversationEvent, ConversationEventType
+from taf.models.session import AuthorInfo
 
 
 class SMSChannel(BaseChannel):
@@ -34,32 +41,41 @@ class SMSChannel(BaseChannel):
         Process SMS webhook event and manage conversation lifecycle.
 
         Handles:
-        - onConversationAdded: Initialize new conversation
-        - onMessageAdded: Process message with existing conversation context
-        - onConversationRemoved: Clean up conversation state
+        - conversation.created: Initialize new conversation
+        - participant.added: Track profile_id when customer joins
+        - communication.created: Process incoming messages from customers
+        - conversation.updated: Clean up when conversation is closed
 
         Args:
             webhook_data: Raw webhook event data from Twilio
         """
         try:
-            event = TwilioConversationEvent(**webhook_data)
+            event = ConversationEvent(**webhook_data)
         except Exception as e:
             self.logger.error(f"Failed to parse webhook event: {e}")
             return
 
-        conv_id = event.conversation_sid
+        conv_id = event.conversation_id
         if not conv_id:
-            self.logger.error("No conversation_sid in webhook event")
+            self.logger.error("No conversation_id in webhook event")
+            return
+
+        if event.author_channel and event.author_channel != "SMS":
+            self.logger.debug(
+                f"Ignoring non-SMS event for conversation {conv_id}: "
+                f"author_channel={event.author_channel}"
+            )
             return
 
         # Handle conversation lifecycle events
-        # TODO: Check event_type based on actual webhook data
-        if event.event_type == "onConversationAdded":
-            self._handle_conversation_started(conv_id, event)
-        elif event.event_type == "onMessageAdded":
-            self._handle_message(conv_id, event)
-        elif event.event_type == "onConversationRemoved":
-            self._end_conversation(conv_id)
+        if event.event_type == ConversationEventType.CONVERSATION_CREATED:
+            self._handle_conversation_created(conv_id, event)
+        elif event.event_type == ConversationEventType.PARTICIPANT_ADDED:
+            self._handle_participant_added(conv_id, event)
+        elif event.event_type == ConversationEventType.COMMUNICATION_CREATED:
+            self._handle_communication_created(conv_id, event)
+        elif event.event_type == ConversationEventType.CONVERSATION_UPDATED:
+            self._handle_conversation_updated(conv_id, event)
         else:
             self.logger.debug(f"Ignoring event type: {event.event_type}")
 
@@ -67,7 +83,7 @@ class SMSChannel(BaseChannel):
         self, conversation_id: str, response: str, role: Optional[str] = None
     ) -> None:
         """
-        Send SMS response for a conversation.
+        Send SMS response for a conversation using the Maestro Communications API.
 
         Args:
             conversation_id: Conversation ID to send response to
@@ -118,44 +134,90 @@ class SMSChannel(BaseChannel):
         """Get the channel name identifier."""
         return "sms"
 
-    def _handle_conversation_started(self, conv_id: str, event: TwilioConversationEvent) -> None:
+    def _handle_conversation_created(self, conv_id: str, event: ConversationEvent) -> None:
         """
-        Handle conversation started event.
+        Handle conversation.created event.
 
         Args:
             conv_id: Conversation ID
             event: Parsed conversation event
         """
-        # Extract profile_id from event
-        profile_id = event.profile_id
-        self.twilio.conversations.v1.conversations(conv_id).participants.create(
-            messaging_binding_address=event.author,
-        )
-        self._start_conversation(conv_id, profile_id)
+        self.logger.debug(f"Conversation created: {conv_id}")
+        # Start conversation without profile_id initially
+        # Profile ID will be added when participant.added event arrives
+        self._start_conversation(conv_id, profile_id=None)
 
-    def _handle_message(self, conv_id: str, event: TwilioConversationEvent) -> None:
+    def _handle_participant_added(self, conv_id: str, event: ConversationEvent) -> None:
         """
-        Handle incoming message event.
+        Handle participant.added event.
 
         Args:
             conv_id: Conversation ID
             event: Parsed conversation event
         """
-        # Validate message has content
-        message_body = event.body
-        if not message_body or not message_body.strip():
+        # Only track CUSTOMER participants with profile_id
+        if event.participant_type == "CUSTOMER" and event.profile_id:
+            self.logger.debug(
+                f"Customer participant added to {conv_id} with profile_id: {event.profile_id}"
+            )
+
+            # Auto-initialize conversation if not already started
+            if conv_id not in self._conversations:
+                self._start_conversation(conv_id, event.profile_id)
+            else:
+                # Update existing conversation with profile_id
+                session = self._conversations[conv_id]
+                session.profile_id = event.profile_id
+
+                # Fetch profile immediately
+                if self.taf.is_twilio_memory_enabled():
+                    profile = self.taf.fetch_profile(event.profile_id)
+                    if profile:
+                        session.profile = profile
+        else:
+            self.logger.debug(
+                f"Participant added to {conv_id}: type={event.participant_type}, "
+                f"has_profile={bool(event.profile_id)}"
+            )
+
+    def _handle_communication_created(self, conv_id: str, event: ConversationEvent) -> None:
+        """
+        Handle communication.created event (incoming message).
+
+        Args:
+            conv_id: Conversation ID
+            event: Parsed conversation event
+        """
+        # TODO: Figure out a way to filter out messages from non-CUSTOMER participants
+        if event.author_address == self.taf.config.twilio_phone_number:
+            self.logger.debug(f"Ignoring message from AI agent in conversation {conv_id}")
+            return
+        # Extract message text from body (maybe JSON)
+        message_text = event.get_message_text()
+        if not message_text or not message_text.strip():
             self.logger.debug(f"Empty message in conversation {conv_id}, ignoring")
             return
 
-        # Auto-initialize conversation if not already started
+        # Only process messages from CUSTOMER participants
+        # Check if author is a customer by looking up the participant
         if conv_id not in self._conversations:
-            profile_id = event.profile_id
-            self._start_conversation(conv_id, profile_id)
+            self.logger.debug(
+                f"Received message for unknown conversation {conv_id}, "
+                f"auto-initializing without profile"
+            )
+            self._start_conversation(conv_id, profile_id=None)
 
         session = self._conversations[conv_id]
 
+        # Update session with author info from the communication event
+        if event.author_address and event.author_participant_id:
+            session.author_info = AuthorInfo(
+                address=event.author_address,
+                participant_id=event.author_participant_id,
+            )
+
         # Fetch profile for each message if profile_id is available
-        if session.profile_id:
+        if session.profile_id and self.taf.is_twilio_memory_enabled():
             profile = self.taf.fetch_profile(session.profile_id)
             if profile:
                 # Update session with fresh profile data
@@ -165,7 +227,7 @@ class SMSChannel(BaseChannel):
         memory_response = None
         if self.taf.is_twilio_memory_enabled():
             try:
-                memory_response = self.taf.retrieve_memory(session, query=message_body)
+                memory_response = self.taf.retrieve_memory(session, query=message_text)
                 self.logger.debug(f"Memory retrieved for conversation {conv_id}")
             except Exception as e:
                 self.logger.error(
@@ -180,9 +242,72 @@ class SMSChannel(BaseChannel):
 
         # Trigger message ready callback (with or without memory)
         try:
-            self.taf.trigger_message_ready(message_body, session, memory_response)
+            self.taf.trigger_message_ready(message_text, session, memory_response)
         except Exception as e:
             self.logger.error(
                 f"Error in message ready callback for conversation {conv_id}: {e}",
+                exc_info=True,
+            )
+
+    def _handle_conversation_updated(self, conv_id: str, event: ConversationEvent) -> None:
+        """
+        Handle conversation.updated event.
+
+        Args:
+            conv_id: Conversation ID
+            event: Parsed conversation event
+        """
+        # Check if conversation is closed
+        if event.conversation_status == "CLOSED":
+            self.logger.info(f"Conversation {conv_id} closed, cleaning up")
+            self._end_conversation(conv_id)
+        else:
+            self.logger.debug(f"Conversation {conv_id} updated: status={event.conversation_status}")
+
+    def _send_response_via_maestro(self, conversation_id: str, response: str) -> None:
+        """
+        Send SMS response via Maestro Communications API. This is only for demo purpose.
+
+        TODO: Remove this before going production.
+
+        Args:
+            conversation_id: Conversation ID to send response to
+            response: Message content to send
+        """
+        session = self._conversations[conversation_id]
+
+        # Build recipient from author_info in session
+        if not session.author_info:
+            self.logger.error(
+                f"Cannot send response: no author_info in conversation {conversation_id}"
+            )
+            return
+
+        recipient = CommunicationRecipient(
+            address=session.author_info.address,
+            channel="SMS",
+            participantId=session.author_info.participant_id,
+        )
+        recipients = [recipient]
+
+        # Create author using AI_AGENT type and configured Twilio phone number
+        # Note: We don't need to find an actual AI_AGENT participant,
+        # we can create the author directly
+        author = CommunicationAuthor(
+            address=self.taf.config.twilio_phone_number,
+            channel="SMS",
+            participantId=None,  # No participant ID needed for AI agent
+        )
+        content = CommunicationContent(type="TEXT", text=response)
+        comm_request = CommunicationRequest(author=author, content=content, recipients=recipients)
+
+        # Send communication via Maestro
+        try:
+            self.logger.debug(f"[SMS] Sending communication for conversation {conversation_id}")
+            self.taf.maestro_client.add_communication(conversation_id, comm_request)
+            self.logger.info(f"[SMS] Sent response for conversation {conversation_id}")
+        except Exception as e:
+            self.logger.error(
+                f"Failed to send communication for conversation {conversation_id}: {e}",
                 exc_info=True,
             )

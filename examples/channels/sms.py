@@ -179,9 +179,12 @@ if __name__ == "__main__":
     async def sms_webhook(request: Request) -> JSONResponse:
         """Handle incoming SMS webhooks from Twilio."""
         try:
-            # Twilio sends form-encoded data, not JSON
-            form_data = await request.form()
+            form_data = await request.json()
             webhook_data = dict(form_data)
+
+            # Debug: Log the raw webhook data to see what Twilio is sending
+            logger.debug(f"Received webhook data: {webhook_data}")
+
             sms_channel.process_webhook(webhook_data)
             return JSONResponse(content={"status": "ok"}, status_code=200)
 

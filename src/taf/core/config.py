@@ -77,9 +77,9 @@ class TAFConfig(BaseModel):
     def memora_base_url(self) -> str:
         """Return the Memora base URL based on the environment."""
         memora_urls = {
-            "dev": "https://memory.dev.twilio.com/v1",
-            "stage": "https://memory.stage.twilio.com/v1",
-            "prod": "https://memory.twilio.com/v1",
+            "dev": "https://memory.dev.twilio.com",
+            "stage": "https://memory.stage.twilio.com",
+            "prod": "https://memory.twilio.com",
         }
         return memora_urls[self.environment]
 
@@ -88,9 +88,9 @@ class TAFConfig(BaseModel):
     def maestro_base_url(self) -> str:
         """Return the Maestro base URL based on the environment."""
         maestro_urls = {
-            "dev": "https://conversations.dev.twilio.com/v2",
-            "stage": "https://conversations.stage.twilio.com/v2",
-            "prod": "https://conversations.twilio.com/v2",
+            "dev": "https://conversations.dev.twilio.com",
+            "stage": "https://conversations.stage.twilio.com",
+            "prod": "https://conversations.twilio.com",
         }
         return maestro_urls[self.environment]
 

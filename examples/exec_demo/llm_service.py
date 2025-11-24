@@ -19,8 +19,11 @@ from openai.types.chat import (
 from tools import (
     create_confirm_order_tool,
     create_flex_escalation_tool,
+    get_available_plans,
     look_up_discounts,
     look_up_order_price,
+    look_up_outage,
+    run_diagnostic,
 )
 
 from taf.models.memory import MemoryRetrievalResponse
@@ -42,8 +45,11 @@ class LLMService:
         self.taf = taf
         # Base tools that don't need context injection
         self.base_tools = [
+            get_available_plans,
             look_up_order_price,
             look_up_discounts,
+            look_up_outage,
+            run_diagnostic,
         ]
 
     async def process_message(
@@ -150,6 +156,31 @@ class LLMService:
             "=== CUSTOMER PROFILE ===",
             f"- Profile ID: {context.profile_id}",
         ]
+
+        # Add profile traits if available
+        if context.profile and context.profile.traits:
+            # Check for customer name and add special instruction
+            customer_name = None
+            name_fields = ["name", "firstName"]
+            for field in name_fields:
+                if field in context.profile.traits and context.profile.traits[field]:
+                    customer_name = context.profile.traits[field]
+                    break
+
+            if customer_name:
+                instruction_parts.append("")
+                instruction_parts.append(
+                    f"IMPORTANT: The customer's name is {customer_name}. "
+                    "Address them by name to personalize the conversation."
+                )
+
+            # Add all traits
+            logger.info(f"[CONTEXT] Including {len(context.profile.traits)} traits in instructions")
+            instruction_parts.append("")
+            for trait_key, trait_value in context.profile.traits.items():
+                if trait_value is not None:
+                    instruction_parts.append(f"- {trait_key}: {trait_value}")
+            instruction_parts.append("")
 
         # Add relevant context from observations
         if memory_response and memory_response.observations:

@@ -20,6 +20,30 @@ logger = logging.getLogger(__name__)
 
 
 @agents_function_tool
+async def get_available_plans() -> str:
+    """Get all available internet plans with their details.
+
+    Returns:
+        A formatted string listing all available internet plans with speeds, prices, and descriptions
+    """
+    logger.info("[TOOL:PLANS] Called get_available_plans")
+
+    plans_list = []
+    for speed, plan in INTERNET_PLANS.items():
+        # Skip duplicate entries (1gig, gigabit are aliases for 1000)
+        if speed in ["1gig", "gigabit"]:
+            continue
+
+        plans_list.append(
+            f"- {plan['name']} ({speed} Mbps): {plan['price']}/month - {plan['description']}"
+        )
+
+    message = "Available Internet Plans:\n" + "\n".join(plans_list)
+    logger.info(f"[TOOL:PLANS] Returned {len(plans_list)} plans")
+    return message
+
+
+@agents_function_tool
 async def look_up_order_price(plan_speed: str) -> str:
     """Get pricing for internet plan upgrade.
 
@@ -49,6 +73,66 @@ async def look_up_order_price(plan_speed: str) -> str:
         message = f"Pricing for {plan_speed} plans: Contact customer service for custom enterprise pricing at {COMPANY_INFO['phone']}."
 
     logger.info(f"[TOOL:PRICING] Result: {message}")
+    return message
+
+
+@agents_function_tool
+async def look_up_outage(zip_code: str) -> str:
+    """Check if there was a recent internet outage in a specific zip code.
+
+    Args:
+        zip_code: The zip code to check for outages (e.g., "94103", "10001")
+
+    Returns:
+        Information about recent outages in the specified area
+    """
+    logger.info(f"[TOOL:OUTAGE] Called with zip_code: {zip_code}")
+
+    # Hardcoded to return no outage for now
+    has_outage = False
+
+    if has_outage:
+        message = f"Yes, we detected a recent internet outage in the {zip_code} area. Our team has resolved the issue and service should be fully restored."
+    else:
+        message = f"Good news! There are no reported outages in the {zip_code} area. Your service should be operating normally."
+
+    logger.info(f"[TOOL:OUTAGE] Result: has_outage={has_outage}")
+    return message
+
+
+@agents_function_tool
+async def run_diagnostic(internet_plan: str, router_model: str) -> str:
+    """Run diagnostics to check if customer's router is compatible with their internet plan.
+
+    Args:
+        internet_plan: Customer's internet plan speed (e.g., "300", "500", "1000")
+        router_model: Customer's router model (e.g., "OWL-R2021", "OWL-R2019", "OWL-X5")
+
+    Returns:
+        Diagnostic result indicating if router needs upgrade or is compatible
+    """
+    logger.info(f"[TOOL:DIAGNOSTIC] Called with plan: {internet_plan}, router: {router_model}")
+
+    # Hardcoded diagnostic result for now
+    diagnostic_result = "ROUTER_NEEDS_UPGRADE"
+
+    if diagnostic_result == "ROUTER_NEEDS_UPGRADE":
+        message = (
+            f"Diagnostic complete: Your {router_model} router needs an upgrade to support "
+            f"your {internet_plan} Mbps plan. The current router is limiting your speeds. "
+            f"We recommend upgrading to our OWL-X5 router for optimal performance."
+        )
+    elif diagnostic_result == "ROUTER_COMPATIBLE":
+        message = (
+            f"Diagnostic complete: Your {router_model} router is fully compatible with "
+            f"your {internet_plan} Mbps plan. No upgrade needed."
+        )
+    else:
+        message = (
+            "Diagnostic complete: Unable to determine router compatibility. Please contact support."
+        )
+
+    logger.info(f"[TOOL:DIAGNOSTIC] Result: {diagnostic_result}")
     return message
 
 

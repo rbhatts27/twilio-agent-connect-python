@@ -33,7 +33,7 @@ class TestTAF:
 
         assert isinstance(taf.config, TAFConfig)
         assert taf.config.twilio_auth_token == "test_token_123"
-        assert taf.config.memora_base_url == "https://memory.twilio.com/v1"
+        assert taf.config.memora_base_url == "https://memory.twilio.com"
 
     def test_init_with_config_object(self):
         """Test TAF initialization with TAFConfig object."""
@@ -42,7 +42,7 @@ class TestTAF:
 
         assert isinstance(taf.config, TAFConfig)
         assert taf.config.twilio_auth_token == "test_token_123"
-        assert taf.config.memora_base_url == "https://memory.twilio.com/v1"
+        assert taf.config.memora_base_url == "https://memory.twilio.com"
 
     def test_init_with_empty_config_dict_fails(self):
         """Test TAF initialization with empty configuration dictionary fails."""

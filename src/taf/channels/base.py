@@ -100,6 +100,7 @@ class BaseChannel(ABC):
             profile_id=profile_id,
             channel=self.get_channel_name(),
             profile=profile,
+            author_info=None,
         )
 
     def _end_conversation(self, conv_id: str) -> None:

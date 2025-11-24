@@ -104,3 +104,76 @@ class ParticipantResponse(BaseModel):
     )
 
     model_config = {"populate_by_name": True}
+
+
+class CommunicationAuthor(BaseModel):
+    """Author information for a communication."""
+
+    address: str = Field(..., description="The address of the author (phone number, etc.)")
+    channel: Literal["SMS", "VOICE", "RCS", "EMAIL", "WHATSAPP", "CHAT", "API", "SYSTEM"] = Field(
+        ..., description="The channel for the communication"
+    )
+    participant_id: Optional[str] = Field(
+        default=None, alias="participantId", description="Participant ID"
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class CommunicationContent(BaseModel):
+    """Content information for a communication."""
+
+    type: Literal["TEXT", "TRANSCRIPTION"] = Field(..., description="Content type")
+    text: str = Field(..., description="The text content")
+
+    model_config = {"populate_by_name": True}
+
+
+class CommunicationRecipient(BaseModel):
+    """Recipient information for a communication."""
+
+    address: str = Field(..., description="The address of the recipient (phone number, etc.)")
+    channel: Literal["SMS", "VOICE", "RCS", "EMAIL", "WHATSAPP", "CHAT", "API", "SYSTEM"] = Field(
+        ..., description="The channel for the communication"
+    )
+    participant_id: Optional[str] = Field(
+        default=None, alias="participantId", description="Participant ID"
+    )
+    delivery_status: Optional[str] = Field(
+        default=None, alias="deliveryStatus", description="Delivery status of the communication"
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class CommunicationRequest(BaseModel):
+    """Request payload for adding a communication."""
+
+    author: CommunicationAuthor = Field(..., description="Author of the communication")
+    content: CommunicationContent = Field(..., description="Content of the communication")
+    recipients: list[CommunicationRecipient] = Field(
+        ..., description="List of recipients for the communication"
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class CommunicationResponse(BaseModel):
+    """Response from adding a communication."""
+
+    id: str = Field(..., description="Communication ID")
+    conversation_id: str = Field(..., alias="conversationId", description="Conversation ID")
+    account_id: str = Field(..., alias="accountId", description="Account ID")
+    service_id: str = Field(..., alias="serviceId", description="Service ID")
+    author: CommunicationAuthor = Field(..., description="Author of the communication")
+    content: CommunicationContent = Field(..., description="Content of the communication")
+    channel_id: Optional[str] = Field(
+        default=None, alias="channelId", description="Channel-specific ID"
+    )
+    recipients: list[CommunicationRecipient] = Field(
+        ..., description="List of recipients for the communication"
+    )
+    created_at: str = Field(..., alias="createdAt", description="Creation timestamp")
+    updated_at: str = Field(..., alias="updatedAt", description="Last update timestamp")
+
+    model_config = {"populate_by_name": True}
