@@ -13,7 +13,10 @@ from taf.context.conversation import ConversationClient
 from taf.context.memory import MemoryClient
 from taf.core.config import TAFConfig
 from taf.core.logging import get_logger, setup_logging
-from taf.models.memory import MemoryRetrievalResponse, ProfileResponse
+from taf.models.memory import (
+    MemoryRetrievalResponse,
+    ProfileResponse,
+)
 from taf.models.session import ConversationSession
 
 
@@ -115,46 +118,67 @@ class TAF:
         query: Optional[str] = None,
     ) -> MemoryRetrievalResponse:
         """
-        Retrieve memories from Memora.
+        Retrieve memories from Memora or fallback to Maestro communications.
 
         Args:
             conversation_context: Conversation context containing profile_id and other info
-            query: Optional query string for memory retrieval (typically the user's message)
+            query: Optional query string for memory retrieval (used only with Memora)
 
         Returns:
-            MemoryRetrievalResponse containing observations, summaries, sessions, and metadata
+            MemoryRetrievalResponse containing observations, summaries, communications, and metadata
+
+        Behavior:
+            - If Memora is configured (twilio_memory_config provided):
+              Fetches full memory including observations, summaries, and communications
+              Requires profile_id in conversation_context
+            - If Memora is NOT configured:
+              Falls back to Maestro Communications API to fetch only communications
+              Observations and summaries arrays will be empty
 
         Raises:
-            ValueError: If profile_id is not available in conversation context, or if
-                       memory client is not initialized (twilio_memory_config not provided)
+            ValueError: If Memora is configured but profile_id is missing
+            requests.RequestException: If the API request fails
         """
-        # Check if memory client is initialized
-        if not self.memora_client or not self.config.twilio_memory_config:
-            raise ValueError(
-                "Memory client is not initialized. To use memory retrieval, provide "
-                "twilio_memory_config when creating TAFConfig."
+        # Check if Memora is configured
+        if self.memora_client and self.config.twilio_memory_config:
+            # Original Memora path - requires profile_id
+            if not conversation_context.profile_id:
+                raise ValueError(
+                    "profile_id is required for memory retrieval but was not found in "
+                    "conversation context. Ensure profile_id is provided when creating "
+                    "the ConversationSession."
+                )
+
+            try:
+                memory_response = self.memora_client.retrieve_memory(
+                    profile_id=conversation_context.profile_id,
+                    conversation_id=conversation_context.conversation_id,
+                    query=query,
+                )
+                return memory_response
+            except Exception as e:
+                self.logger.error(f"Failed to retrieve memory from Memora: {e}")
+                raise
+
+        else:
+            # Fallback to Maestro Communications API
+            self.logger.info(
+                "Twilio Memory not configured, falling back to Maestro Communications API"
             )
 
-        # Validate that profile_id is available
-        if not conversation_context.profile_id:
-            raise ValueError(
-                "profile_id is required for memory retrieval but was not found in "
-                "conversation context. Ensure profile_id is provided when creating "
-                "the ConversationSession."
-            )
+            try:
+                # Fetch communications from Maestro
+                communications = self.maestro_client.list_communications(
+                    conversation_id=conversation_context.conversation_id
+                )
 
-        # Get memory_store_id from config
-
-        try:
-            memory_response = self.memora_client.retrieve_memory(
-                profile_id=conversation_context.profile_id,
-                conversation_id=conversation_context.conversation_id,
-                query=query,
-            )
-            return memory_response
-        except Exception as e:
-            self.logger.error(f"Failed to retrieve memory: {e}")
-            raise
+                # Return MemoryRetrievalResponse with only communications populated
+                return MemoryRetrievalResponse(
+                    communications=communications,
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to retrieve communications from Maestro: {e}")
+                raise
 
     def fetch_profile(self, profile_id: str) -> Optional[ProfileResponse]:
         """

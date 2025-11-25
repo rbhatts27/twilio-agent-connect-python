@@ -5,7 +5,6 @@ from requests.auth import HTTPBasicAuth
 
 from taf.core.logging import get_logger
 from taf.models.memory import (
-    MemoryRetrievalMeta,
     MemoryRetrievalRequest,
     MemoryRetrievalResponse,
     ProfileResponse,
@@ -90,20 +89,12 @@ class MemoryClient:
         except requests.RequestException as e:
             self.logger.error(f"Failed to retrieve context from Memora: {e}")
             # Return empty response on API errors
-            return MemoryRetrievalResponse(
-                observations=[],
-                summaries=[],
-                meta=MemoryRetrievalMeta(queryTime=0),
-            )
+            return MemoryRetrievalResponse()
 
         except Exception as e:
             self.logger.error(f"Failed to parse Memora response: {e}")
             # Return empty response on parsing errors
-            return MemoryRetrievalResponse(
-                observations=[],
-                summaries=[],
-                meta=MemoryRetrievalMeta(queryTime=0),
-            )
+            return MemoryRetrievalResponse()
 
     def get_profile(
         self,

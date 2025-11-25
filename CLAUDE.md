@@ -108,7 +108,10 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
    - `onMessageAdded`: Channel validates message → auto-initializes conversation if needed → creates `ConversationSession` with all fields → calls `taf.retrieve_memory(conversation_context, query)`
    - `onConversationRemoved`: Channel calls `_end_conversation(conv_id)` → cleans up session
 
-3. **Message Processing**: `TAF.retrieve_memory(conversation_context, query)` → retrieves memories from Memora using `conversation_context.conversation_id` and `config.twilio_memory_config.memory_store_id` (if memory is enabled) → triggers `on_message_ready()` callback with optional memory response → returns `MemoryRetrievalResponse`
+3. **Message Processing**: `TAF.retrieve_memory(conversation_context, query)` → retrieves memories using one of two paths:
+   - **If Memora is configured** (`twilio_memory_config` provided): Retrieves full memory (observations, summaries, communications) from Memora using `conversation_context.profile_id` and `config.twilio_memory_config.memory_store_id`
+   - **If Memora is NOT configured**: Falls back to Maestro's `list_communications()` API to retrieve only communications (conversation history) - observations and summaries arrays will be empty
+   - Both paths return `MemoryRetrievalResponse` → triggers `on_message_ready()` callback with memory response
 
 4. **Message Ready Hook**: Developers register callbacks via `taf.on_message_ready(callback)` to handle incoming messages
    - For SMS: Receives `user_message`, `context` (ConversationSession), and `memory_response` (MemoryRetrievalResponse)
@@ -139,8 +142,13 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
   - Endpoint: `POST /Services/{service_id}/Conversations`
 - `add_participant(conversation_id, addresses)`: Adds participant, returns `ParticipantResponse`
   - Endpoint: `POST /Services/{service_id}/Conversations/{conversation_id}/Participants`
+- `list_communications(conversation_id, channel_id, page_size, page_token)`: Lists communications for a conversation
+  - Endpoint: `GET /Services/{service_id}/Conversations/{conversation_id}/Communications`
+  - Returns: List of `CommunicationResponse` objects
+  - Used for memory fallback when Memora is not configured
 - Auth: Uses HTTP Basic Authentication (Account SID as username, Auth Token as password)
-- Models (from `src/taf/models/conversation.py`): `ConversationRequest`, `ConversationResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`
+- Models (from `src/taf/models/conversation.py`): `ConversationRequest`, `ConversationResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`, `CommunicationResponse`, `CommunicationsListResponse`
+- Pagination (from `src/taf/models/pagination.py`): `PaginationMeta` - Reusable pagination metadata for API list responses
 
 ## Type Checking and Code Style
 
@@ -177,6 +185,7 @@ Tests are located in `tests/` directory:
 - `test_webhook.py` - Webhook event parsing tests
 - `test_tools.py` - Tools module tests (function_tool decorator, TAFTool format conversions)
 - `test_profile_retrieval.py` - Profile retrieval tests (trait_groups, fetch_profile, context.profile)
+- `test_memory_fallback.py` - Memory retrieval fallback tests (Memora to Maestro fallback)
 - `test_init.py` - Package initialization tests
 
 Test requirements (pytest.ini_options in pyproject.toml):

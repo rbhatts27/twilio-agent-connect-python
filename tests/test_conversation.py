@@ -7,11 +7,10 @@ import requests
 
 from taf.context.conversation import ConversationClient
 from taf.models.conversation import (
-    CommunicationAuthor,
+    Communication,
     CommunicationContent,
-    CommunicationRecipient,
+    CommunicationParticipant,
     CommunicationRequest,
-    CommunicationResponse,
     ConversationConfiguration,
     ConversationRequest,
     ConversationResponse,
@@ -190,7 +189,7 @@ class TestConversationModels:
                 "channel": "SMS",
                 "participantId": "comms_participant_01k1etx3jbfx88476ccja0889c",
             },
-            "content": {"type": "TEXT", "text": "Hello World!"},
+            "content": {"text": "Hello World!"},
             "recipients": [
                 {
                     "address": "+12025551234",
@@ -205,21 +204,20 @@ class TestConversationModels:
         assert request.author.address == "+12025551234"
         assert request.author.channel == "SMS"
         assert request.author.participant_id == "comms_participant_01k1etx3jbfx88476ccja0889c"
-        assert request.content.type == "TEXT"
         assert request.content.text == "Hello World!"
         assert len(request.recipients) == 1
         assert request.recipients[0].address == "+12025551234"
 
     def test_communication_request_model_dump(self):
         """Test CommunicationRequest model_dump with alias mapping."""
-        author = CommunicationAuthor(
+        author = CommunicationParticipant(
             address="+12025551234",
             channel="SMS",
-            participant_id="comms_participant_123",
+            participantId="comms_participant_123",
         )
         content = CommunicationContent(type="TEXT", text="Hello World!")
-        recipient = CommunicationRecipient(
-            address="+12025555678", channel="SMS", participant_id="comms_participant_456"
+        recipient = CommunicationParticipant(
+            address="+12025555678", channel="SMS", participantId="comms_participant_456"
         )
         request = CommunicationRequest(author=author, content=content, recipients=[recipient])
 
@@ -242,18 +240,15 @@ class TestConversationModels:
         }
 
     def test_communication_response_model(self):
-        """Test CommunicationResponse model with all fields."""
+        """Test Communication model with all fields."""
         response_data = {
             "id": "comms_communication_01k1etk2y5f1y9fpe2epfdtvv2",
-            "conversationId": "CH123456",
-            "accountId": "AC123456",
-            "serviceId": "IS123456",
             "author": {
                 "address": "+12025551234",
                 "channel": "SMS",
                 "participantId": "comms_participant_01k1etx3jbfx88476ccja0889c",
             },
-            "content": {"type": "TEXT", "text": "Hello World!"},
+            "content": {"text": "Hello World!"},
             "channelId": "SM123456",
             "recipients": [
                 {
@@ -267,17 +262,13 @@ class TestConversationModels:
             "updatedAt": "2019-08-24T14:15:22Z",
         }
 
-        response = CommunicationResponse(**response_data)
+        response = Communication(**response_data)
 
         assert response.id == "comms_communication_01k1etk2y5f1y9fpe2epfdtvv2"
-        assert response.conversation_id == "CH123456"
-        assert response.account_id == "AC123456"
-        assert response.service_id == "IS123456"
         assert response.author.address == "+12025551234"
         assert response.content.text == "Hello World!"
         assert response.channel_id == "SM123456"
         assert len(response.recipients) == 1
-        assert response.recipients[0].delivery_status == "INITIATED"
         assert response.created_at == "2019-08-24T14:15:22Z"
         assert response.updated_at == "2019-08-24T14:15:22Z"
 
@@ -577,12 +568,12 @@ class TestConversationClient:
         )
 
         # Create communication request
-        author = CommunicationAuthor(
-            address="+12025551234", channel="SMS", participant_id="comms_participant_123"
+        author = CommunicationParticipant(
+            address="+12025551234", channel="SMS", participantId="comms_participant_123"
         )
         content = CommunicationContent(type="TEXT", text="Hello World!")
-        recipient = CommunicationRecipient(
-            address="+12025555678", channel="SMS", participant_id="comms_participant_456"
+        recipient = CommunicationParticipant(
+            address="+12025555678", channel="SMS", participantId="comms_participant_456"
         )
         comm_request = CommunicationRequest(author=author, content=content, recipients=[recipient])
 
@@ -604,9 +595,8 @@ class TestConversationClient:
         assert len(payload["recipients"]) == 1
 
         # Verify response
-        assert isinstance(result, CommunicationResponse)
+        assert isinstance(result, Communication)
         assert result.id == "comms_communication_01k1etk2y5f1y9fpe2epfdtvv2"
-        assert result.conversation_id == "CH123456"
         assert result.author.address == "+12025551234"
         assert result.content.text == "Hello World!"
 
@@ -623,14 +613,155 @@ class TestConversationClient:
         )
 
         # Create communication request
-        author = CommunicationAuthor(
-            address="+12025551234", channel="SMS", participant_id="comms_participant_123"
+        author = CommunicationParticipant(
+            address="+12025551234", channel="SMS", participantId="comms_participant_123"
         )
         content = CommunicationContent(type="TEXT", text="Hello World!")
-        recipient = CommunicationRecipient(
-            address="+12025555678", channel="SMS", participant_id="comms_participant_456"
+        recipient = CommunicationParticipant(
+            address="+12025555678", channel="SMS", participantId="comms_participant_456"
         )
         comm_request = CommunicationRequest(author=author, content=content, recipients=[recipient])
 
         with pytest.raises(requests.RequestException, match="API Error"):
             client.add_communication(conversation_id="CH123456", communication_request=comm_request)
+
+    @patch("requests.Session.get")
+    def test_list_communications_success(self, mock_get):
+        """Test successful communications list retrieval."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "communications": [
+                {
+                    "id": "comms_communication_01",
+                    "conversationId": "CH123456",
+                    "accountId": "AC123456",
+                    "serviceId": "IS123456",
+                    "author": {
+                        "address": "+12025551234",
+                        "channel": "SMS",
+                        "participantId": "comms_participant_123",
+                    },
+                    "content": {"type": "TEXT", "text": "Hello"},
+                    "recipients": [
+                        {
+                            "address": "+12025555678",
+                            "channel": "SMS",
+                            "participantId": "comms_participant_456",
+                        }
+                    ],
+                    "createdAt": "2019-08-24T14:15:22Z",
+                    "updatedAt": "2019-08-24T14:15:22Z",
+                },
+                {
+                    "id": "comms_communication_02",
+                    "conversationId": "CH123456",
+                    "accountId": "AC123456",
+                    "serviceId": "IS123456",
+                    "author": {
+                        "address": "+12025555678",
+                        "channel": "SMS",
+                        "participantId": "comms_participant_456",
+                    },
+                    "content": {"type": "TEXT", "text": "World"},
+                    "recipients": [
+                        {
+                            "address": "+12025551234",
+                            "channel": "SMS",
+                            "participantId": "comms_participant_123",
+                        }
+                    ],
+                    "createdAt": "2019-08-24T14:16:22Z",
+                    "updatedAt": "2019-08-24T14:16:22Z",
+                },
+            ],
+            "meta": {
+                "key": "items",
+                "pageSize": 20,
+                "previousToken": None,
+                "nextToken": "eyJwYWdlIjoyLCJxdWVyeSI6ImJvb2tzIn0=",
+            },
+        }
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        client = ConversationClient(
+            base_url="https://maestro.twilio.com",
+            account_sid="AC123456",
+            auth_token="test_token",
+            service_id="IS123456",
+        )
+
+        result = client.list_communications(conversation_id="CH123456")
+
+        # Verify API call
+        expected_url = (
+            "https://maestro.twilio.com/v2/Services/IS123456/Conversations/CH123456/Communications"
+        )
+        mock_get.assert_called_once_with(expected_url, params={})
+
+        # Verify response
+        assert len(result) == 2
+        assert result[0].id == "comms_communication_01"
+        assert result[0].content.text == "Hello"
+        assert result[1].id == "comms_communication_02"
+        assert result[1].content.text == "World"
+
+    @patch("requests.Session.get")
+    def test_list_communications_with_parameters(self, mock_get):
+        """Test list_communications with query parameters."""
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "communications": [],
+            "meta": {
+                "key": "items",
+                "pageSize": 50,
+                "previousToken": None,
+                "nextToken": None,
+            },
+        }
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        client = ConversationClient(
+            base_url="https://maestro.twilio.com",
+            account_sid="AC123456",
+            auth_token="test_token",
+            service_id="IS123456",
+        )
+
+        result = client.list_communications(
+            conversation_id="CH123456",
+            channel_id="SM123456",
+            page_size=50,
+            page_token="token123",
+        )
+
+        # Verify API call includes query parameters
+        expected_url = (
+            "https://maestro.twilio.com/v2/Services/IS123456/Conversations/CH123456/Communications"
+        )
+        expected_params = {
+            "channelId": "SM123456",
+            "pageSize": 50,
+            "pageToken": "token123",
+        }
+        mock_get.assert_called_once_with(expected_url, params=expected_params)
+
+        # Verify response
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    @patch("requests.Session.get")
+    def test_list_communications_api_error(self, mock_get):
+        """Test list_communications handles API errors."""
+        mock_get.side_effect = requests.RequestException("API Error")
+
+        client = ConversationClient(
+            base_url="https://maestro.twilio.com",
+            account_sid="AC123456",
+            auth_token="test_token",
+            service_id="IS123456",
+        )
+
+        with pytest.raises(requests.RequestException, match="API Error"):
+            client.list_communications(conversation_id="CH123456")

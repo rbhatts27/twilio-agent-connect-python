@@ -4,6 +4,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from taf.models.pagination import PaginationMeta
+
 
 class ParticipantAddress(BaseModel):
     """Communication address for a conversation participant."""
@@ -106,41 +108,72 @@ class ParticipantResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class CommunicationAuthor(BaseModel):
-    """Author information for a communication."""
+class CommunicationParticipant(BaseModel):
+    """Author or recipient in a communication."""
 
-    address: str = Field(..., description="The address of the author (phone number, etc.)")
-    channel: Literal["SMS", "VOICE", "RCS", "EMAIL", "WHATSAPP", "CHAT", "API", "SYSTEM"] = Field(
+    address: str = Field(
+        ...,
+        max_length=254,
+        description="Address of the participant (e.g., phone number, email address)",
+        json_schema_extra={"example": "+12025551234"},
+    )
+    channel: Literal["VOICE", "SMS", "RCS", "EMAIL", "WHATSAPP", "CHAT", "API", "SYSTEM"] = Field(
         ..., description="The channel for the communication"
     )
     participant_id: Optional[str] = Field(
-        default=None, alias="participantId", description="Participant ID"
+        default=None,
+        alias="participantId",
+        description="Participant identifier",
+        json_schema_extra={"example": "comms_participant_00000000000000000000000000"},
     )
 
     model_config = {"populate_by_name": True}
 
 
 class CommunicationContent(BaseModel):
-    """Content information for a communication."""
+    """Content of a communication."""
 
-    type: Literal["TEXT", "TRANSCRIPTION"] = Field(..., description="Content type")
-    text: str = Field(..., description="The text content")
+    type: Literal["TEXT", "TRANSCRIPTION"] = Field("TEXT", description="Content type")
+    text: Optional[str] = Field(
+        default=None,
+        max_length=8388608,
+        description="Primary text content (optional)",
+        json_schema_extra={"example": "Hello, I need help with my account"},
+    )
 
     model_config = {"populate_by_name": True}
 
 
-class CommunicationRecipient(BaseModel):
-    """Recipient information for a communication."""
+class Communication(BaseModel):
+    """A communication representing a message exchanged in a conversation."""
 
-    address: str = Field(..., description="The address of the recipient (phone number, etc.)")
-    channel: Literal["SMS", "VOICE", "RCS", "EMAIL", "WHATSAPP", "CHAT", "API", "SYSTEM"] = Field(
-        ..., description="The channel for the communication"
+    id: str = Field(
+        ...,
+        description="Unique communication identifier",
+        json_schema_extra={"example": "comms_communication_00000000000000000000000000"},
     )
-    participant_id: Optional[str] = Field(
-        default=None, alias="participantId", description="Participant ID"
+    author: CommunicationParticipant = Field(..., description="Author of the communication")
+    content: CommunicationContent = Field(..., description="Content of the communication")
+    recipients: list[CommunicationParticipant] = Field(..., description="Communication recipients")
+    channel_id: Optional[str] = Field(
+        default=None,
+        alias="channelId",
+        description="Channel-specific ID (optional)",
+        json_schema_extra={"example": "SM00000000000000000000000000000000"},
     )
-    delivery_status: Optional[str] = Field(
-        default=None, alias="deliveryStatus", description="Delivery status of the communication"
+    created_at: str = Field(
+        ...,
+        alias="createdAt",
+        max_length=30,
+        description="When communication was created",
+        json_schema_extra={"example": "2025-01-15T10:15:30Z"},
+    )
+    updated_at: Optional[str] = Field(
+        default=None,
+        alias="updatedAt",
+        max_length=30,
+        description="When communication was last updated",
+        json_schema_extra={"example": "2025-01-15T10:20:30Z"},
     )
 
     model_config = {"populate_by_name": True}
@@ -149,31 +182,19 @@ class CommunicationRecipient(BaseModel):
 class CommunicationRequest(BaseModel):
     """Request payload for adding a communication."""
 
-    author: CommunicationAuthor = Field(..., description="Author of the communication")
+    author: CommunicationParticipant = Field(..., description="Author of the communication")
     content: CommunicationContent = Field(..., description="Content of the communication")
-    recipients: list[CommunicationRecipient] = Field(
+    recipients: list[CommunicationParticipant] = Field(
         ..., description="List of recipients for the communication"
     )
 
     model_config = {"populate_by_name": True}
 
 
-class CommunicationResponse(BaseModel):
-    """Response from adding a communication."""
+class CommunicationsListResponse(BaseModel):
+    """Response from list communications endpoint."""
 
-    id: str = Field(..., description="Communication ID")
-    conversation_id: str = Field(..., alias="conversationId", description="Conversation ID")
-    account_id: str = Field(..., alias="accountId", description="Account ID")
-    service_id: str = Field(..., alias="serviceId", description="Service ID")
-    author: CommunicationAuthor = Field(..., description="Author of the communication")
-    content: CommunicationContent = Field(..., description="Content of the communication")
-    channel_id: Optional[str] = Field(
-        default=None, alias="channelId", description="Channel-specific ID"
-    )
-    recipients: list[CommunicationRecipient] = Field(
-        ..., description="List of recipients for the communication"
-    )
-    created_at: str = Field(..., alias="createdAt", description="Creation timestamp")
-    updated_at: str = Field(..., alias="updatedAt", description="Last update timestamp")
+    communications: list[Communication] = Field(..., description="List of communications")
+    meta: PaginationMeta = Field(..., description="Pagination metadata")
 
     model_config = {"populate_by_name": True}

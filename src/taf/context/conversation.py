@@ -1,12 +1,13 @@
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 import requests
 from requests.auth import HTTPBasicAuth
 
 from taf.core.logging import get_logger
 from taf.models.conversation import (
+    Communication,
     CommunicationRequest,
-    CommunicationResponse,
+    CommunicationsListResponse,
     ConversationRequest,
     ConversationResponse,
     ParticipantAddress,
@@ -147,7 +148,7 @@ class ConversationClient:
         self,
         conversation_id: str,
         communication_request: CommunicationRequest,
-    ) -> CommunicationResponse:
+    ) -> Communication:
         """
         Add a new communication to a conversation.
 
@@ -156,7 +157,7 @@ class ConversationClient:
             communication_request: CommunicationRequest object with author, content, and recipients
 
         Returns:
-            CommunicationResponse object containing the created communication details
+            Communication object containing the created communication details
 
         Raises:
             requests.RequestException: If the API request fails
@@ -174,9 +175,55 @@ class ConversationClient:
                 json=request_payload,
             )
             response.raise_for_status()
-            communication = CommunicationResponse(**response.json())
+            communication = Communication(**response.json())
             return communication
 
         except requests.RequestException as e:
             self.logger.error(f"Failed to add communication: {e}")
+            raise
+
+    def list_communications(
+        self,
+        conversation_id: str,
+        channel_id: Optional[str] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+    ) -> list[Communication]:
+        """
+        List communications for a conversation.
+
+        Args:
+            conversation_id: The conversation ID to list communications for
+            channel_id: Optional channel ID filter (call ID, message ID, etc.)
+            page_size: Maximum number of items to return (1-1000)
+            page_token: Token for pagination
+
+        Returns:
+            List of Communication objects
+
+        Raises:
+            requests.RequestException: If the API request fails
+        """
+        url = (
+            f"{self.base_url}/v2/Services/{self.service_id}/Conversations/"
+            f"{conversation_id}/Communications"
+        )
+
+        # Build query parameters
+        params: dict[str, Any] = {}
+        if channel_id:
+            params["channelId"] = channel_id
+        if page_size:
+            params["pageSize"] = page_size
+        if page_token:
+            params["pageToken"] = page_token
+
+        try:
+            response = self.session.get(url, params=params)
+            response.raise_for_status()
+            communications_list = CommunicationsListResponse(**response.json())
+            return communications_list.communications
+
+        except requests.RequestException as e:
+            self.logger.error(f"Failed to list communications: {e}")
             raise

@@ -9,9 +9,8 @@ from taf.channels.base import BaseChannel
 
 # TODO: Use Vnext Conversation Event when it is ready
 from taf.models.conversation import (
-    CommunicationAuthor,
     CommunicationContent,
-    CommunicationRecipient,
+    CommunicationParticipant,
     CommunicationRequest,
 )
 from taf.models.conversation_event import ConversationEvent, ConversationEventType
@@ -283,7 +282,7 @@ class SMSChannel(BaseChannel):
             )
             return
 
-        recipient = CommunicationRecipient(
+        recipient = CommunicationParticipant(
             address=session.author_info.address,
             channel="SMS",
             participantId=session.author_info.participant_id,
@@ -293,7 +292,7 @@ class SMSChannel(BaseChannel):
         # Create author using AI_AGENT type and configured Twilio phone number
         # Note: We don't need to find an actual AI_AGENT participant,
         # we can create the author directly
-        author = CommunicationAuthor(
+        author = CommunicationParticipant(
             address=self.taf.config.twilio_phone_number,
             channel="SMS",
             participantId=None,  # No participant ID needed for AI agent

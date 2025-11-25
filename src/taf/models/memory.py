@@ -1,6 +1,8 @@
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
+
+from taf.models.conversation import Communication
 
 
 class MemoryRetrievalRequest(BaseModel):
@@ -198,128 +200,11 @@ class SummaryInfo(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class Participant(BaseModel):
-    """Participant in a communication."""
-
-    id: str = Field(
-        ...,
-        description="Participant identifier",
-        json_schema_extra={"example": "comms_participant_00000000000000000000000000"},
-    )
-    name: str = Field(..., description="Participant display name")
-    address: str = Field(
-        ...,
-        max_length=254,
-        description="Address of the Participant (e.g., phone number, email address)",
-        json_schema_extra={"example": "+12025551234"},
-    )
-    channel: Literal["VOICE", "SMS", "RCS", "EMAIL", "WHATSAPP", "CHAT", "API", "SYSTEM"] = Field(
-        ..., description="The channel on which the message originated"
-    )
-    type: Optional[Literal["HUMAN_AGENT", "CUSTOMER", "AI_AGENT"]] = Field(
-        default=None, description="Type of Participant in the Conversation"
-    )
-    profile_id: Optional[str] = Field(
-        default=None,
-        alias="profileId",
-        description="The canonical profile ID",
-        json_schema_extra={"example": "mem_profile_00000000000000000000000000"},
-    )
-
-    model_config = {"populate_by_name": True}
-
-
-class CommunicationContent(BaseModel):
-    """Content of a communication."""
-
-    text: Optional[str] = Field(
-        default=None,
-        max_length=8388608,
-        description="Primary text content (optional)",
-        json_schema_extra={"example": "Hello, I need help with my account"},
-    )
-
-    model_config = {"populate_by_name": True}
-
-
-class Recipient(BaseModel):
-    """Recipient of a communication."""
-
-    id: str = Field(
-        ...,
-        description="Participant identifier",
-        json_schema_extra={"example": "comms_participant_00000000000000000000000000"},
-    )
-    name: str = Field(..., description="Participant display name")
-    address: str = Field(
-        ...,
-        max_length=254,
-        description="Address of the Participant (e.g., phone number, email address)",
-        json_schema_extra={"example": "+12025551234"},
-    )
-    channel: Literal["VOICE", "SMS", "RCS", "EMAIL", "WHATSAPP", "CHAT", "API", "SYSTEM"] = Field(
-        ..., description="The channel on which the message originated"
-    )
-    type: Optional[Literal["HUMAN_AGENT", "CUSTOMER", "AI_AGENT"]] = Field(
-        default=None, description="Type of Participant in the Conversation"
-    )
-    profile_id: Optional[str] = Field(
-        default=None,
-        alias="profileId",
-        description="The canonical profile ID",
-        json_schema_extra={"example": "mem_profile_00000000000000000000000000"},
-    )
-    delivery_status: Optional[
-        Literal["INITIATED", "IN_PROGRESS", "DELIVERED", "COMPLETED", "FAILED"]
-    ] = Field(
-        default=None,
-        alias="deliveryStatus",
-        description="Delivery status of the Communication to this recipient",
-    )
-
-    model_config = {"populate_by_name": True}
-
-
-class Communication(BaseModel):
-    """A communication memory representing a message exchanged in a conversation."""
-
-    id: str = Field(
-        ...,
-        description="Unique communication identifier",
-        json_schema_extra={"example": "comms_communication_00000000000000000000000000"},
-    )
-    author: Participant = Field(..., description="Author of the communication")
-    content: CommunicationContent = Field(..., description="Content of the communication")
-    recipients: list[Recipient] = Field(..., description="Communication recipients")
-    channel_id: Optional[str] = Field(
-        default=None,
-        alias="channelId",
-        description="Channel-specific ID (optional)",
-        json_schema_extra={"example": "SM00000000000000000000000000000000"},
-    )
-    created_at: str = Field(
-        ...,
-        alias="createdAt",
-        max_length=30,
-        description="When communication was created",
-        json_schema_extra={"example": "2025-01-15T10:15:30Z"},
-    )
-    updated_at: Optional[str] = Field(
-        default=None,
-        alias="updatedAt",
-        max_length=30,
-        description="When communication was last updated",
-        json_schema_extra={"example": "2025-01-15T10:20:30Z"},
-    )
-
-    model_config = {"populate_by_name": True}
-
-
 class MemoryRetrievalMeta(BaseModel):
     """Metadata about the memory retrieval operation."""
 
-    query_time: int = Field(
-        ...,
+    query_time: Optional[int] = Field(
+        default=None,
         alias="queryTime",
         ge=0,
         le=600000,
@@ -334,15 +219,19 @@ class MemoryRetrievalResponse(BaseModel):
     """Response from the memory retrieval API."""
 
     observations: list[ObservationInfo] = Field(
-        ..., max_length=100, description="Array of observation memories"
+        default=[], max_length=100, description="Array of observation memories"
     )
     summaries: list[SummaryInfo] = Field(
-        ..., max_length=100, description="Array of summary memories from end of conversations"
+        default=[],
+        max_length=100,
+        description="Array of summary memories from end of conversations",
     )
     communications: Optional[list[Communication]] = Field(
-        default=None, max_length=100, description="Array of communication memories"
+        default=[], max_length=100, description="Array of communication memories"
     )
-    meta: MemoryRetrievalMeta = Field(..., description="Metadata about the retrieval operation")
+    meta: MemoryRetrievalMeta = Field(
+        default_factory=MemoryRetrievalMeta, description="Metadata about the retrieval operation"
+    )
 
     model_config = {"populate_by_name": True}
 
