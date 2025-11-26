@@ -62,7 +62,7 @@ FastAPI server to receive and process Twilio SMS webhooks with TAF, featuring co
 
 **Additional Environment Variables:**
 ```bash
-OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
+TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 ```
 
 **Features:**
@@ -142,8 +142,8 @@ Basic voice server with FastAPI, TwiML generation, and WebSocket handling for Tw
 
 **Additional Environment Variables:**
 ```bash
-VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
-OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
+TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
+TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 ```
 
 **Features:**
@@ -156,13 +156,13 @@ OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 
 **Usage:**
 ```bash
-# 1. Add VOICE_PUBLIC_DOMAIN to your .env file
-VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
+# 1. Add TWILIO_TAF_VOICE_PUBLIC_DOMAIN to your .env file
+TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
 
 # 2. Start ngrok tunnel (in separate terminal)
 ngrok http 8000 --domain={your-ngrok-domain}
 
-# 3. Verify VOICE_PUBLIC_DOMAIN in .env matches your ngrok domain
+# 3. Verify TWILIO_TAF_VOICE_PUBLIC_DOMAIN in .env matches your ngrok domain
 
 # 4. Run voice server
 uv run python examples/channels/voice.py
@@ -226,8 +226,8 @@ Advanced voice server demonstrating agent handoff to Twilio Flex for human escal
 
 **Additional Environment Variables:**
 ```bash
-VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
-OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
+TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
+TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 # Additional Flex configuration may be required
 ```
 
@@ -302,9 +302,9 @@ Advanced voice server demonstrating custom agent streaming with session manageme
 
 **Additional Environment Variables:**
 ```bash
-VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
+TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
 WEBSOCKET_PORT=8080  # Port for WebSocket server
-OPENAI_API_KEY=sk-xxxxx...  # For this example (can be any LLM)
+TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For this example (can be any LLM)
 ```
 
 **Features:**
@@ -318,7 +318,7 @@ OPENAI_API_KEY=sk-xxxxx...  # For this example (can be any LLM)
 **Usage:**
 ```bash
 # 1. Add configuration to .env
-VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
+TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
 WEBSOCKET_PORT=8080
 
 # 2. Start ngrok tunnel

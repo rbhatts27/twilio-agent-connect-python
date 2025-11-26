@@ -32,8 +32,14 @@ We recommend using [uv](https://docs.astral.sh/uv/) for the best development exp
 uv init
 uv add git+https://github.com/twilio-internal/twilio-agentic-framework-python.git
 
-# Install with voice support (includes websockets)
+# Install with voice support (includes FastAPI and uvicorn)
 uv add git+https://github.com/twilio-internal/twilio-agentic-framework-python.git --extra voice
+
+# Install with Bedrock support (includes boto3)
+uv add git+https://github.com/twilio-internal/twilio-agentic-framework-python.git --extra bedrock
+
+# Install with multiple extras
+uv add git+https://github.com/twilio-internal/twilio-agentic-framework-python.git --extra voice --extra bedrock
 ```
 
 ### pip/venv (Alternative)
@@ -47,34 +53,35 @@ pip install git+https://github.com/twilio-internal/twilio-agentic-framework-pyth
 
 # Install with voice support
 pip install "git+https://github.com/twilio-internal/twilio-agentic-framework-python.git[voice]"
+
+# Install with Bedrock support
+pip install "git+https://github.com/twilio-internal/twilio-agentic-framework-python.git[bedrock]"
+
+# Install with multiple extras
+pip install "git+https://github.com/twilio-internal/twilio-agentic-framework-python.git[voice,bedrock]"
 ```
 
 ## Quick Example: SMS Channel with Memory
 
 ```python
-from typing import List, Optional
+from typing import Optional
 from taf import TAF, TAFConfig
 from taf.channels.sms import SMSChannel
-from taf.core.context import ConversationSession
-from taf.context.memory import MemoryRetrievalResponse
+from taf.models.session import ConversationSession
+from taf.models.memory import MemoryRetrievalResponse
 
-# 1. Configure TAF with your Twilio credentials
-from taf.core.config import TwilioMemoryConfig
+# 1. Configure TAF - automatically loads from environment variables
+# Set these in your .env file:
+#   TWILIO_TAF_ENVIRONMENT=prod
+#   TWILIO_TAF_ACCOUNT_SID=ACxxxxx...
+#   TWILIO_TAF_AUTH_TOKEN=your_auth_token
+#   TWILIO_TAF_PHONE_NUMBER=+1234567890
+#   TWILIO_TAF_CONVERSATION_SERVICE_SID=ISxxxxx...
+#   TWILIO_TAF_MEMORY_STORE_ID=MGxxxxx... (optional)
+#   TWILIO_TAF_MEMORY_API_KEY=your_api_key (optional)
+#   TWILIO_TAF_MEMORY_API_TOKEN=your_api_token (optional)
 
-config = TAFConfig(
-    environment="prod",  # or "dev" or "stage"
-    twilio_account_sid="ACxxxxx...",
-    twilio_auth_token="your_auth_token",
-    twilio_phone_number="+1234567890",
-    twilio_memory_config=TwilioMemoryConfig(
-        memory_store_id="MGxxxxx...",
-        api_key="your_api_key",
-        api_token="your_api_token"
-    ),  # Optional
-    conversation_service_sid="ISxxxxx..."
-)
-
-taf = TAF(config)
+taf = TAF(config=TAFConfig.from_env())
 
 # 2. Register callback for when messages are processed
 def handle_message_ready(
@@ -115,26 +122,11 @@ For the fastest way to get started with voice, use the built-in server configura
 import os
 from taf import TAF, TAFConfig, VoiceServerConfig
 from taf.channels.voice import VoiceChannel
-from taf.core.context import ConversationSession
+from taf.models.session import ConversationSession
 from taf.models.memory import MemoryRetrievalResponse
 
-# 1. Configure TAF
-from taf.core.config import TwilioMemoryConfig
-
-config = TAFConfig(
-    environment="prod",
-    twilio_account_sid="ACxxxxx...",
-    twilio_auth_token="your_auth_token",
-    twilio_phone_number="+1234567890",
-    twilio_memory_config=TwilioMemoryConfig(
-        memory_store_id="MGxxxxx...",
-        api_key="your_api_key",
-        api_token="your_api_token"
-    ),  # Optional
-    conversation_service_sid="ISxxxxx..."
-)
-
-taf = TAF(config)
+# 1. Configure TAF - automatically loads from environment variables
+taf = TAF(config=TAFConfig.from_env())
 
 # 2. Register callback for when memories are retrieved
 async def handle_memory_ready(
@@ -153,7 +145,7 @@ taf.on_memory_ready(handle_memory_ready)
 voice_channel = VoiceChannel(
     taf=taf,
     server_config=VoiceServerConfig(
-        public_domain=os.environ["VOICE_PUBLIC_DOMAIN"],  # Your ngrok domain
+        public_domain=os.environ["TWILIO_TAF_VOICE_PUBLIC_DOMAIN"],  # Your ngrok domain
         host="0.0.0.0",
         port=8000,
         welcome_greeting="Hello! How can I assist you today?",
@@ -175,17 +167,57 @@ For manual control over FastAPI configuration, see [`examples/channels/voice.py`
 
 ## Configuration
 
-TAF requires the following configuration parameters:
+TAF can be configured using environment variables (recommended) or programmatically.
 
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `environment` | TAF environment - automatically sets Memora and Maestro URLs | `"prod"`, `"stage"`, or `"dev"` |
-| `twilio_account_sid` | Your Twilio Account SID | `ACxxxxx...` |
-| `twilio_auth_token` | Your Twilio Auth Token | From Twilio Console |
-| `twilio_phone_number` | Your Twilio Phone Number | `+1234567890` |
-| `twilio_memory_config` | Optional Twilio Memory configuration (requires `memory_store_id`, `api_key`, and `api_token`) | `TwilioMemoryConfig(memory_store_id="MGxxxxx...", api_key="...", api_token="...")` |
-| `conversation_service_sid` | Twilio Conversation Service SID | `ISxxxxx...` |
-| `log_level` | Logging level (optional) | `INFO` (default) |
+### Using Environment Variables (Recommended)
+
+Set these in your `.env` file and use `TAFConfig.from_env()`:
+
+```python
+from taf import TAF, TAFConfig
+
+# Automatically loads all configuration from environment
+taf = TAF(config=TAFConfig.from_env())
+```
+
+**Required Environment Variables:**
+- `TWILIO_TAF_ENVIRONMENT` - TAF environment: `"prod"`, `"stage"`, or `"dev"` (sets Memora and Maestro URLs)
+- `TWILIO_TAF_ACCOUNT_SID` - Your Twilio Account SID (e.g., `ACxxxxx...`)
+- `TWILIO_TAF_AUTH_TOKEN` - Your Twilio Auth Token
+- `TWILIO_TAF_PHONE_NUMBER` - Your Twilio Phone Number (e.g., `+1234567890`)
+- `TWILIO_TAF_CONVERSATION_SERVICE_SID` - Twilio Conversation Service SID (e.g., `ISxxxxx...`)
+
+**Optional Environment Variables:**
+- `TWILIO_TAF_LOG_LEVEL` - Logging level (default: `INFO`)
+- `TWILIO_TAF_MEMORY_STORE_ID` - Memora Memory Store ID (e.g., `MGxxxxx...`)
+- `TWILIO_TAF_MEMORY_API_KEY` - API Key for Memora
+- `TWILIO_TAF_MEMORY_API_TOKEN` - API Token for Memora
+- `TWILIO_TAF_TRAIT_GROUPS` - Comma-separated trait groups (e.g., `"Contact,Preferences"`)
+
+### Manual Configuration
+
+You can also configure TAF programmatically:
+
+```python
+from taf import TAF, TAFConfig
+from taf.core.config import TwilioMemoryConfig
+
+config = TAFConfig(
+    environment="prod",
+    twilio_account_sid="ACxxxxx...",
+    twilio_auth_token="your_auth_token",
+    twilio_phone_number="+1234567890",
+    conversation_service_sid="ISxxxxx...",
+    twilio_memory_config=TwilioMemoryConfig(  # Optional
+        memory_store_id="MGxxxxx...",
+        api_key="your_api_key",
+        api_token="your_api_token",
+        trait_groups=["Contact", "Preferences"],
+    ),
+)
+
+taf = TAF(config=config)
+```
 
 ## How It Works
 

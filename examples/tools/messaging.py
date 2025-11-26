@@ -1,13 +1,11 @@
 import asyncio
 import json
-import os
 
 from agents import Agent, FunctionTool, Runner, Tool
 from agents.tool_context import ToolContext
 from dotenv import load_dotenv
 
 from taf import TAFConfig
-from taf.core.config import TwilioMemoryConfig
 from taf.tools import TAFTool
 from taf.tools.messaging import create_messaging_tools
 
@@ -33,24 +31,8 @@ def taf_tool_to_agent_tool(taf_tool: TAFTool) -> Tool:
 
 
 async def main() -> None:
-    # Memory service is optional - only include if all required environment variables are set
-    memory_store_id = os.getenv("MEMORY_STORE_ID")
-    api_key = os.getenv("TWILIO_API_KEY")
-    api_token = os.getenv("TWILIO_API_TOKEN")
-    twilio_memory_config = (
-        TwilioMemoryConfig(memory_store_id=memory_store_id, api_key=api_key, api_token=api_token)
-        if memory_store_id and api_key and api_token
-        else None
-    )
-
-    config = TAFConfig(
-        environment=os.getenv("ENVIRONMENT"),
-        twilio_memory_config=twilio_memory_config,
-        conversation_service_sid=os.getenv("CONVERSATION_SERVICE_SID"),
-        twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
-        twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN"),
-        twilio_phone_number=os.getenv("TWILIO_PHONE_NUMBER"),
-    )
+    # Load TAF configuration from environment variables
+    config = TAFConfig.from_env()
 
     agent_tools = [taf_tool_to_agent_tool(x) for x in create_messaging_tools(config)]
 

@@ -26,8 +26,8 @@ Voice server using built-in `VoiceServerConfig` for automatic FastAPI app and en
 
 **Additional Environment Variables:**
 ```bash
-VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
-OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
+TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
+TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 ```
 
 **Features:**
@@ -41,13 +41,13 @@ OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 
 **Usage:**
 ```bash
-# 1. Add VOICE_PUBLIC_DOMAIN to your .env file
-VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
+# 1. Add TWILIO_TAF_VOICE_PUBLIC_DOMAIN to your .env file
+TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
 
 # 2. Start ngrok tunnel (in separate terminal)
 ngrok http 8000 --domain={your-ngrok-domain}
 
-# 3. Verify VOICE_PUBLIC_DOMAIN in .env matches your ngrok domain
+# 3. Verify TWILIO_TAF_VOICE_PUBLIC_DOMAIN in .env matches your ngrok domain
 
 # 4. Run simplified voice server
 uv run python examples/servers/voice.py
@@ -86,7 +86,7 @@ taf.on_memory_ready(handle_memory_ready)
 voice_channel = VoiceChannel(
     taf=taf,
     server_config=VoiceServerConfig(
-        public_domain=os.environ["VOICE_PUBLIC_DOMAIN"],
+        public_domain=os.environ["TWILIO_TAF_VOICE_PUBLIC_DOMAIN"],
         host="0.0.0.0",
         port=8000,
         welcome_greeting="Hello! How can I assist you today?",

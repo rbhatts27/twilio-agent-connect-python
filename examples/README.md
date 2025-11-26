@@ -13,20 +13,30 @@ This directory contains examples demonstrating how to use the Twilio Agentic Fra
 
 2. **Configure environment:**
    Copy `.env.example` to `.env` and fill in your credentials:
+
+   **Required:**
    ```bash
-   ENVIRONMENT=dev  # Required: 'dev', 'stage', or 'prod'
+   TWILIO_TAF_ENVIRONMENT=prod  # 'dev', 'stage', or 'prod'
+   TWILIO_TAF_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_TAF_AUTH_TOKEN=your_auth_token_here
+   TWILIO_TAF_PHONE_NUMBER=+1234567890
+   TWILIO_TAF_CONVERSATION_SERVICE_SID=ISxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   ```
 
-   # Memory Service Configuration (all three required if using Twilio Memory)
-   MEMORY_STORE_ID=MGxxxxx...  # Optional: only if using Twilio Memory
-   TWILIO_API_KEY=your_api_key  # Optional: only if using Twilio Memory
-   TWILIO_API_TOKEN=your_api_token  # Optional: only if using Twilio Memory
+   **Optional (for Twilio Memory):**
+   ```bash
+   TWILIO_TAF_MEMORY_STORE_ID=MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_TAF_MEMORY_API_KEY=your_api_key_here
+   TWILIO_TAF_MEMORY_API_TOKEN=your_api_token_here
+   TWILIO_TAF_TRAIT_GROUPS=Contact,Preferences
+   ```
 
-   CONVERSATION_SERVICE_SID=ISxxxxx...
-   TWILIO_ACCOUNT_SID=ACxxxxx...
-   TWILIO_AUTH_TOKEN=your_auth_token
-   TWILIO_PHONE_NUMBER=+1234567890
-   OPENAI_API_KEY=sk-xxxxx...  # For examples using OpenAI
-   VOICE_PUBLIC_DOMAIN=example.ngrok.io  # For voice examples (your ngrok domain)
+   **Optional (for specific examples):**
+   ```bash
+   TWILIO_TAF_LOG_LEVEL=INFO
+   TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI examples
+   TWILIO_TAF_VOICE_PUBLIC_DOMAIN=example.ngrok.io  # For voice examples
+   TWILIO_TAF_KNOWLEDGE_IDS=KN123,KN456  # For knowledge tool examples
    ```
 
 3. **Run an example:**

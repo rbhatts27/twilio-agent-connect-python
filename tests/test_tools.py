@@ -917,9 +917,9 @@ class TestKnowledgeTools:
         assert tools[2].name == "Knowledge: Policies"  # Default
 
     @patch("taf.tools.knowledge.requests.post")
-    @patch.dict("os.environ", {"KNOWLEDGE_BASE_URL": "http://localhost:8080"})
+    @patch.dict("os.environ", {"TWILIO_TAF_KNOWLEDGE_BASE_URL": "http://localhost:8080"})
     def test_knowledge_tool_respects_env_variable(self, mock_post):
-        """Test that knowledge tool respects KNOWLEDGE_BASE_URL environment variable."""
+        """Test that knowledge tool respects TWILIO_TAF_KNOWLEDGE_BASE_URL environment variable."""
         mock_response = MagicMock()
         mock_response.json.return_value = {"chunks": []}
         mock_response.raise_for_status = MagicMock()

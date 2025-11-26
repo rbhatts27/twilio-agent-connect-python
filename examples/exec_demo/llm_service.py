@@ -7,9 +7,10 @@ Uses OpenAI Agents SDK for tool integration and conversation management.
 """
 
 import logging
+import os
 from typing import Optional
 
-from agents import Agent, RunConfig, Runner
+from agents import Agent, RunConfig, Runner, set_default_openai_key
 from fastapi import WebSocket
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
@@ -43,6 +44,10 @@ class LLMService:
             taf: TAF instance for accessing Maestro/Memora APIs
         """
         self.taf = taf
+        # Configure OpenAI API key for Agents SDK
+        openai_api_key = os.environ.get("TWILIO_TAF_OPENAI_API_KEY")
+        if openai_api_key:
+            set_default_openai_key(openai_api_key)
         # Base tools that don't need context injection
         self.base_tools = [
             get_available_plans,

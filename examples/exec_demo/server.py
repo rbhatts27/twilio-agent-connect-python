@@ -30,7 +30,6 @@ from openai.types.chat import (
 from taf import TAF, TAFConfig
 from taf.channels import SMSChannel
 from taf.channels.voice import VoiceChannel
-from taf.core.config import TwilioMemoryConfig
 from taf.models.memory import MemoryRetrievalResponse
 from taf.models.session import ConversationSession
 from taf.util.flex import handle_flex_handoff_logic
@@ -52,31 +51,18 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Initialize TAF configuration
-memory_store_id = os.getenv("MEMORY_STORE_ID")
-api_key = os.getenv("TWILIO_API_KEY")
-api_token = os.getenv("TWILIO_API_TOKEN")
-twilio_memory_config = (
-    TwilioMemoryConfig(
-        memory_store_id=memory_store_id,
-        api_key=api_key,
-        api_token=api_token,
-        trait_groups=["Contact"],
-    )
-    if memory_store_id and api_key and api_token
-    else None
-)
-
-taf_config = TAFConfig(
-    environment=os.environ["ENVIRONMENT"],
-    twilio_account_sid=os.environ["TWILIO_ACCOUNT_SID"],
-    twilio_auth_token=os.environ["TWILIO_AUTH_TOKEN"],
-    twilio_phone_number=os.environ["TWILIO_PHONE_NUMBER"],
-    twilio_memory_config=twilio_memory_config,
-    conversation_service_sid=os.environ["CONVERSATION_SERVICE_SID"],
-)
-
-taf = TAF(config=taf_config)
+# Initialize TAF - automatically loads all configuration from environment variables
+# Required env vars:
+#   - TWILIO_TAF_ENVIRONMENT (dev, stage, or prod)
+#   - TWILIO_TAF_CONVERSATION_SERVICE_SID
+#   - TWILIO_TAF_ACCOUNT_SID
+#   - TWILIO_TAF_AUTH_TOKEN
+#   - TWILIO_TAF_PHONE_NUMBER
+# Optional env vars:
+#   - TWILIO_TAF_LOG_LEVEL (defaults to INFO)
+#   - TWILIO_TAF_MEMORY_STORE_ID, TWILIO_TAF_MEMORY_API_KEY, TWILIO_TAF_MEMORY_API_TOKEN (for Twilio Memory)
+#   - TWILIO_TAF_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
+taf = TAF(config=TAFConfig.from_env())
 voice_channel = VoiceChannel(taf)
 sms_channel = SMSChannel(taf)
 
@@ -91,7 +77,7 @@ active_conversation_sid = None
 
 async def flex_handoff_handler(request_data):
     return handle_flex_handoff_logic(
-        request_data, flex_workflow_sid=os.environ.get("VOICE_HANDOFF_FLEX_WORKFLOW_SID")
+        request_data, flex_workflow_sid=os.environ.get("TWILIO_TAF_VOICE_HANDOFF_FLEX_WORKFLOW_SID")
     )
 
 
@@ -224,7 +210,7 @@ async def post_twiml(from_number: str = Form(..., alias="From")) -> Response:
     logger.info(f"[VOICE] Incoming call from: {from_number}")
 
     # Get WebSocket URL from environment
-    public_domain = os.environ.get("VOICE_PUBLIC_DOMAIN", "")
+    public_domain = os.environ.get("TWILIO_TAF_VOICE_PUBLIC_DOMAIN", "")
     websocket_url = f"wss://{public_domain}/ws"
     handoff_url = f"https://{public_domain}/handoff"
 
@@ -232,7 +218,7 @@ async def post_twiml(from_number: str = Form(..., alias="From")) -> Response:
     # From contains the caller's phone number
     twiml = voice_channel.handle_incoming_call(
         websocket_url=websocket_url,
-        called_phone_number=taf_config.twilio_phone_number,
+        called_phone_number=taf.config.twilio_phone_number,
         action_url=handoff_url,
     )
 

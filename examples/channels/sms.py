@@ -29,7 +29,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from taf import TAF, TAFConfig, get_logger
 from taf.channels.sms import SMSChannel
-from taf.core.config import TwilioMemoryConfig
 from taf.models.memory import MemoryRetrievalResponse
 from taf.models.session import ConversationSession
 
@@ -111,7 +110,7 @@ async def handle_message_ready(
     conversation_messages[conv_id].append(user_msg)
 
     # Generate response with OpenAI
-    client = openai.AsyncOpenAI()
+    client = openai.AsyncOpenAI(api_key=os.environ.get("TWILIO_TAF_OPENAI_API_KEY"))
     completion = await client.chat.completions.create(
         model="gpt-4o-mini",
         messages=conversation_messages[conv_id],
@@ -133,38 +132,18 @@ async def handle_message_ready(
 
 
 if __name__ == "__main__":
-    # Initialize TAF
-    # Memory service is optional - only include if all required environment variables are set
-    memory_store_id = os.environ.get("MEMORY_STORE_ID")
-    api_key = os.environ.get("TWILIO_API_KEY")
-    api_token = os.environ.get("TWILIO_API_TOKEN")
-
-    # Trait groups are optional - specify which trait groups to retrieve
-    # Example: TRAIT_GROUPS="Contact,Preferences" or leave unset for all groups
-    trait_groups_str = os.environ.get("TRAIT_GROUPS")
-    trait_groups = [g.strip() for g in trait_groups_str.split(",")] if trait_groups_str else None
-
-    twilio_memory_config = (
-        TwilioMemoryConfig(
-            memory_store_id=memory_store_id,
-            api_key=api_key,
-            api_token=api_token,
-            trait_groups=trait_groups,
-        )
-        if memory_store_id and api_key and api_token
-        else None
-    )
-
-    taf = TAF(
-        config=TAFConfig(
-            environment=os.environ["ENVIRONMENT"],
-            conversation_service_sid=os.environ["CONVERSATION_SERVICE_SID"],
-            twilio_account_sid=os.environ["TWILIO_ACCOUNT_SID"],
-            twilio_auth_token=os.environ["TWILIO_AUTH_TOKEN"],
-            twilio_phone_number=os.environ["TWILIO_PHONE_NUMBER"],
-            twilio_memory_config=twilio_memory_config,
-        )
-    )
+    # Initialize TAF - automatically loads all configuration from environment variables
+    # Required env vars:
+    #   - TWILIO_TAF_ENVIRONMENT (dev, stage, or prod)
+    #   - TWILIO_TAF_CONVERSATION_SERVICE_SID
+    #   - TWILIO_TAF_ACCOUNT_SID
+    #   - TWILIO_TAF_AUTH_TOKEN
+    #   - TWILIO_TAF_PHONE_NUMBER
+    # Optional env vars:
+    #   - TWILIO_TAF_LOG_LEVEL (defaults to INFO)
+    #   - TWILIO_TAF_MEMORY_STORE_ID, TWILIO_TAF_MEMORY_API_KEY, TWILIO_TAF_MEMORY_API_TOKEN (for Twilio Memory)
+    #   - TWILIO_TAF_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
+    taf = TAF(config=TAFConfig.from_env())
 
     # Register callback for message ready
     taf.on_message_ready(handle_message_ready)

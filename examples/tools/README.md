@@ -12,7 +12,7 @@ Demonstrates integrating TAF memory and knowledge tools with OpenAI's Chat Compl
 
 **Additional Environment Variables (Optional):**
 ```bash
-KNOWLEDGE_IDS=KN123abc,KN456def  # Comma-separated knowledge resource IDs
+TWILIO_TAF_KNOWLEDGE_IDS=KN123abc,KN456def  # Comma-separated knowledge resource IDs
 ```
 
 **Features:**
@@ -36,7 +36,7 @@ from taf.tools.knowledge import create_knowledge_tools_from_ids, KnowledgeToolCo
 memory_tools = create_memory_tools(config, session)
 
 # Create knowledge tools from environment variable
-knowledge_ids_str = os.getenv("KNOWLEDGE_IDS", "")
+knowledge_ids_str = os.getenv("TWILIO_TAF_KNOWLEDGE_IDS", "")
 knowledge_tools = []
 if knowledge_ids_str:
     knowledge_ids = [k_id.strip() for k_id in knowledge_ids_str.split(",")]
@@ -67,7 +67,7 @@ Shows how to use TAF memory and knowledge tools with the OpenAI Agents SDK for a
 
 **Additional Environment Variables (Optional):**
 ```bash
-KNOWLEDGE_IDS=KN123abc,KN456def  # Comma-separated knowledge resource IDs
+TWILIO_TAF_KNOWLEDGE_IDS=KN123abc,KN456def  # Comma-separated knowledge resource IDs
 ```
 
 **Features:**
@@ -219,5 +219,5 @@ curl -X POST https://knowledge.twilio.com/v1/Knowledge/Upload \
 All API calls return a knowledge object with an `id` field (e.g., `KN123abc`). Copy these IDs and add them to your `.env` file:
 
 ```bash
-KNOWLEDGE_IDS=KN123abc,KN456def,KN789ghi
+TWILIO_TAF_KNOWLEDGE_IDS=KN123abc,KN456def,KN789ghi
 ```

@@ -66,10 +66,10 @@ In addition to the standard TAF configuration, this demo requires:
 
 ```bash
 # Voice-specific (required for voice calls)
-VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
+TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
 
 # OpenAI (required for LLM integration)
-OPENAI_API_KEY=sk-xxxxx...
+TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...
 ```
 
 ## Running the Demo
@@ -113,7 +113,7 @@ The server will start on `http://0.0.0.0:8000` with:
 
 2. Update `.env` with ngrok domain:
    ```bash
-   VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
+   TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
    ```
 
 3. Configure Twilio phone number webhook to: `https://{your-ngrok-domain}/twiml`

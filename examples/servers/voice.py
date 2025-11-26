@@ -35,7 +35,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from taf import TAF, TAFConfig, VoiceServerConfig, get_logger
 from taf.channels.voice import VoiceChannel
-from taf.core.config import TwilioMemoryConfig
 from taf.models.memory import MemoryRetrievalResponse
 from taf.models.session import ConversationSession
 
@@ -76,7 +75,7 @@ async def handle_memory_ready(
     conversation_messages[conv_id].append(user_msg)
 
     # Generate response with OpenAI
-    client = openai.AsyncOpenAI()
+    client = openai.AsyncOpenAI(api_key=os.environ.get("TWILIO_TAF_OPENAI_API_KEY"))
     completion = await client.chat.completions.create(
         model="gpt-4o",
         messages=conversation_messages[conv_id],
@@ -98,36 +97,27 @@ async def handle_memory_ready(
 
 
 if __name__ == "__main__":
-    # Initialize TAF
-    # Memory service is optional - only include if all required environment variables are set
-    memory_store_id = os.environ.get("MEMORY_STORE_ID")
-    api_key = os.environ.get("TWILIO_API_KEY")
-    api_token = os.environ.get("TWILIO_API_TOKEN")
-    twilio_memory_config = (
-        TwilioMemoryConfig(memory_store_id=memory_store_id, api_key=api_key, api_token=api_token)
-        if memory_store_id and api_key and api_token
-        else None
-    )
-
-    taf = TAF(
-        config=TAFConfig(
-            environment=os.environ["ENVIRONMENT"],
-            twilio_memory_config=twilio_memory_config,
-            conversation_service_sid=os.environ["CONVERSATION_SERVICE_SID"],
-            twilio_account_sid=os.environ["TWILIO_ACCOUNT_SID"],
-            twilio_auth_token=os.environ["TWILIO_AUTH_TOKEN"],
-            twilio_phone_number=os.environ["TWILIO_PHONE_NUMBER"],
-        )
-    )
+    # Initialize TAF - automatically loads all configuration from environment variables
+    # Required env vars:
+    #   - TWILIO_TAF_ENVIRONMENT (dev, stage, or prod)
+    #   - TWILIO_TAF_CONVERSATION_SERVICE_SID
+    #   - TWILIO_TAF_ACCOUNT_SID
+    #   - TWILIO_TAF_AUTH_TOKEN
+    #   - TWILIO_TAF_PHONE_NUMBER
+    # Optional env vars:
+    #   - TWILIO_TAF_LOG_LEVEL (defaults to INFO)
+    #   - TWILIO_TAF_MEMORY_STORE_ID, TWILIO_TAF_MEMORY_API_KEY, TWILIO_TAF_MEMORY_API_TOKEN (for Twilio Memory)
+    #   - TWILIO_TAF_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
+    taf = TAF(config=TAFConfig.from_env())
 
     # Register callback for memory retrieval
-    taf.on_memory_ready(handle_memory_ready)
+    taf.on_message_ready(handle_memory_ready)
 
     # Initialize channel with server configuration
     voice_channel = VoiceChannel(
         taf=taf,
         server_config=VoiceServerConfig(
-            public_domain=os.environ["VOICE_PUBLIC_DOMAIN"],
+            public_domain=os.environ["TWILIO_TAF_VOICE_PUBLIC_DOMAIN"],
             host="0.0.0.0",
             port=8000,
         ),

@@ -25,7 +25,7 @@ def get_knowledge(config: TAFConfig, knowledge_id: str) -> Knowledge:
     Raises:
         requests.HTTPError: If the API request fails
     """
-    base_url = os.getenv("KNOWLEDGE_BASE_URL", "https://knowledge.twilio.com")
+    base_url = os.getenv("TWILIO_TAF_KNOWLEDGE_BASE_URL", "https://knowledge.twilio.com")
     url = f"{base_url}/v1/Knowledge/{knowledge_id}"
     headers = {"Content-Type": "application/json"}
 
@@ -94,7 +94,7 @@ def create_knowledge_tool(
             List of knowledge chunks with content and relevance scores
         """
         # Support overriding base URL via environment variable for local development
-        base_url = os.getenv("KNOWLEDGE_BASE_URL", "https://knowledge.twilio.com")
+        base_url = os.getenv("TWILIO_TAF_KNOWLEDGE_BASE_URL", "https://knowledge.twilio.com")
         url = f"{base_url}/v1/Knowledge/Search"
         headers = {"Content-Type": "application/json"}
         payload = {
