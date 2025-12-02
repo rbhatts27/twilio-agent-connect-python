@@ -35,7 +35,7 @@ class SMSChannel(BaseChannel):
         super().__init__(taf)
         self.twilio = Client(taf.config.twilio_account_sid, taf.config.twilio_auth_token)
 
-    def process_webhook(self, webhook_data: dict[str, Any]) -> None:
+    async def process_webhook(self, webhook_data: dict[str, Any]) -> None:
         """
         Process SMS webhook event and manage conversation lifecycle.
 
@@ -68,11 +68,11 @@ class SMSChannel(BaseChannel):
 
         # Handle conversation lifecycle events
         if event.event_type == ConversationEventType.CONVERSATION_CREATED:
-            self._handle_conversation_created(conv_id, event)
+            await self._handle_conversation_created(conv_id, event)
         elif event.event_type == ConversationEventType.PARTICIPANT_ADDED:
-            self._handle_participant_added(conv_id, event)
+            await self._handle_participant_added(conv_id, event)
         elif event.event_type == ConversationEventType.COMMUNICATION_CREATED:
-            self._handle_communication_created(conv_id, event)
+            await self._handle_communication_created(conv_id, event)
         elif event.event_type == ConversationEventType.CONVERSATION_UPDATED:
             self._handle_conversation_updated(conv_id, event)
         else:
@@ -103,7 +103,7 @@ class SMSChannel(BaseChannel):
         # support sending messages yet. Defensively go from conversation_id ->
         # participant -> address -> phone number
         try:
-            participants = self.taf.maestro_client.list_participants(conversation_id)
+            participants = await self.taf.maestro_client.list_participants(conversation_id)
         except Exception as e:
             self.logger.error(
                 f"Failed to list participants for conversation {conversation_id}: {e}"
@@ -133,7 +133,7 @@ class SMSChannel(BaseChannel):
         """Get the channel name identifier."""
         return "sms"
 
-    def _handle_conversation_created(self, conv_id: str, event: ConversationEvent) -> None:
+    async def _handle_conversation_created(self, conv_id: str, event: ConversationEvent) -> None:
         """
         Handle conversation.created event.
 
@@ -144,9 +144,9 @@ class SMSChannel(BaseChannel):
         self.logger.debug(f"Conversation created: {conv_id}")
         # Start conversation without profile_id initially
         # Profile ID will be added when participant.added event arrives
-        self._start_conversation(conv_id, profile_id=None)
+        await self._start_conversation(conv_id, profile_id=None)
 
-    def _handle_participant_added(self, conv_id: str, event: ConversationEvent) -> None:
+    async def _handle_participant_added(self, conv_id: str, event: ConversationEvent) -> None:
         """
         Handle participant.added event.
 
@@ -162,7 +162,7 @@ class SMSChannel(BaseChannel):
 
             # Auto-initialize conversation if not already started
             if conv_id not in self._conversations:
-                self._start_conversation(conv_id, event.profile_id)
+                await self._start_conversation(conv_id, event.profile_id)
             else:
                 # Update existing conversation with profile_id
                 session = self._conversations[conv_id]
@@ -170,7 +170,7 @@ class SMSChannel(BaseChannel):
 
                 # Fetch profile immediately
                 if self.taf.is_twilio_memory_enabled():
-                    profile = self.taf.fetch_profile(event.profile_id)
+                    profile = await self.taf.fetch_profile(event.profile_id)
                     if profile:
                         session.profile = profile
         else:
@@ -179,7 +179,7 @@ class SMSChannel(BaseChannel):
                 f"has_profile={bool(event.profile_id)}"
             )
 
-    def _handle_communication_created(self, conv_id: str, event: ConversationEvent) -> None:
+    async def _handle_communication_created(self, conv_id: str, event: ConversationEvent) -> None:
         """
         Handle communication.created event (incoming message).
 
@@ -204,7 +204,7 @@ class SMSChannel(BaseChannel):
                 f"Received message for unknown conversation {conv_id}, "
                 f"auto-initializing without profile"
             )
-            self._start_conversation(conv_id, profile_id=None)
+            await self._start_conversation(conv_id, profile_id=None)
 
         session = self._conversations[conv_id]
 
@@ -217,7 +217,7 @@ class SMSChannel(BaseChannel):
 
         # Fetch profile for each message if profile_id is available
         if session.profile_id and self.taf.is_twilio_memory_enabled():
-            profile = self.taf.fetch_profile(session.profile_id)
+            profile = await self.taf.fetch_profile(session.profile_id)
             if profile:
                 # Update session with fresh profile data
                 session.profile = profile
@@ -226,7 +226,7 @@ class SMSChannel(BaseChannel):
         memory_response = None
         if self.taf.is_twilio_memory_enabled():
             try:
-                memory_response = self.taf.retrieve_memory(session, query=message_text)
+                memory_response = await self.taf.retrieve_memory(session, query=message_text)
                 self.logger.debug(f"Memory retrieved for conversation {conv_id}")
             except Exception as e:
                 self.logger.error(
@@ -241,7 +241,7 @@ class SMSChannel(BaseChannel):
 
         # Trigger message ready callback (with or without memory)
         try:
-            self.taf.trigger_message_ready(message_text, session, memory_response)
+            await self.taf.trigger_message_ready(message_text, session, memory_response)
         except Exception as e:
             self.logger.error(
                 f"Error in message ready callback for conversation {conv_id}: {e}",
@@ -263,7 +263,7 @@ class SMSChannel(BaseChannel):
         else:
             self.logger.debug(f"Conversation {conv_id} updated: status={event.conversation_status}")
 
-    def _send_response_via_maestro(self, conversation_id: str, response: str) -> None:
+    async def _send_response_via_maestro(self, conversation_id: str, response: str) -> None:
         """
         Send SMS response via Maestro Communications API. This is only for demo purpose.
 
@@ -303,7 +303,7 @@ class SMSChannel(BaseChannel):
         # Send communication via Maestro
         try:
             self.logger.debug(f"[SMS] Sending communication for conversation {conversation_id}")
-            self.taf.maestro_client.add_communication(conversation_id, comm_request)
+            await self.taf.maestro_client.add_communication(conversation_id, comm_request)
             self.logger.info(f"[SMS] Sent response for conversation {conversation_id}")
         except Exception as e:
             self.logger.error(

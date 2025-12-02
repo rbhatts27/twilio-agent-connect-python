@@ -112,7 +112,7 @@ class TAF:
         """
         return self.config.twilio_memory_config is not None
 
-    def retrieve_memory(
+    async def retrieve_memory(
         self,
         conversation_context: ConversationSession,
         query: Optional[str] = None,
@@ -137,7 +137,7 @@ class TAF:
 
         Raises:
             ValueError: If Memora is configured but profile_id is missing
-            requests.RequestException: If the API request fails
+            httpx.HTTPError: If the API request fails
         """
         # Check if Memora is configured
         if self.memora_client and self.config.twilio_memory_config:
@@ -150,7 +150,7 @@ class TAF:
                 )
 
             try:
-                memory_response = self.memora_client.retrieve_memory(
+                memory_response = await self.memora_client.retrieve_memory(
                     profile_id=conversation_context.profile_id,
                     conversation_id=conversation_context.conversation_id,
                     query=query,
@@ -168,7 +168,7 @@ class TAF:
 
             try:
                 # Fetch communications from Maestro
-                communications = self.maestro_client.list_communications(
+                communications = await self.maestro_client.list_communications(
                     conversation_id=conversation_context.conversation_id
                 )
 
@@ -180,7 +180,7 @@ class TAF:
                 self.logger.error(f"Failed to retrieve communications from Maestro: {e}")
                 raise
 
-    def fetch_profile(self, profile_id: str) -> Optional[ProfileResponse]:
+    async def fetch_profile(self, profile_id: str) -> Optional[ProfileResponse]:
         """
         Fetch profile information with traits for a given profile ID.
 
@@ -212,7 +212,7 @@ class TAF:
             trait_groups = self.config.twilio_memory_config.trait_groups
 
             # Fetch profile
-            profile_response = self.memora_client.get_profile(
+            profile_response = await self.memora_client.get_profile(
                 profile_id=profile_id,
                 trait_groups=trait_groups,
             )
@@ -299,7 +299,7 @@ class TAF:
         """
         self._message_ready_callback = callback
 
-    def trigger_message_ready(
+    async def trigger_message_ready(
         self,
         user_message: str,
         conversation_context: ConversationSession,
@@ -319,19 +319,10 @@ class TAF:
         if self._message_ready_callback:
             # Check if callback is async
             if inspect.iscoroutinefunction(self._message_ready_callback):
-                # Schedule async callback as a background task
-                try:
-                    asyncio.create_task(
-                        self._message_ready_callback(
-                            user_message, conversation_context, memory_response
-                        )
-                    )
-                except RuntimeError:
-                    # No event loop running, log warning
-                    self.logger.warning(
-                        "Async message ready callback registered but no event loop running. "
-                        "Callback will not be executed."
-                    )
+                # Await async callback
+                await self._message_ready_callback(
+                    user_message, conversation_context, memory_response
+                )
             else:
                 # Call sync callback directly
                 self._message_ready_callback(user_message, conversation_context, memory_response)

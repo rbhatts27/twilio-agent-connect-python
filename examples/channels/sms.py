@@ -60,7 +60,8 @@ async def handle_message_ready(
     if memory_response:
         logger.info(
             f"Retrieved memories: {len(memory_response.observations)} observations, "
-            f"{len(memory_response.summaries)} summaries, {len(memory_response.sessions)} sessions"
+            f"{len(memory_response.summaries)} summaries, "
+            f"{len(memory_response.communications or [])} communications"
         )
 
     # Initialize conversation history with system message
@@ -164,7 +165,7 @@ if __name__ == "__main__":
             # Debug: Log the raw webhook data to see what Twilio is sending
             logger.debug(f"Received webhook data: {webhook_data}")
 
-            sms_channel.process_webhook(webhook_data)
+            await sms_channel.process_webhook(webhook_data)
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
         except Exception as e:

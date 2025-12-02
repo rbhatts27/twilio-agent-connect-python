@@ -1,7 +1,6 @@
 from typing import Any, Literal, Optional
 
-import requests
-from requests.auth import HTTPBasicAuth
+import httpx
 
 from taf.core.logging import get_logger
 from taf.models.conversation import (
@@ -37,11 +36,18 @@ class ConversationClient:
         """
         self.base_url = base_url
         self.service_id = service_id
-        self.session = requests.Session()
+        self.account_sid = account_sid
+        self.auth_token = auth_token
         self.logger = get_logger(__name__)
-        self.session.auth = HTTPBasicAuth(account_sid, auth_token)
 
-    def add_participant(
+    def _get_client(self) -> httpx.AsyncClient:
+        """Create a new httpx.AsyncClient for each request to avoid event loop issues."""
+        return httpx.AsyncClient(
+            auth=(self.account_sid, self.auth_token),
+            timeout=30.0,
+        )
+
+    async def add_participant(
         self,
         conversation_id: str,
         addresses: Optional[list[ParticipantAddress]] = None,
@@ -62,7 +68,7 @@ class ConversationClient:
             ParticipantResponse object containing the created participant details
 
         Raises:
-            requests.RequestException: If the API request fails
+            httpx.HTTPError: If the API request fails
         """
         url = (
             f"{self.base_url}/v2/Services/{self.service_id}/Conversations/"
@@ -75,33 +81,35 @@ class ConversationClient:
         request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
 
         try:
-            response = self.session.post(
-                url,
-                json=request_payload,
-            )
-            response.raise_for_status()
-            participant = ParticipantResponse(**response.json())
-            return participant
+            async with self._get_client() as client:
+                response = await client.post(
+                    url,
+                    json=request_payload,
+                )
+                response.raise_for_status()
+                participant = ParticipantResponse(**response.json())
+                return participant
 
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             self.logger.error(f"Failed to add participant: {e}")
             raise
 
-    def list_participants(self, conversation_id: str) -> list[ParticipantResponse]:
+    async def list_participants(self, conversation_id: str) -> list[ParticipantResponse]:
         url = (
             f"{self.base_url}/v2/Services/{self.service_id}/Conversations/"
             f"{conversation_id}/Participants"
         )
 
         try:
-            response = self.session.get(url)
-            response.raise_for_status()
-            participants = response.json().get("participants", [])
-            return [ParticipantResponse(**p) for p in participants]
-        except requests.Timeout:
+            async with self._get_client() as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                participants = response.json().get("participants", [])
+                return [ParticipantResponse(**p) for p in participants]
+        except httpx.TimeoutException:
             self.logger.error(f"Timeout listing participants for conversation {conversation_id}")
             return []
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             self.logger.error(
                 f"HTTP error listing participants for conversation {conversation_id}: {e}"
             )
@@ -110,7 +118,7 @@ class ConversationClient:
             self.logger.error(f"Invalid JSON format when listing participants: {e}")
             return []
 
-    def create_conversation(
+    async def create_conversation(
         self,
         name: Optional[str] = None,
     ) -> ConversationResponse:
@@ -124,7 +132,7 @@ class ConversationClient:
             ConversationResponse object containing the created conversation details
 
         Raises:
-            requests.RequestException: If the API request fails
+            httpx.HTTPError: If the API request fails
         """
         url = f"{self.base_url}/v2/Services/{self.service_id}/Conversations"
 
@@ -132,19 +140,20 @@ class ConversationClient:
         request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
 
         try:
-            response = self.session.post(
-                url,
-                json=request_payload,
-            )
-            response.raise_for_status()
-            conversation = ConversationResponse(**response.json())
-            return conversation
+            async with self._get_client() as client:
+                response = await client.post(
+                    url,
+                    json=request_payload,
+                )
+                response.raise_for_status()
+                conversation = ConversationResponse(**response.json())
+                return conversation
 
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             self.logger.error(f"Failed to create conversation: {e}")
             raise
 
-    def add_communication(
+    async def add_communication(
         self,
         conversation_id: str,
         communication_request: CommunicationRequest,
@@ -160,7 +169,7 @@ class ConversationClient:
             Communication object containing the created communication details
 
         Raises:
-            requests.RequestException: If the API request fails
+            httpx.HTTPError: If the API request fails
         """
         url = (
             f"{self.base_url}/v2/Services/{self.service_id}/Conversations/"
@@ -170,19 +179,20 @@ class ConversationClient:
         request_payload = communication_request.model_dump(by_alias=True, exclude_none=True)
 
         try:
-            response = self.session.post(
-                url,
-                json=request_payload,
-            )
-            response.raise_for_status()
-            communication = Communication(**response.json())
-            return communication
+            async with self._get_client() as client:
+                response = await client.post(
+                    url,
+                    json=request_payload,
+                )
+                response.raise_for_status()
+                communication = Communication(**response.json())
+                return communication
 
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             self.logger.error(f"Failed to add communication: {e}")
             raise
 
-    def list_communications(
+    async def list_communications(
         self,
         conversation_id: str,
         channel_id: Optional[str] = None,
@@ -202,7 +212,7 @@ class ConversationClient:
             List of Communication objects
 
         Raises:
-            requests.RequestException: If the API request fails
+            httpx.HTTPError: If the API request fails
         """
         url = (
             f"{self.base_url}/v2/Services/{self.service_id}/Conversations/"
@@ -219,11 +229,12 @@ class ConversationClient:
             params["pageToken"] = page_token
 
         try:
-            response = self.session.get(url, params=params)
-            response.raise_for_status()
-            communications_list = CommunicationsListResponse(**response.json())
-            return communications_list.communications
+            async with self._get_client() as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                communications_list = CommunicationsListResponse(**response.json())
+                return communications_list.communications
 
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             self.logger.error(f"Failed to list communications: {e}")
             raise

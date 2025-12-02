@@ -22,7 +22,7 @@ format: ## Format code with ruff
 	uv run ruff check --fix .
 
 type-check: ## Run type checking with mypy
-	uv run mypy src/taf examples
+	MYPYPATH=src uv run mypy src/taf examples
 
 pre-commit: ## Run pre-commit hooks on all files
 	uv run pre-commit run --all-files

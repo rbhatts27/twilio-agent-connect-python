@@ -33,7 +33,7 @@ class BaseChannel(ABC):
         self._conversations: dict[str, ConversationSession] = {}
 
     @abstractmethod
-    def process_webhook(self, webhook_data: dict[str, Any]) -> None:
+    async def process_webhook(self, webhook_data: dict[str, Any]) -> None:
         """
         Process incoming webhook event from Twilio.
 
@@ -73,7 +73,7 @@ class BaseChannel(ABC):
         # TODO: Parse Channel Type based on webhook data
         pass
 
-    def _start_conversation(
+    async def _start_conversation(
         self,
         conv_id: str,
         profile_id: Optional[str] = None,
@@ -92,7 +92,7 @@ class BaseChannel(ABC):
         # Fetch profile if profile_id is provided
         profile = None
         if profile_id:
-            profile = self.taf.fetch_profile(profile_id)
+            profile = await self.taf.fetch_profile(profile_id)
 
         # Store conversation session
         self._conversations[conv_id] = ConversationSession(

@@ -17,6 +17,7 @@ Features:
 
 import os
 import sys
+from typing import Optional
 
 import openai
 from dotenv import load_dotenv
@@ -50,7 +51,9 @@ conversation_messages: dict[str, list[ChatCompletionMessageParam]] = {}
 
 
 async def handle_memory_ready(
-    context: ConversationSession, memory_response: MemoryRetrievalResponse, user_message: str
+    user_message: str,
+    context: ConversationSession,
+    memory_response: Optional[MemoryRetrievalResponse],
 ) -> None:
     """
     Callback invoked when memory retrieval completes.
@@ -59,10 +62,12 @@ async def handle_memory_ready(
     and maintaining conversation history for coherent multi-turn interactions.
     """
     logger.info(f"Processing message for conversation {context.conversation_id}")
-    logger.info(
-        f"Retrieved memories: {len(memory_response.observations)} observations, "
-        f"{len(memory_response.summaries)} summaries, {len(memory_response.sessions)} sessions"
-    )
+    if memory_response:
+        logger.info(
+            f"Retrieved memories: {len(memory_response.observations)} observations, "
+            f"{len(memory_response.summaries)} summaries, "
+            f"{len(memory_response.communications or [])} communications"
+        )
 
     # Initialize conversation history with system message
     conv_id = context.conversation_id

@@ -1,7 +1,6 @@
 from typing import Optional
 
-import requests
-from requests.auth import HTTPBasicAuth
+import httpx
 
 from taf.core.logging import get_logger
 from taf.models.memory import (
@@ -32,11 +31,18 @@ class MemoryClient:
         """
         self.base_url = base_url
         self.store_id = store_id
-        self.session = requests.Session()
+        self.api_key = api_key
+        self.api_token = api_token
         self.logger = get_logger(__name__)
-        self.session.auth = HTTPBasicAuth(api_key, api_token)
 
-    def retrieve_memory(
+    def _get_client(self) -> httpx.AsyncClient:
+        """Create a new httpx.AsyncClient for each request to avoid event loop issues."""
+        return httpx.AsyncClient(
+            auth=(self.api_key, self.api_token),
+            timeout=30.0,
+        )
+
+    async def retrieve_memory(
         self,
         profile_id: str,
         conversation_id: Optional[str] = None,
@@ -72,21 +78,22 @@ class MemoryClient:
 
         try:
             # POST request with JSON body as per API spec
-            response = self.session.post(
-                url,
-                json=request_payload,
-            )
+            async with self._get_client() as client:
+                response = await client.post(
+                    url,
+                    json=request_payload,
+                )
 
-            response.raise_for_status()
+                response.raise_for_status()
 
-            # Parse the response according to the API spec
-            data = response.json()
-            memory_response = MemoryRetrievalResponse(**data)
+                # Parse the response according to the API spec
+                data = response.json()
+                memory_response = MemoryRetrievalResponse(**data)
 
-            # Return full response with observations, summaries, sessions, and metadata
-            return memory_response
+                # Return full response with observations, summaries, sessions, and metadata
+                return memory_response
 
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             self.logger.error(f"Failed to retrieve context from Memora: {e}")
             # Return empty response on API errors
             return MemoryRetrievalResponse()
@@ -96,7 +103,7 @@ class MemoryClient:
             # Return empty response on parsing errors
             return MemoryRetrievalResponse()
 
-    def get_profile(
+    async def get_profile(
         self,
         profile_id: str,
         trait_groups: Optional[list[str]] = None,
@@ -112,7 +119,7 @@ class MemoryClient:
             ProfileResponse containing profile ID, creation timestamp, and traits
 
         Raises:
-            requests.RequestException: If the API request fails
+            httpx.HTTPError: If the API request fails
             ValueError: If the response cannot be parsed
         """
         # Build the endpoint URL
@@ -126,17 +133,17 @@ class MemoryClient:
             params["traitGroups"] = ",".join(trait_groups)
 
         try:
-            # GET request with query parameters
-            response = self.session.get(url, params=params)
-            response.raise_for_status()
+            async with self._get_client() as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
 
-            # Parse the response
-            data = response.json()
-            profile_response = ProfileResponse(**data)
+                # Parse the response
+                data = response.json()
+                profile_response = ProfileResponse(**data)
 
-            return profile_response
+                return profile_response
 
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             self.logger.error(f"Failed to retrieve profile from Memora: {e}")
             raise
 

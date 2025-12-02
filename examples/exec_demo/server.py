@@ -117,7 +117,7 @@ async def handle_message_ready(
         memory_response = None
         if taf.is_twilio_memory_enabled():
             try:
-                memory_response = taf.retrieve_memory(context, query=user_message)
+                memory_response = await taf.retrieve_memory(context, query=user_message)
                 logger.debug(f"Memory retrieved for conversation {conv_id}")
             except Exception as e:
                 logger.error(
@@ -195,7 +195,7 @@ async def sms_webhook(request: Request) -> JSONResponse:
         logger.debug(f"Received webhook data: {webhook_data}")
 
         # Process all events (including deduplicated communication.created)
-        sms_channel.process_webhook(webhook_data)
+        await sms_channel.process_webhook(webhook_data)
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     except Exception as e:
@@ -204,10 +204,13 @@ async def sms_webhook(request: Request) -> JSONResponse:
 
 
 @app.post("/twiml")
-async def post_twiml(from_number: str = Form(..., alias="From")) -> Response:
+async def post_twiml(
+    from_number: str = Form(..., alias="From"), to_number: str = Form(..., alias="To")
+) -> Response:
     """Generate TwiML for Twilio voice calls."""
     logger.info("=" * 80)
     logger.info(f"[VOICE] Incoming call from: {from_number}")
+    logger.info(f"[VOICE] Incoming call to: {to_number}")
 
     # Get WebSocket URL from environment
     public_domain = os.environ.get("TWILIO_TAF_VOICE_PUBLIC_DOMAIN", "")
@@ -215,10 +218,11 @@ async def post_twiml(from_number: str = Form(..., alias="From")) -> Response:
     handoff_url = f"https://{public_domain}/handoff"
 
     # Generate TwiML with conversation and participant setup
-    # From contains the caller's phone number
-    twiml = voice_channel.handle_incoming_call(
+    # From contains the caller's phone number, To contains the Twilio number
+    twiml = await voice_channel.handle_incoming_call(
         websocket_url=websocket_url,
-        called_phone_number=taf.config.twilio_phone_number,
+        to_number=to_number,
+        from_number=from_number,
         action_url=handoff_url,
     )
 

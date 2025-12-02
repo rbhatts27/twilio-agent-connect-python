@@ -19,7 +19,7 @@ steps:
       uv venv || exit 1
       . .venv/bin/activate
       uv sync --extra dev
-      PYTHONPATH=. uv run mypy src/taf
+      MYPYPATH=src uv run mypy src/taf examples
     plugins:
       - docker#v3.8.0:
           image: registry.twilio.com/library/python/3.10-slim

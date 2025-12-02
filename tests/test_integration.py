@@ -1,7 +1,7 @@
 """Integration tests for the complete TAF framework."""
 
 from typing import Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -60,7 +60,8 @@ class TestTAFIntegration:
             with pytest.raises((ValueError, TypeError)):
                 TAF(invalid_config)
 
-    def test_sms_channel_end_to_end_workflow(self):
+    @pytest.mark.asyncio
+    async def test_sms_channel_end_to_end_workflow(self):
         """Test complete SMS channel workflow from webhook to callback."""
         with patch("taf.channels.sms.Client") as mock_client_class:
             # Mock participant creation
@@ -99,7 +100,7 @@ class TestTAFIntegration:
                 "Timestamp": "2025-11-18T00:00:00.000Z",
             }
 
-            channel.process_webhook(conversation_created)
+            await channel.process_webhook(conversation_created)
 
             # Simulate participant.added webhook (CUSTOMER with profile)
             participant_added = {
@@ -112,7 +113,7 @@ class TestTAFIntegration:
                 "Timestamp": "2025-11-18T00:00:01.000Z",
             }
 
-            channel.process_webhook(participant_added)
+            await channel.process_webhook(participant_added)
 
             # Verify conversation was initialized with profile
             assert "CH123456" in channel._conversations
@@ -130,30 +131,30 @@ class TestTAFIntegration:
                 "Timestamp": "2025-11-18T00:00:02.000Z",
             }
 
-            with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-                empty_response = MemoryRetrievalResponse(
-                    observations=[],
-                    summaries=[],
-                    meta=MemoryRetrievalMeta(queryTime=0),
-                )
-                mock_retrieve.return_value = empty_response
+            empty_response = MemoryRetrievalResponse(
+                observations=[],
+                summaries=[],
+                meta=MemoryRetrievalMeta(queryTime=0),
+            )
+            taf.memora_client.retrieve_memory = AsyncMock(return_value=empty_response)
 
-                channel.process_webhook(message_webhook)
+            await channel.process_webhook(message_webhook)
 
-                # Verify memory retrieval was called
-                mock_retrieve.assert_called_once()
+            # Verify memory retrieval was called
+            taf.memora_client.retrieve_memory.assert_called_once()
 
-                # Verify callback was invoked with correct data
-                assert callback_invoked
-                assert received_context is not None
-                assert received_context.conversation_id == "CH123456"
-                assert received_context.profile_id == "profile_test_123"
-                assert received_context.channel == "sms"
-                assert received_memories == empty_response
-                assert len(received_memories.observations) == 0
-                assert len(received_memories.summaries) == 0
+            # Verify callback was invoked with correct data
+            assert callback_invoked
+            assert received_context is not None
+            assert received_context.conversation_id == "CH123456"
+            assert received_context.profile_id == "profile_test_123"
+            assert received_context.channel == "sms"
+            assert received_memories == empty_response
+            assert len(received_memories.observations) == 0
+            assert len(received_memories.summaries) == 0
 
-    def test_sms_channel_auto_initialize_conversation(self):
+    @pytest.mark.asyncio
+    async def test_sms_channel_auto_initialize_conversation(self):
         """Test SMS channel auto-initializes conversation on first message."""
         with patch("taf.channels.sms.Client"):
             taf = TAF(get_test_config())
@@ -183,21 +184,21 @@ class TestTAFIntegration:
                 "Timestamp": "2025-11-18T00:00:00.000Z",
             }
 
-            with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-                empty_response = MemoryRetrievalResponse(
-                    observations=[],
-                    summaries=[],
-                    meta=MemoryRetrievalMeta(queryTime=0),
-                )
-                mock_retrieve.return_value = empty_response
+            empty_response = MemoryRetrievalResponse(
+                observations=[],
+                summaries=[],
+                meta=MemoryRetrievalMeta(queryTime=0),
+            )
+            taf.memora_client.retrieve_memory = AsyncMock(return_value=empty_response)
 
-                channel.process_webhook(message_webhook)
+            await channel.process_webhook(message_webhook)
 
-                # Verify conversation was auto-initialized
-                assert "CH999999" in channel._conversations
-                assert callback_invoked
+            # Verify conversation was auto-initialized
+            assert "CH999999" in channel._conversations
+            assert callback_invoked
 
-    def test_sms_channel_filters_empty_messages(self):
+    @pytest.mark.asyncio
+    async def test_sms_channel_filters_empty_messages(self):
         """Test SMS channel ignores empty/whitespace messages."""
         with patch("taf.channels.sms.Client") as mock_client_class:
             # Mock participant creation
@@ -224,7 +225,7 @@ class TestTAFIntegration:
             taf.on_message_ready(message_ready_callback)
 
             # Initialize conversation
-            channel.process_webhook(
+            await channel.process_webhook(
                 {
                     "EventType": "conversation.created",
                     "ConversationId": "CH111",
@@ -245,10 +246,10 @@ class TestTAFIntegration:
                 "Timestamp": "2025-11-18T00:00:01.000Z",
             }
 
-            with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-                channel.process_webhook(empty_message)
-                mock_retrieve.assert_not_called()
-                assert not callback_invoked
+            taf.memora_client.retrieve_memory = AsyncMock()
+            await channel.process_webhook(empty_message)
+            taf.memora_client.retrieve_memory.assert_not_called()
+            assert not callback_invoked
 
             # Test whitespace message
             whitespace_message = {
@@ -262,12 +263,13 @@ class TestTAFIntegration:
                 "Timestamp": "2025-11-18T00:00:02.000Z",
             }
 
-            with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-                channel.process_webhook(whitespace_message)
-                mock_retrieve.assert_not_called()
-                assert not callback_invoked
+            taf.memora_client.retrieve_memory = AsyncMock()
+            await channel.process_webhook(whitespace_message)
+            taf.memora_client.retrieve_memory.assert_not_called()
+            assert not callback_invoked
 
-    def test_sms_channel_conversation_cleanup(self):
+    @pytest.mark.asyncio
+    async def test_sms_channel_conversation_cleanup(self):
         """Test SMS channel cleans up conversation state properly."""
         with patch("taf.channels.sms.Client") as mock_client_class:
             # Mock participant creation
@@ -282,7 +284,7 @@ class TestTAFIntegration:
             channel = SMSChannel(taf)
 
             # Start conversation
-            channel.process_webhook(
+            await channel.process_webhook(
                 {
                     "EventType": "conversation.created",
                     "ConversationId": "CH222",
@@ -294,7 +296,7 @@ class TestTAFIntegration:
             assert "CH222" in channel._conversations
 
             # End conversation (status changed to CLOSED)
-            channel.process_webhook(
+            await channel.process_webhook(
                 {
                     "EventType": "conversation.updated",
                     "ConversationId": "CH222",
@@ -305,7 +307,8 @@ class TestTAFIntegration:
 
             assert "CH222" not in channel._conversations
 
-    def test_sms_channel_multiple_concurrent_conversations(self):
+    @pytest.mark.asyncio
+    async def test_sms_channel_multiple_concurrent_conversations(self):
         """Test SMS channel handles multiple concurrent conversations."""
         with patch("taf.channels.sms.Client") as mock_client_class:
             # Mock participant creation
@@ -336,7 +339,7 @@ class TestTAFIntegration:
             # Start multiple conversations
             for i in range(3):
                 conv_id = f"CH{i:06d}"
-                channel.process_webhook(
+                await channel.process_webhook(
                     {
                         "EventType": "conversation.created",
                         "ConversationId": conv_id,
@@ -346,34 +349,34 @@ class TestTAFIntegration:
                 )
 
             # Send messages to each conversation
-            with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-                empty_response = MemoryRetrievalResponse(
-                    observations=[],
-                    summaries=[],
-                    meta=MemoryRetrievalMeta(queryTime=0),
-                )
-                mock_retrieve.return_value = empty_response
+            empty_response = MemoryRetrievalResponse(
+                observations=[],
+                summaries=[],
+                meta=MemoryRetrievalMeta(queryTime=0),
+            )
+            taf.memora_client.retrieve_memory = AsyncMock(return_value=empty_response)
 
-                for i in range(3):
-                    conv_id = f"CH{i:06d}"
-                    channel.process_webhook(
-                        {
-                            "EventType": "communication.created",
-                            "ConversationId": conv_id,
-                            "CommunicationId": f"IM{i:06d}",
-                            "AuthorParticipantId": f"MB{i:06d}",
-                            "AuthorAddress": f"+1{i:010d}",
-                            "AuthorChannel": "SMS",
-                            "Body": f'{{"type":"TEXT","text":"Message {i}"}}',
-                            "Timestamp": f"2025-11-18T00:01:{i:02d}.000Z",
-                        }
-                    )
+            for i in range(3):
+                conv_id = f"CH{i:06d}"
+                await channel.process_webhook(
+                    {
+                        "EventType": "communication.created",
+                        "ConversationId": conv_id,
+                        "CommunicationId": f"IM{i:06d}",
+                        "AuthorParticipantId": f"MB{i:06d}",
+                        "AuthorAddress": f"+1{i:010d}",
+                        "AuthorChannel": "SMS",
+                        "Body": f'{{"type":"TEXT","text":"Message {i}"}}',
+                        "Timestamp": f"2025-11-18T00:01:{i:02d}.000Z",
+                    }
+                )
 
             # Verify all callbacks were invoked
             assert callback_count == 3
             assert len(conversation_ids) == 3
 
-    def test_sms_channel_real_world_webhook_scenario(self):
+    @pytest.mark.asyncio
+    async def test_sms_channel_real_world_webhook_scenario(self):
         """Test SMS channel with real-world webhook data including all fields."""
         with patch("taf.channels.sms.Client"):
             taf = TAF(get_test_config())
@@ -411,25 +414,25 @@ class TestTAFIntegration:
                 "Language": "en-US",
             }
 
-            with patch.object(taf.memora_client, "retrieve_memory") as mock_retrieve:
-                empty_response = MemoryRetrievalResponse(
-                    observations=[],
-                    summaries=[],
-                    meta=MemoryRetrievalMeta(queryTime=0),
-                )
-                mock_retrieve.return_value = empty_response
+            empty_response = MemoryRetrievalResponse(
+                observations=[],
+                summaries=[],
+                meta=MemoryRetrievalMeta(queryTime=0),
+            )
+            taf.memora_client.retrieve_memory = AsyncMock(return_value=empty_response)
 
-                channel.process_webhook(real_webhook)
+            await channel.process_webhook(real_webhook)
 
-                # Verify processing completed
-                assert callback_invoked
-                assert received_context is not None
-                assert received_context.conversation_id == "CHd151e6bcbe3643979a3f41f6d0da3b24"
-                # No profile_id in this webhook (auto-initialized without profile)
-                assert received_context.profile_id is None
-                assert received_context.channel == "sms"
+            # Verify processing completed
+            assert callback_invoked
+            assert received_context is not None
+            assert received_context.conversation_id == "CHd151e6bcbe3643979a3f41f6d0da3b24"
+            # No profile_id in this webhook (auto-initialized without profile)
+            assert received_context.profile_id is None
+            assert received_context.channel == "sms"
 
-    def test_sms_channel_missing_profile_id_handling(self):
+    @pytest.mark.asyncio
+    async def test_sms_channel_missing_profile_id_handling(self):
         """Test SMS channel raises ValueError when profile_id is missing."""
         with patch("taf.channels.sms.Client"):
             taf = TAF(get_test_config())
@@ -465,7 +468,7 @@ class TestTAFIntegration:
             # internally if memory is enabled; otherwise, no exception is raised.
             # In both cases, the exception (if any) is handled internally and the
             # callback is still invoked.
-            channel.process_webhook(message_webhook)
+            await channel.process_webhook(message_webhook)
 
             # Callback should be invoked despite the memory retrieval error
             # (memory retrieval failure doesn't prevent message processing)

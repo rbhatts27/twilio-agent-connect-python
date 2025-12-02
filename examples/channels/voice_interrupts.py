@@ -136,14 +136,15 @@ if __name__ == "__main__":
     app = FastAPI(title="TAF Voice Server")
 
     @app.post("/twiml")
-    async def post_twiml(From: str = Form(...)) -> Response:
+    async def post_twiml(From: str = Form(...), To: str = Form(...)) -> Response:
         """Generate TwiML for incoming voice calls."""
         public_domain = os.environ.get("TWILIO_TAF_VOICE_PUBLIC_DOMAIN")
         websocket_url = f"wss://{public_domain}/ws"
 
-        twiml = voice_channel.handle_incoming_call(
+        twiml = await voice_channel.handle_incoming_call(
             websocket_url=websocket_url,
-            called_phone_number=From,
+            to_number=To,
+            from_number=From,
             welcome_greeting="Hello! How can I assist you today?",
         )
         return Response(content=twiml, media_type="application/xml")

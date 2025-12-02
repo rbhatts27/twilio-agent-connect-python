@@ -10,6 +10,7 @@ from taf.channels.voice import VoiceChannel
 from taf.models.conversation import ConversationResponse, ParticipantResponse
 from taf.models.memory import MemoryRetrievalResponse
 from taf.models.session import ConversationSession
+from taf.models.voice import InterruptMessage, PromptMessage, SetupMessage
 
 
 def get_test_config() -> dict:
@@ -42,70 +43,80 @@ class TestVoiceChannel:
 
         assert channel.get_channel_name() == "voice"
 
-    def test_handle_setup_message(self) -> None:
+    @pytest.mark.asyncio
+    async def test_handle_setup_message(self) -> None:
         """Test handling setup message initializes conversation."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Handle setup message with conversationId in custom parameters
-        setup_data = {
-            "type": "setup",
-            "conversationId": "CALL123",
-            "customParameters": {"conversationId": "CALL123"},
-        }
-        channel.handle_message(setup_data)
+        # Create setup message
+        setup_msg = SetupMessage(
+            type="setup",
+            conversationId="CALL123",
+            customParameters={"conversationId": "CALL123"},
+        )
+
+        # Call handler directly
+        await channel._handle_setup(setup_msg)
 
         # Verify conversation was started
         assert "CALL123" in channel._conversations
         assert channel._conversations["CALL123"].profile_id is None
         assert channel._conversations["CALL123"].channel == "voice"
 
-    def test_handle_prompt_message(self) -> None:
+    @pytest.mark.asyncio
+    async def test_handle_prompt_message(self) -> None:
         """Test handling prompt message does NOT trigger memory retrieval (voice channel)."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Initialize conversation (normally done in setup handler)
-        channel._start_conversation("CALL123", "profile_test_123")
+        # Setup conversation first
+        await channel._start_conversation("CALL123", "profile_test_123")
 
-        # Handle prompt message with conversationId
-        prompt_data = {
-            "type": "prompt",
-            "conversationId": "CALL123",
-            "voicePrompt": "Hello, I need help",
-        }
-        channel.handle_message(prompt_data)
+        # Create prompt message
+        prompt_msg = PromptMessage(
+            type="prompt",
+            conversationId="CALL123",
+            voicePrompt="Hello, I need help",
+        )
 
-        # Voice channel doesn't fetch memory - no assertion needed
-        # Test passes if no exception is raised
+        # Call handler directly
+        await channel._handle_prompt("CALL123", prompt_msg)
 
-    def test_handle_interrupt_message(self) -> None:
+        # Voice channel doesn't fetch memory - test passes if no exception raised
+
+    @pytest.mark.asyncio
+    async def test_handle_interrupt_message(self) -> None:
         """Test handling interrupt message."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Set current conversation ID
-        channel._current_conversation_id = "CALL123"
+        # Setup conversation first
+        await channel._start_conversation("CALL123", None)
 
-        # Handle interrupt message with full details
-        interrupt_data = {
-            "type": "interrupt",
-            "utteranceUntilInterrupt": "Hello, I was saying...",
-            "durationUntilInterruptMs": 1500,
-        }
-        channel.handle_message(interrupt_data)
+        # Create interrupt message
+        interrupt_msg = InterruptMessage(
+            type="interrupt",
+            utteranceUntilInterrupt="Hello, I was saying...",
+            durationUntilInterruptMs=1500,
+        )
 
-    def test_handle_message_without_conversation_id(self) -> None:
-        """Test handling message without conversation ID logs error."""
+        # Call handler directly
+        channel._handle_interrupt("CALL123", interrupt_msg)
+
+        # Test passes if no exception is raised
+
+    @pytest.mark.asyncio
+    async def test_handle_message_without_conversation_id(self) -> None:
+        """Test handling setup message without conversation ID logs error."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # No conversation ID set
-        channel._current_conversation_id = None
+        # Create setup message without conversationId in custom parameters
+        setup_msg = SetupMessage(type="setup")
 
-        # Should log error and return early
-        setup_data = {"type": "setup"}
-        channel.handle_message(setup_data)
+        # Call handler directly
+        await channel._handle_setup(setup_msg)
 
         # No conversation should be created
         assert len(channel._conversations) == 0
@@ -116,8 +127,8 @@ class TestVoiceChannel:
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Start conversation
-        channel._start_conversation("CALL123", "profile_test")
+        # Start conversation directly
+        await channel._start_conversation("CALL123", "profile_test")
 
         # Mock websocket
         mock_websocket = AsyncMock()
@@ -141,8 +152,8 @@ class TestVoiceChannel:
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Start conversation
-        channel._start_conversation("CALL123", "profile_test")
+        # Start conversation directly
+        await channel._start_conversation("CALL123", "profile_test")
 
         # No active websocket
         channel._active_websocket = None
@@ -150,15 +161,16 @@ class TestVoiceChannel:
         # Should log error and return early (no exception raised)
         await channel.send_response("CALL123", "Hello there")
 
-    def test_end_conversation_cleanup(self) -> None:
+    @pytest.mark.asyncio
+    async def test_end_conversation_cleanup(self) -> None:
         """Test ending conversation cleans up resources."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Start conversation
-        channel._start_conversation("CALL123", "profile_test")
-        channel._current_conversation_id = "CALL123"
+        # Start conversation directly
+        await channel._start_conversation("CALL123", "profile_test")
         channel._active_websocket = MagicMock()
+        channel._current_conversation_id = "CALL123"
 
         # End conversation
         channel._end_conversation("CALL123")
@@ -168,13 +180,14 @@ class TestVoiceChannel:
         assert channel._active_websocket is None
         assert channel._current_conversation_id is None  # type: ignore[unreachable]
 
-    def test_process_webhook_not_implemented(self) -> None:
+    @pytest.mark.asyncio
+    async def test_process_webhook_not_implemented(self) -> None:
         """Test that process_webhook is stubbed."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
         # Should not raise
-        channel.process_webhook({})
+        await channel.process_webhook({})
 
     @pytest.mark.asyncio
     async def test_message_callback_integration(self) -> None:
@@ -199,21 +212,16 @@ class TestVoiceChannel:
 
         taf.on_message_ready(message_callback)
 
-        # Start conversation
-        channel._start_conversation("CALL123", "profile_test")
+        # Setup conversation first
+        await channel._start_conversation("CALL123", "profile_test")
 
-        # Handle prompt message with conversationId
-        prompt_data = {
-            "type": "prompt",
-            "conversationId": "CALL123",
-            "voicePrompt": "Test message",
-        }
-        channel.handle_message(prompt_data)
-
-        # Give async callback time to execute
-        import asyncio
-
-        await asyncio.sleep(0.01)
+        # Create and handle prompt message
+        prompt_msg = PromptMessage(
+            type="prompt",
+            conversationId="CALL123",
+            voicePrompt="Test message",
+        )
+        await channel._handle_prompt("CALL123", prompt_msg)
 
         # Verify callback was invoked
         assert captured_context is not None
@@ -224,15 +232,20 @@ class TestVoiceChannel:
         assert captured_memories is None
         assert captured_user_message == "Test message"
 
-    def test_handle_incoming_call(self) -> None:
+    @pytest.mark.asyncio
+    async def test_handle_incoming_call(self) -> None:
         """Test handle_incoming_call generates valid TwiML."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
         # Mock conversation creation and participant addition
         with (
-            patch.object(taf.maestro_client, "create_conversation") as mock_create,
-            patch.object(taf.maestro_client, "add_participant") as mock_add_participant,
+            patch.object(
+                taf.maestro_client, "create_conversation", new_callable=AsyncMock
+            ) as mock_create,
+            patch.object(
+                taf.maestro_client, "add_participant", new_callable=AsyncMock
+            ) as mock_add_participant,
         ):
             mock_create.return_value = ConversationResponse(
                 id="CONV123",
@@ -248,9 +261,10 @@ class TestVoiceChannel:
             )
 
             # Generate TwiML
-            twiml = channel.handle_incoming_call(
+            twiml = await channel.handle_incoming_call(
                 websocket_url="wss://example.ngrok.io/ws",
-                called_phone_number="+15551234567",
+                to_number="+15551234567",
+                from_number="+15559999999",
                 action_url="https://example.ngrok.io/flex_handoff",
                 welcome_greeting="Welcome!",
             )
@@ -267,15 +281,20 @@ class TestVoiceChannel:
             assert "</Connect>" in twiml
             assert "</Response>" in twiml
 
-    def test_handle_incoming_call_default_greeting(self) -> None:
+    @pytest.mark.asyncio
+    async def test_handle_incoming_call_default_greeting(self) -> None:
         """Test handle_incoming_call uses default greeting."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
         # Mock conversation creation and participant addition
         with (
-            patch.object(taf.maestro_client, "create_conversation") as mock_create,
-            patch.object(taf.maestro_client, "add_participant") as mock_add_participant,
+            patch.object(
+                taf.maestro_client, "create_conversation", new_callable=AsyncMock
+            ) as mock_create,
+            patch.object(
+                taf.maestro_client, "add_participant", new_callable=AsyncMock
+            ) as mock_add_participant,
         ):
             mock_create.return_value = ConversationResponse(
                 id="CONV456",
@@ -291,92 +310,68 @@ class TestVoiceChannel:
             )
 
             # Generate TwiML without custom greeting
-            twiml = channel.handle_incoming_call(
+            twiml = await channel.handle_incoming_call(
                 websocket_url="wss://test.ngrok.io/ws",
-                called_phone_number="+15559876543",
+                to_number="+15551111111",
+                from_number="+15559876543",
                 action_url="https://example.ngrok.io/flex_handoff",
             )
 
             # Verify default greeting is used
             assert 'welcomeGreeting="Hello! How can I assist you today?"' in twiml
 
-    def test_setup_with_custom_parameters_profile_id(self) -> None:
+    @pytest.mark.asyncio
+    async def test_setup_with_custom_parameters_profile_id(self) -> None:
         """Test setup message extracts profile_id from custom parameters."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Handle setup with custom parameters including profile_id
-        setup_data = {
-            "type": "setup",
-            "conversationId": "CONV123",
-            "customParameters": {"conversationId": "CONV123", "profileId": "USER_PROFILE_789"},
-        }
-        channel.handle_message(setup_data)
+        # Create setup message with profile_id
+        setup_msg = SetupMessage(
+            type="setup",
+            conversationId="CONV123",
+            customParameters={"conversationId": "CONV123", "profileId": "USER_PROFILE_789"},
+        )
+
+        # Call handler directly
+        await channel._handle_setup(setup_msg)
 
         # Verify conversation was started with correct profile_id
         assert "CONV123" in channel._conversations
         assert channel._conversations["CONV123"].profile_id == "USER_PROFILE_789"
 
-    def test_setup_without_conversation_id_raises_error(self) -> None:
-        """Test setup message raises error when conversationId is missing from custom parameters."""
+    @pytest.mark.asyncio
+    async def test_setup_without_conversation_id_raises_error(self) -> None:
+        """Test setup message logs error when conversationId missing from custom parameters."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Set current conversation ID
-        channel._current_conversation_id = "CALL456"
+        # Create setup message without conversationId in custom parameters
+        setup_msg = SetupMessage(type="setup")
 
-        # Handle setup without conversationId in custom parameters
-        setup_data = {"type": "setup"}
-
-        # This should log an error but not crash (error is caught in handle_message)
-        channel.handle_message(setup_data)
+        # Call handler directly
+        await channel._handle_setup(setup_msg)
 
         # Verify conversation was NOT started
-        assert "CALL456" not in channel._conversations
+        assert len(channel._conversations) == 0
 
-    def test_handle_message_invalid_data_logs_error(self) -> None:
-        """Test handle_message logs error for invalid message data."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
-
-        # Set current conversation ID
-        channel._current_conversation_id = "CALL789"
-
-        # Handle message with invalid data (missing required fields for type validation)
-        # This should trigger the exception handler in handle_message
-        invalid_data = {"type": "setup", "sessionId": 12345}  # sessionId should be string
-
-        # Should not raise exception, just log error
-        channel.handle_message(invalid_data)
-
-        # No conversation should be created due to validation error
-        # (unless type matches and passes validation)
-
-    def test_handle_message_unknown_type(self) -> None:
-        """Test handle_message logs warning for unknown message type."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
-
-        # Set current conversation ID
-        channel._current_conversation_id = "CALL999"
-
-        # Handle message with unknown type
-        unknown_data = {"type": "unknown_type", "someField": "someValue"}
-
-        # Should log warning but not raise exception
-        channel.handle_message(unknown_data)
-
-    def test_prompt_with_empty_voice_prompt(self) -> None:
+    @pytest.mark.asyncio
+    async def test_prompt_with_empty_voice_prompt(self) -> None:
         """Test handling prompt message with empty voice_prompt."""
         taf = TAF(get_test_config())
         channel = VoiceChannel(taf=taf)
 
-        # Start conversation
-        channel._start_conversation("CALL111", "profile_test")
+        # Setup conversation first
+        await channel._start_conversation("CALL111", "profile_test")
 
-        # Handle prompt with None voicePrompt and conversationId
-        prompt_data = {"type": "prompt", "conversationId": "CALL111", "voicePrompt": None}
-        channel.handle_message(prompt_data)
+        # Create prompt message with None voicePrompt
+        prompt_msg = PromptMessage(
+            type="prompt",
+            conversationId="CALL111",
+            voicePrompt=None,
+        )
 
-        # Voice channel doesn't fetch memory - no assertion needed
-        # Test passes if no exception is raised
+        # Call handler directly
+        await channel._handle_prompt("CALL111", prompt_msg)
+
+        # Voice channel doesn't fetch memory - test passes if no exception raised

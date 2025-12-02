@@ -1,9 +1,8 @@
 """Tests for memory retrieval fallback functionality."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock
 
 import pytest
-import requests
 
 from taf import TAF, TAFConfig
 from taf.models.conversation import Communication, CommunicationContent, CommunicationParticipant
@@ -36,18 +35,20 @@ def get_test_config_with_memory():
 class TestMemoryFallback:
     """Test memory retrieval fallback to Maestro Communications API."""
 
-    @patch("taf.context.memory.MemoryClient.retrieve_memory")
-    def test_retrieve_memory_with_memora_configured(self, mock_retrieve):
+    @pytest.mark.asyncio
+    async def test_retrieve_memory_with_memora_configured(self):
         """Test retrieve_memory uses Memora when configured."""
         # Setup
         config = TAFConfig(**get_test_config_with_memory())
         taf = TAF(config)
 
-        mock_retrieve.return_value = MemoryRetrievalResponse(
-            observations=[],
-            summaries=[],
-            communications=[],
-            meta=MemoryRetrievalMeta(queryTime=100),
+        taf.memora_client.retrieve_memory = AsyncMock(
+            return_value=MemoryRetrievalResponse(
+                observations=[],
+                summaries=[],
+                communications=[],
+                meta=MemoryRetrievalMeta(queryTime=100),
+            )
         )
 
         context = ConversationSession(
@@ -57,10 +58,10 @@ class TestMemoryFallback:
         )
 
         # Execute
-        result = taf.retrieve_memory(context, query="test query")
+        result = await taf.retrieve_memory(context, query="test query")
 
         # Verify
-        mock_retrieve.assert_called_once_with(
+        taf.memora_client.retrieve_memory.assert_called_once_with(
             profile_id="profile_123",
             conversation_id="CH123",
             query="test query",
@@ -68,7 +69,8 @@ class TestMemoryFallback:
         assert isinstance(result, MemoryRetrievalResponse)
         assert result.meta.query_time == 100
 
-    def test_retrieve_memory_memora_configured_without_profile_id_raises(self):
+    @pytest.mark.asyncio
+    async def test_retrieve_memory_memora_configured_without_profile_id_raises(self):
         """Test retrieve_memory raises error when Memora configured but profile_id missing."""
         # Setup
         config = TAFConfig(**get_test_config_with_memory())
@@ -82,36 +84,40 @@ class TestMemoryFallback:
 
         # Execute & Verify
         with pytest.raises(ValueError, match="profile_id is required"):
-            taf.retrieve_memory(context)
+            await taf.retrieve_memory(context)
 
-    @patch("taf.context.conversation.ConversationClient.list_communications")
-    def test_retrieve_memory_fallback_to_maestro(self, mock_list_comms):
+    @pytest.mark.asyncio
+    async def test_retrieve_memory_fallback_to_maestro(self):
         """Test retrieve_memory falls back to Maestro when Memora not configured."""
         # Setup
         config = TAFConfig(**get_test_config_without_memory())
         taf = TAF(config)
 
         # Mock Maestro communications response
-        mock_list_comms.return_value = [
-            Communication(
-                id="comm_123",
-                author=CommunicationParticipant(
-                    address="+12025551234",
-                    channel="SMS",
-                    participantId="part_123",
-                ),
-                content=CommunicationContent(type="TEXT", text="Hello"),
-                recipients=[
-                    CommunicationParticipant(
-                        address="+12025555678",
+        from unittest.mock import AsyncMock
+
+        taf.maestro_client.list_communications = AsyncMock(
+            return_value=[
+                Communication(
+                    id="comm_123",
+                    author=CommunicationParticipant(
+                        address="+12025551234",
                         channel="SMS",
-                        participantId="part_456",
-                    )
-                ],
-                createdAt="2019-08-24T14:15:22Z",
-                updatedAt="2019-08-24T14:15:22Z",
-            )
-        ]
+                        participantId="part_123",
+                    ),
+                    content=CommunicationContent(type="TEXT", text="Hello"),
+                    recipients=[
+                        CommunicationParticipant(
+                            address="+12025555678",
+                            channel="SMS",
+                            participantId="part_456",
+                        )
+                    ],
+                    createdAt="2019-08-24T14:15:22Z",
+                    updatedAt="2019-08-24T14:15:22Z",
+                )
+            ]
+        )
 
         context = ConversationSession(
             conversation_id="CH123",
@@ -120,10 +126,10 @@ class TestMemoryFallback:
         )
 
         # Execute
-        result = taf.retrieve_memory(context, query="test query")
+        result = await taf.retrieve_memory(context, query="test query")
 
         # Verify
-        mock_list_comms.assert_called_once_with(conversation_id="CH123")
+        taf.maestro_client.list_communications.assert_called_once_with(conversation_id="CH123")
 
         # Check response structure
         assert isinstance(result, MemoryRetrievalResponse)
@@ -138,14 +144,16 @@ class TestMemoryFallback:
         assert comm.content.text == "Hello"
         assert len(comm.recipients) == 1
 
-    @patch("taf.context.conversation.ConversationClient.list_communications")
-    def test_retrieve_memory_fallback_with_empty_communications(self, mock_list_comms):
+    @pytest.mark.asyncio
+    async def test_retrieve_memory_fallback_with_empty_communications(self):
         """Test retrieve_memory fallback handles empty communications list."""
         # Setup
         config = TAFConfig(**get_test_config_without_memory())
         taf = TAF(config)
 
-        mock_list_comms.return_value = []
+        from unittest.mock import AsyncMock
+
+        taf.maestro_client.list_communications = AsyncMock(return_value=[])
 
         context = ConversationSession(
             conversation_id="CH123",
@@ -154,7 +162,7 @@ class TestMemoryFallback:
         )
 
         # Execute
-        result = taf.retrieve_memory(context)
+        result = await taf.retrieve_memory(context)
 
         # Verify
         assert isinstance(result, MemoryRetrievalResponse)
@@ -163,14 +171,20 @@ class TestMemoryFallback:
         assert len(result.communications) == 0
         assert result.meta.query_time is None  # query_time is optional with default None
 
-    @patch("taf.context.conversation.ConversationClient.list_communications")
-    def test_retrieve_memory_fallback_api_error(self, mock_list_comms):
+    @pytest.mark.asyncio
+    async def test_retrieve_memory_fallback_api_error(self):
         """Test retrieve_memory fallback propagates API errors."""
         # Setup
         config = TAFConfig(**get_test_config_without_memory())
         taf = TAF(config)
 
-        mock_list_comms.side_effect = requests.RequestException("Maestro API Error")
+        from unittest.mock import AsyncMock
+
+        import httpx
+
+        taf.maestro_client.list_communications = AsyncMock(
+            side_effect=httpx.HTTPError("Maestro API Error")
+        )
 
         context = ConversationSession(
             conversation_id="CH123",
@@ -179,37 +193,41 @@ class TestMemoryFallback:
         )
 
         # Execute & Verify
-        with pytest.raises(requests.RequestException, match="Maestro API Error"):
-            taf.retrieve_memory(context)
+        with pytest.raises(httpx.HTTPError, match="Maestro API Error"):
+            await taf.retrieve_memory(context)
 
-    @patch("taf.context.conversation.ConversationClient.list_communications")
-    def test_retrieve_memory_fallback_with_multiple_communications(self, mock_list_comms):
+    @pytest.mark.asyncio
+    async def test_retrieve_memory_fallback_with_multiple_communications(self):
         """Test retrieve_memory fallback with multiple communications."""
         # Setup
         config = TAFConfig(**get_test_config_without_memory())
         taf = TAF(config)
 
-        mock_list_comms.return_value = [
-            Communication(
-                id=f"comm_{i}",
-                author=CommunicationParticipant(
-                    address="+12025551234",
-                    channel="SMS",
-                    participantId="part_123",
-                ),
-                content=CommunicationContent(type="TEXT", text=f"Message {i}"),
-                recipients=[
-                    CommunicationParticipant(
-                        address="+12025555678",
+        from unittest.mock import AsyncMock
+
+        taf.maestro_client.list_communications = AsyncMock(
+            return_value=[
+                Communication(
+                    id=f"comm_{i}",
+                    author=CommunicationParticipant(
+                        address="+12025551234",
                         channel="SMS",
-                        participantId="part_456",
-                    )
-                ],
-                createdAt="2019-08-24T14:15:22Z",
-                updatedAt="2019-08-24T14:15:22Z",
-            )
-            for i in range(5)
-        ]
+                        participantId="part_123",
+                    ),
+                    content=CommunicationContent(type="TEXT", text=f"Message {i}"),
+                    recipients=[
+                        CommunicationParticipant(
+                            address="+12025555678",
+                            channel="SMS",
+                            participantId="part_456",
+                        )
+                    ],
+                    createdAt="2019-08-24T14:15:22Z",
+                    updatedAt="2019-08-24T14:15:22Z",
+                )
+                for i in range(5)
+            ]
+        )
 
         context = ConversationSession(
             conversation_id="CH123",
@@ -218,7 +236,7 @@ class TestMemoryFallback:
         )
 
         # Execute
-        result = taf.retrieve_memory(context)
+        result = await taf.retrieve_memory(context)
 
         # Verify
         assert len(result.communications) == 5

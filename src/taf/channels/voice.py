@@ -66,10 +66,11 @@ class VoiceChannel(BaseChannel):
         self._current_conversation_id: Optional[str] = None
         self._server_config = server_config
 
-    def handle_incoming_call(
+    async def handle_incoming_call(
         self,
         websocket_url: str,
-        called_phone_number: str,
+        to_number: str,
+        from_number: str,
         action_url: Optional[str] = None,
         welcome_greeting: str = "Hello! How can I assist you today?",
     ) -> str:
@@ -81,8 +82,8 @@ class VoiceChannel(BaseChannel):
 
         Args:
             websocket_url: WebSocket URL for ConversationRelay (e.g., 'wss://example.ngrok.io/ws')
-            called_phone_number: Phone number that was called (e.g., '+15551234567').
-                               Will be added as a VOICE address for the participant.
+            to_number: Twilio phone number that was called (e.g., '+15551234567')
+            from_number: Caller's phone number (e.g., '+15559876543')
             action_url: Optional URL for Twilio to request when the call ends.
             welcome_greeting: Initial greeting message for the caller.
                             Defaults to "Hello! How can I assist you today?"
@@ -92,31 +93,28 @@ class VoiceChannel(BaseChannel):
         """
         # Create a new conversation for each call
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        conversation_name = f"taf-voice-{called_phone_number}-{timestamp}"
-        conversation = self.taf.maestro_client.create_conversation(name=conversation_name)
+        conversation_name = f"taf-voice-{from_number}-{timestamp}"
+        conversation = await self.taf.maestro_client.create_conversation(name=conversation_name)
         conversation_id = conversation.id
 
         # Add participant with the caller's phone number
-        participant_response = self.taf.maestro_client.add_participant(
+        participant_response = await self.taf.maestro_client.add_participant(
             conversation_id=conversation_id,
-            addresses=[ParticipantAddress(channel="VOICE", address=called_phone_number)],
+            addresses=[ParticipantAddress(channel="VOICE", address=from_number)],
             participant_type="CUSTOMER",
         )
-        profile_id = participant_response.profile_id
+        profile_id = participant_response.profile_id if participant_response else ""
 
-        self.taf.maestro_client.add_participant(
+        await self.taf.maestro_client.add_participant(
             conversation_id=conversation_id,
-            addresses=[ParticipantAddress(channel="VOICE", address="outbound")],
+            addresses=[ParticipantAddress(channel="VOICE", address=to_number)],
             participant_type="AI_AGENT",
         )
 
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect action="{action_url}">
-        <ConversationRelay
-            url="{websocket_url}"
-            welcomeGreeting="{welcome_greeting}"
-            debug="debugging">
+        <ConversationRelay url="{websocket_url}" welcomeGreeting="{welcome_greeting}">
             <Parameter name="conversationId" value="{conversation_id}" />
             <Parameter name="profileId" value="{profile_id}" />
         </ConversationRelay>
@@ -178,7 +176,7 @@ class VoiceChannel(BaseChannel):
 
             if data.get("type") == "setup":
                 setup_msg = SetupMessage(**data)
-                self._handle_setup(setup_msg)
+                await self._handle_setup(setup_msg)
                 conv_id = self._current_conversation_id
                 session_state = None  # Initialize as None
 
@@ -316,8 +314,8 @@ class VoiceChannel(BaseChannel):
                         self._process_prompt(conv_id, prompt_msg)
                     )
                 else:
-                    # No session manager - call synchronously
-                    self._handle_prompt(conv_id, prompt_msg)
+                    # No session manager - await directly
+                    await self._handle_prompt(conv_id, prompt_msg)
         except Exception as e:
             self.logger.error(f"Failed to handle prompt: {str(e)}")
 
@@ -385,9 +383,8 @@ class VoiceChannel(BaseChannel):
             # Use session manager's streaming capability
             await self._stream_and_send_response(conv_id, message)
         else:
-            # No session manager - run synchronous handler in executor
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, self._handle_prompt, conv_id, message)
+            # No session manager - await handler directly
+            await self._handle_prompt(conv_id, message)
 
     async def _stream_and_send_response(self, conv_id: str, message: PromptMessage) -> None:
         """
@@ -455,7 +452,7 @@ class VoiceChannel(BaseChannel):
             self.logger.info(f"Finished streaming response for {conv_id}.")
 
     # todo: voice does not support webhooks yet
-    def process_webhook(self, webhook_data: dict[str, Any]) -> None:
+    async def process_webhook(self, webhook_data: dict[str, Any]) -> None:
         pass
 
     async def send_response(
@@ -481,50 +478,7 @@ class VoiceChannel(BaseChannel):
     def get_channel_name(self) -> str:
         return "voice"
 
-    def handle_message(self, data: dict[str, Any]) -> None:
-        """
-        Handle incoming WebSocket message from Twilio ConversationRelay.
-
-        DEPRECATED: This synchronous interface is for testing only and does NOT support
-        session_manager streaming or task cancellation. Production code should use
-        handle_websocket() which provides the full async WebSocket flow.
-
-        Args:
-            data: Raw message data from Twilio (setup, prompt, interrupt, etc.)
-        """
-
-        # Parse message using Pydantic schemas for validation
-        msg_type = data.get("type")
-        try:
-            if msg_type == "setup":
-                setup_msg = SetupMessage(**data)
-                self._handle_setup(setup_msg)
-            elif msg_type == "prompt":
-                prompt_msg = PromptMessage(**data)
-                # Use conversation_id from message if available, otherwise use current
-                conv_id = prompt_msg.conversation_id or self._current_conversation_id
-                if not conv_id:
-                    self.logger.error(
-                        "No active conversation ID for prompt message; "
-                        "ensure setup message is processed first"
-                    )
-                    return
-                self._handle_prompt(conv_id, prompt_msg)
-            elif msg_type == "interrupt":
-                interrupt_msg = InterruptMessage(**data)
-                # Use conversation_id from message if available, otherwise use current
-                conv_id = interrupt_msg.conversation_id or self._current_conversation_id
-                if not conv_id:
-                    self.logger.error(
-                        "No active conversation ID for interrupt message; "
-                        "ensure setup message is processed first"
-                    )
-                    return
-                self._handle_interrupt(conv_id, interrupt_msg)
-        except Exception as e:
-            self.logger.error(f"Failed to parse message: {str(e)}")
-
-    def _handle_setup(self, message: SetupMessage) -> None:
+    async def _handle_setup(self, message: SetupMessage) -> None:
         """
         Handle WebSocket setup message.
 
@@ -549,9 +503,9 @@ class VoiceChannel(BaseChannel):
         if message.custom_parameters.profile_id:
             profile_id = message.custom_parameters.profile_id
 
-        self._start_conversation(conversation_id, profile_id)
+        await self._start_conversation(conversation_id, profile_id)
 
-    def _handle_prompt(self, conv_id: str, message: PromptMessage) -> None:
+    async def _handle_prompt(self, conv_id: str, message: PromptMessage) -> None:
         """
         Handle incoming voice prompt (user speech).
 
@@ -571,7 +525,7 @@ class VoiceChannel(BaseChannel):
 
         # Trigger message ready callback without memory (voice channel doesn't fetch memory)
         try:
-            self.taf.trigger_message_ready(message_body, session, None)
+            await self.taf.trigger_message_ready(message_body, session, None)
         except Exception as e:
             self.logger.error(
                 f"Error in message ready callback for conversation {conv_id}: {e}",
@@ -665,13 +619,14 @@ class VoiceChannel(BaseChannel):
 
         # Register TwiML endpoint
         @app.post("/twiml")
-        async def post_twiml(From: str = Form(...)) -> Response:  # noqa: N803
+        async def post_twiml(From: str = Form(...), To: str = Form(...)) -> Response:  # noqa: N803
             """Generate TwiML for incoming voice calls."""
             websocket_url = f"wss://{config.public_domain}/ws"
 
-            twiml = self.handle_incoming_call(
+            twiml = await self.handle_incoming_call(
                 websocket_url=websocket_url,
-                called_phone_number=From,
+                to_number=To,
+                from_number=From,
                 welcome_greeting=config.welcome_greeting,
             )
             return Response(content=twiml, media_type="application/xml")
