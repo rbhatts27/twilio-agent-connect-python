@@ -9,9 +9,11 @@ from taf.models.conversation import (
     CommunicationsListResponse,
     ConversationRequest,
     ConversationResponse,
+    ConversationsListResponse,
     ParticipantAddress,
     ParticipantRequest,
     ParticipantResponse,
+    UpdateConversationRequest,
 )
 
 
@@ -46,6 +48,64 @@ class ConversationClient:
             auth=(self.account_sid, self.auth_token),
             timeout=30.0,
         )
+
+    async def list_conversations(
+        self,
+        status: Optional[list[Literal["ACTIVE", "INACTIVE", "CLOSED"]]] = None,
+        channel_id: Optional[str] = None,
+        page_size: Optional[int] = None,
+        page_token: Optional[str] = None,
+    ) -> list[ConversationResponse]:
+        """
+        List conversations with optional filtering and pagination.
+
+        Args:
+            status: Optional list of statuses to filter conversations
+                   ("ACTIVE", "INACTIVE", "CLOSED")
+            channel_id: Optional resource ID (call ID, message ID, etc.) to filter conversations
+            page_size: Maximum number of items to return (1-1000)
+            page_token: Token for pagination
+
+        Returns:
+            List of ConversationResponse objects
+
+        Raises:
+            httpx.HTTPError: If the API request fails
+        """
+        url = f"{self.base_url}/v2/Services/{self.service_id}/Conversations"
+
+        # Build query parameters
+        params: dict[str, Any] = {}
+        if status:
+            # Join status list as comma-separated string
+            params["status"] = ",".join(status)
+        if channel_id:
+            params["channelId"] = channel_id
+        if page_size:
+            params["pageSize"] = page_size
+        if page_token:
+            params["pageToken"] = page_token
+
+        try:
+            async with self._get_client() as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                conversations_list = ConversationsListResponse(**response.json())
+                return conversations_list.conversations
+
+        except httpx.HTTPError as e:
+            response_text = (
+                getattr(e.response, "text", "No response body")
+                if hasattr(e, "response")
+                else "No response"
+            )
+            self.logger.error(
+                f"Failed to list conversations: {e}\n"
+                f"URL: {url}\n"
+                f"Query params: {params}\n"
+                f"Response: {response_text}"
+            )
+            raise
 
     async def add_participant(
         self,
@@ -91,7 +151,17 @@ class ConversationClient:
                 return participant
 
         except httpx.HTTPError as e:
-            self.logger.error(f"Failed to add participant: {e}")
+            response_text = (
+                getattr(e.response, "text", "No response body")
+                if hasattr(e, "response")
+                else "No response"
+            )
+            self.logger.error(
+                f"Failed to add participant: {e}\n"
+                f"URL: {url}\n"
+                f"Request body: {request_payload}\n"
+                f"Response: {response_text}"
+            )
             raise
 
     async def list_participants(self, conversation_id: str) -> list[ParticipantResponse]:
@@ -150,7 +220,71 @@ class ConversationClient:
                 return conversation
 
         except httpx.HTTPError as e:
-            self.logger.error(f"Failed to create conversation: {e}")
+            response_text = (
+                getattr(e.response, "text", "No response body")
+                if hasattr(e, "response")
+                else "No response"
+            )
+            self.logger.error(
+                f"Failed to create conversation: {e}\n"
+                f"URL: {url}\n"
+                f"Request body: {request_payload}\n"
+                f"Response: {response_text}"
+            )
+            raise
+
+    async def update_conversation(
+        self,
+        conversation_id: str,
+        name: Optional[str] = None,
+        status: Optional[Literal["ACTIVE", "INACTIVE", "CLOSED"]] = None,
+        configuration: Optional[Any] = None,
+    ) -> ConversationResponse:
+        """
+        Update an existing conversation.
+
+        Args:
+            conversation_id: The conversation ID to update
+            name: Optional conversation name to update
+            status: Optional conversation status to update ("ACTIVE", "INACTIVE", "CLOSED")
+            configuration: Optional conversation configuration settings
+                          (ConversationConfiguration object or dict)
+
+        Returns:
+            ConversationResponse object containing the updated conversation details
+
+        Raises:
+            httpx.HTTPError: If the API request fails
+        """
+        url = f"{self.base_url}/v2/Services/{self.service_id}/Conversations/{conversation_id}"
+
+        request_data = UpdateConversationRequest(
+            name=name, status=status, configuration=configuration
+        )
+        request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
+
+        try:
+            async with self._get_client() as client:
+                response = await client.put(
+                    url,
+                    json=request_payload,
+                )
+                response.raise_for_status()
+                conversation = ConversationResponse(**response.json())
+                return conversation
+
+        except httpx.HTTPError as e:
+            response_text = (
+                getattr(e.response, "text", "No response body")
+                if hasattr(e, "response")
+                else "No response"
+            )
+            self.logger.error(
+                f"Failed to update conversation: {e}\n"
+                f"URL: {url}\n"
+                f"Request body: {request_payload}\n"
+                f"Response: {response_text}"
+            )
             raise
 
     async def add_communication(
@@ -189,7 +323,17 @@ class ConversationClient:
                 return communication
 
         except httpx.HTTPError as e:
-            self.logger.error(f"Failed to add communication: {e}")
+            response_text = (
+                getattr(e.response, "text", "No response body")
+                if hasattr(e, "response")
+                else "No response"
+            )
+            self.logger.error(
+                f"Failed to add communication: {e}\n"
+                f"URL: {url}\n"
+                f"Request body: {request_payload}\n"
+                f"Response: {response_text}"
+            )
             raise
 
     async def list_communications(
@@ -236,5 +380,15 @@ class ConversationClient:
                 return communications_list.communications
 
         except httpx.HTTPError as e:
-            self.logger.error(f"Failed to list communications: {e}")
+            response_text = (
+                getattr(e.response, "text", "No response body")
+                if hasattr(e, "response")
+                else "No response"
+            )
+            self.logger.error(
+                f"Failed to list communications: {e}\n"
+                f"URL: {url}\n"
+                f"Query params: {params}\n"
+                f"Response: {response_text}"
+            )
             raise

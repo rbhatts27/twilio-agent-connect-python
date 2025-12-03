@@ -20,7 +20,7 @@ from typing import Optional
 import openai
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, WebSocket
+from fastapi import FastAPI, Form, Request, WebSocket
 from fastapi.responses import Response
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
@@ -169,15 +169,20 @@ if __name__ == "__main__":
     app = FastAPI(title="TAF Voice Server")
 
     @app.post("/twiml")
-    async def post_twiml(From: str = Form(...), To: str = Form(...)) -> Response:
+    async def post_twiml(
+        From: str = Form(...), To: str = Form(...), CallSid: str = Form(...)
+    ) -> Response:
         """Generate TwiML for incoming voice calls."""
         public_domain = os.environ.get("TWILIO_TAF_VOICE_PUBLIC_DOMAIN")
         websocket_url = f"wss://{public_domain}/ws"
+        callback_url = f"https://{public_domain}/conversation-relay-callback"
 
         twiml = await voice_channel.handle_incoming_call(
             websocket_url=websocket_url,
             to_number=To,
             from_number=From,
+            call_sid=CallSid,
+            action_url=callback_url,
             welcome_greeting="Hello! How can I assist you today?",
         )
         return Response(content=twiml, media_type="application/xml")
@@ -186,6 +191,11 @@ if __name__ == "__main__":
     async def websocket_endpoint(websocket: WebSocket) -> None:
         """Handle voice WebSocket connections for real-time streaming."""
         await voice_channel.handle_websocket(websocket)
+
+    @app.post("/conversation-relay-callback")
+    async def conversation_relay_callback(request: Request) -> Response:
+        """Handle ConversationRelay callback webhook from Twilio."""
+        return await voice_channel.handle_conversation_relay_callback(request)
 
     # Start the server
     logger.info("Starting TAF Voice Server on 0.0.0.0:8000")

@@ -32,7 +32,6 @@ from taf.channels import SMSChannel
 from taf.channels.voice import VoiceChannel
 from taf.models.memory import MemoryRetrievalResponse
 from taf.models.session import ConversationSession
-from taf.util.flex import handle_flex_handoff_logic
 
 load_dotenv()
 
@@ -73,12 +72,6 @@ llm_service = LLMService(taf)
 conversation_messages: dict[str, list[ChatCompletionMessageParam]] = {}
 # todo: use a global conversation id until vnext is ready
 active_conversation_sid = None
-
-
-async def flex_handoff_handler(request_data):
-    return handle_flex_handoff_logic(
-        request_data, flex_workflow_sid=os.environ.get("TWILIO_TAF_VOICE_HANDOFF_FLEX_WORKFLOW_SID")
-    )
 
 
 # Register message ready callback
@@ -181,8 +174,6 @@ async def handle_message_ready(
 
 taf.on_message_ready(handle_message_ready)
 
-taf.on_handoff(flex_handoff_handler)
-
 
 @app.post("/sms")
 async def sms_webhook(request: Request) -> JSONResponse:
@@ -205,7 +196,9 @@ async def sms_webhook(request: Request) -> JSONResponse:
 
 @app.post("/twiml")
 async def post_twiml(
-    from_number: str = Form(..., alias="From"), to_number: str = Form(..., alias="To")
+    from_number: str = Form(..., alias="From"),
+    to_number: str = Form(..., alias="To"),
+    call_sid: str = Form(..., alias="CallSid"),
 ) -> Response:
     """Generate TwiML for Twilio voice calls."""
     logger.info("=" * 80)
@@ -215,7 +208,7 @@ async def post_twiml(
     # Get WebSocket URL from environment
     public_domain = os.environ.get("TWILIO_TAF_VOICE_PUBLIC_DOMAIN", "")
     websocket_url = f"wss://{public_domain}/ws"
-    handoff_url = f"https://{public_domain}/handoff"
+    callback_url = f"https://{public_domain}/conversation-relay-callback"
 
     # Generate TwiML with conversation and participant setup
     # From contains the caller's phone number, To contains the Twilio number
@@ -223,7 +216,8 @@ async def post_twiml(
         websocket_url=websocket_url,
         to_number=to_number,
         from_number=from_number,
-        action_url=handoff_url,
+        call_sid=call_sid,
+        action_url=callback_url,
     )
 
     logger.info("[VOICE] TwiML generated, connecting to WebSocket")
@@ -239,11 +233,10 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     logger.info("=" * 80)
 
 
-@app.post("/handoff")
-async def handoff(request: Request) -> Response:
-    """Handle voice handoff."""
-    logger.info("[VOICE] Handoff triggered from Conversation Relay.")
-    return await voice_channel.handle_handoff(request)
+@app.post("/conversation-relay-callback")
+async def conversation_relay_callback(request: Request) -> Response:
+    """Handle ConversationRelay callback webhook from Twilio."""
+    return await voice_channel.handle_conversation_relay_callback(request)
 
 
 if __name__ == "__main__":

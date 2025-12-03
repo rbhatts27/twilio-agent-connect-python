@@ -12,6 +12,7 @@ from taf.channels.base import BaseChannel
 from taf.core.taf import TAF
 from taf.models.conversation import ParticipantAddress
 from taf.models.voice import (
+    ConversationRelayCallbackPayload,
     InterruptMessage,
     PromptMessage,
     SetupMessage,
@@ -71,6 +72,7 @@ class VoiceChannel(BaseChannel):
         websocket_url: str,
         to_number: str,
         from_number: str,
+        call_sid: Optional[str] = None,
         action_url: Optional[str] = None,
         welcome_greeting: str = "Hello! How can I assist you today?",
     ) -> str:
@@ -84,6 +86,7 @@ class VoiceChannel(BaseChannel):
             websocket_url: WebSocket URL for ConversationRelay (e.g., 'wss://example.ngrok.io/ws')
             to_number: Twilio phone number that was called (e.g., '+15551234567')
             from_number: Caller's phone number (e.g., '+15559876543')
+            call_sid: Optional Twilio Call SID to associate with participants
             action_url: Optional URL for Twilio to request when the call ends.
             welcome_greeting: Initial greeting message for the caller.
                             Defaults to "Hello! How can I assist you today?"
@@ -97,17 +100,23 @@ class VoiceChannel(BaseChannel):
         conversation = await self.taf.maestro_client.create_conversation(name=conversation_name)
         conversation_id = conversation.id
 
+        self.logger.info(
+            f"[Voice Channel] Created conversation {conversation_id} for CallSid: {call_sid}"
+        )
+
         # Add participant with the caller's phone number
         participant_response = await self.taf.maestro_client.add_participant(
             conversation_id=conversation_id,
-            addresses=[ParticipantAddress(channel="VOICE", address=from_number)],
+            addresses=[
+                ParticipantAddress(channel="VOICE", address=from_number, channelId=call_sid)
+            ],
             participant_type="CUSTOMER",
         )
         profile_id = participant_response.profile_id if participant_response else ""
 
         await self.taf.maestro_client.add_participant(
             conversation_id=conversation_id,
-            addresses=[ParticipantAddress(channel="VOICE", address=to_number)],
+            addresses=[ParticipantAddress(channel="VOICE", address=to_number, channelId=call_sid)],
             participant_type="AI_AGENT",
         )
 
@@ -145,6 +154,74 @@ class VoiceChannel(BaseChannel):
         return Response(
             content="No handoff handler registered", media_type="text/plain", status_code=501
         )
+
+    async def handle_conversation_relay_callback(self, request: Request) -> Response:
+        """
+        Handle ConversationRelay callback webhook from Twilio.
+
+        This method processes the callback sent by Twilio when a ConversationRelay
+        session ends, and closes associated conversations if the call status is "completed".
+
+        Args:
+            request: FastAPI Request object containing form data with:
+                - CallSid: Twilio Call SID
+                - CallStatus: Call status (e.g., "completed", "in-progress")
+                - SessionStatus: ConversationRelay session status
+                - SessionDuration: Duration of the session in seconds
+                - HandoffData: Optional JSON string with handoff information
+
+        Returns:
+            FastAPI Response acknowledging the callback
+        """
+        # TODO: Need to integrate handoff logic to this function as well. Will do it later.
+        try:
+            # Parse form data into dict
+            form_data = await request.form()
+            payload_dict = {key: str(value) for key, value in form_data.items()}
+
+            # Parse into Pydantic model
+            payload = ConversationRelayCallbackPayload(**payload_dict)
+
+            self.logger.info(
+                f"[ConversationRelay Callback] CallSid: {payload.call_sid}, "
+                f"Status: {payload.call_status}"
+            )
+
+            # If call is completed, close associated conversations
+            if payload.call_status == "completed":
+                # Get all conversations associated with this call
+                conversations = await self.taf.maestro_client.list_conversations(
+                    channel_id=payload.call_sid
+                )
+
+                self.logger.info(
+                    f"[ConversationRelay Callback] Closing {len(conversations)} "
+                    f"conversation(s) for CallSid: {payload.call_sid}"
+                )
+
+                # Close each conversation
+                for conversation in conversations:
+                    try:
+                        await self.taf.maestro_client.update_conversation(
+                            conversation_id=conversation.id, status="CLOSED"
+                        )
+                        self.logger.info(
+                            f"[ConversationRelay Callback] Closed conversation: {conversation.id}"
+                        )
+                    except Exception as e:
+                        self.logger.error(
+                            f"[ConversationRelay Callback] Failed to close conversation "
+                            f"{conversation.id}: {e}",
+                            exc_info=True,
+                        )
+
+            return Response(content="OK", media_type="text/plain", status_code=200)
+
+        except Exception as e:
+            self.logger.error(f"Error handling ConversationRelay callback: {e}", exc_info=True)
+            return Response(
+                content="Internal Server Error", media_type="text/plain", status_code=500
+            )
 
     async def handle_websocket(self, websocket: WebSocket) -> None:
         """
@@ -600,6 +677,7 @@ class VoiceChannel(BaseChannel):
         It automatically creates a FastAPI app with:
         - POST /twiml endpoint for handling incoming calls
         - WebSocket /ws endpoint for ConversationRelay connections
+        - POST /conversation-relay-callback endpoint for handling call completion
 
         Raises:
             ValueError: If server_config was not provided during initialization
@@ -619,14 +697,21 @@ class VoiceChannel(BaseChannel):
 
         # Register TwiML endpoint
         @app.post("/twiml")
-        async def post_twiml(From: str = Form(...), To: str = Form(...)) -> Response:  # noqa: N803
+        async def post_twiml(
+            From: str = Form(...),  # noqa: N803
+            To: str = Form(...),  # noqa: N803
+            CallSid: str = Form(...),  # noqa: N803
+        ) -> Response:
             """Generate TwiML for incoming voice calls."""
             websocket_url = f"wss://{config.public_domain}/ws"
+            callback_url = f"https://{config.public_domain}/conversation-relay-callback"
 
             twiml = await self.handle_incoming_call(
                 websocket_url=websocket_url,
                 to_number=To,
                 from_number=From,
+                call_sid=CallSid,
+                action_url=callback_url,
                 welcome_greeting=config.welcome_greeting,
             )
             return Response(content=twiml, media_type="application/xml")
@@ -636,6 +721,12 @@ class VoiceChannel(BaseChannel):
         async def websocket_endpoint(websocket: WebSocket) -> None:
             """Handle voice WebSocket connections for real-time streaming."""
             await self.handle_websocket(websocket)
+
+        # Register ConversationRelay callback endpoint
+        @app.post("/conversation-relay-callback")
+        async def conversation_relay_callback(request: Request) -> Response:
+            """Handle ConversationRelay callback webhook from Twilio."""
+            return await self.handle_conversation_relay_callback(request)
 
         # Start the server
         self.logger.info(f"Starting TAF Voice Server on {config.host}:{config.port}")

@@ -34,12 +34,6 @@ uv add git+https://github.com/twilio-internal/twilio-agentic-framework-python.gi
 
 # Install with voice support (includes FastAPI and uvicorn)
 uv add git+https://github.com/twilio-internal/twilio-agentic-framework-python.git --extra voice
-
-# Install with Bedrock support (includes boto3)
-uv add git+https://github.com/twilio-internal/twilio-agentic-framework-python.git --extra bedrock
-
-# Install with multiple extras
-uv add git+https://github.com/twilio-internal/twilio-agentic-framework-python.git --extra voice --extra bedrock
 ```
 
 ### pip/venv (Alternative)
@@ -53,12 +47,6 @@ pip install git+https://github.com/twilio-internal/twilio-agentic-framework-pyth
 
 # Install with voice support
 pip install "git+https://github.com/twilio-internal/twilio-agentic-framework-python.git[voice]"
-
-# Install with Bedrock support
-pip install "git+https://github.com/twilio-internal/twilio-agentic-framework-python.git[bedrock]"
-
-# Install with multiple extras
-pip install "git+https://github.com/twilio-internal/twilio-agentic-framework-python.git[voice,bedrock]"
 ```
 
 ## Quick Example: SMS Channel with Memory

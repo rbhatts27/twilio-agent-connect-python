@@ -46,6 +46,20 @@ class ConversationRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class UpdateConversationRequest(BaseModel):
+    """Request payload for updating a conversation."""
+
+    name: Optional[str] = Field(default=None, description="Conversation name")
+    status: Optional[Literal["ACTIVE", "INACTIVE", "CLOSED"]] = Field(
+        default=None, description="Conversation state (ACTIVE/INACTIVE/CLOSED)"
+    )
+    configuration: Optional[ConversationConfiguration] = Field(
+        default=None, description="Conversation configuration settings"
+    )
+
+    model_config = {"populate_by_name": True}
+
+
 class ConversationResponse(BaseModel):
     """Response from creating a conversation."""
 
@@ -195,6 +209,15 @@ class CommunicationsListResponse(BaseModel):
     """Response from list communications endpoint."""
 
     communications: list[Communication] = Field(..., description="List of communications")
+    meta: PaginationMeta = Field(..., description="Pagination metadata")
+
+    model_config = {"populate_by_name": True}
+
+
+class ConversationsListResponse(BaseModel):
+    """Response from list conversations endpoint."""
+
+    conversations: list[ConversationResponse] = Field(..., description="List of conversations")
     meta: PaginationMeta = Field(..., description="Pagination metadata")
 
     model_config = {"populate_by_name": True}

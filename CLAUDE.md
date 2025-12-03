@@ -79,7 +79,7 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 - **`src/taf/models/`** - Data models
   - `memory.py` - Memory API models: `MemoryRetrievalRequest`, `MemoryRetrievalResponse`, `ObservationInfo`, `SummaryInfo`, `SessionInfo`, `SessionMessage`, `ProfileResponse`
   - `conversation.py` - Conversation API models: `ConversationRequest`, `ConversationResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`
-  - `voice.py` - Voice WebSocket message models: `SetupMessage`, `PromptMessage`, `InterruptMessage`, `CustomParameters`, `VoiceServerConfig`
+  - `voice.py` - Voice WebSocket message models: `SetupMessage`, `PromptMessage`, `InterruptMessage`, `CustomParameters`, `VoiceServerConfig`, `ConversationRelayCallbackPayload`
   - `webhook.py` - `TwilioWebhookEvent` model for parsing Twilio webhook events
   - `knowledge.py` - `Knowledge` model for knowledge tool integration
   - `conversation_event.py` - `ConversationEvent` model with comprehensive event fields
@@ -140,6 +140,12 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 **ConversationClient** (`src/taf/context/conversation.py`):
 - `create_conversation(name, layers, intelligence_agents)`: Creates new conversation, returns `ConversationResponse`
   - Endpoint: `POST /Services/{service_id}/Conversations`
+- `list_conversations(status, channel_id, page_size, page_token)`: Lists conversations with optional filtering
+  - Endpoint: `GET /Services/{service_id}/Conversations`
+  - Returns: List of `ConversationResponse` objects
+- `update_conversation(conversation_id, name, status, configuration)`: Updates an existing conversation
+  - Endpoint: `PUT /Services/{service_id}/Conversations/{conversation_id}`
+  - Returns: `ConversationResponse`
 - `add_participant(conversation_id, addresses)`: Adds participant, returns `ParticipantResponse`
   - Endpoint: `POST /Services/{service_id}/Conversations/{conversation_id}/Participants`
 - `list_communications(conversation_id, channel_id, page_size, page_token)`: Lists communications for a conversation
@@ -147,7 +153,7 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
   - Returns: List of `CommunicationResponse` objects
   - Used for memory fallback when Memora is not configured
 - Auth: Uses HTTP Basic Authentication (Account SID as username, Auth Token as password)
-- Models (from `src/taf/models/conversation.py`): `ConversationRequest`, `ConversationResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`, `CommunicationResponse`, `CommunicationsListResponse`
+- Models (from `src/taf/models/conversation.py`): `ConversationRequest`, `ConversationResponse`, `UpdateConversationRequest`, `ConversationsListResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`, `CommunicationResponse`, `CommunicationsListResponse`
 - Pagination (from `src/taf/models/pagination.py`): `PaginationMeta` - Reusable pagination metadata for API list responses
 
 ## Type Checking and Code Style

@@ -94,7 +94,17 @@ class MemoryClient:
                 return memory_response
 
         except httpx.HTTPError as e:
-            self.logger.error(f"Failed to retrieve context from Memora: {e}")
+            response_text = (
+                getattr(e.response, "text", "No response body")
+                if hasattr(e, "response")
+                else "No response"
+            )
+            self.logger.error(
+                f"Failed to retrieve context from Memora: {e}\n"
+                f"URL: {url}\n"
+                f"Request body: {request_payload}\n"
+                f"Response: {response_text}"
+            )
             # Return empty response on API errors
             return MemoryRetrievalResponse()
 
@@ -144,7 +154,17 @@ class MemoryClient:
                 return profile_response
 
         except httpx.HTTPError as e:
-            self.logger.error(f"Failed to retrieve profile from Memora: {e}")
+            response_text = (
+                getattr(e.response, "text", "No response body")
+                if hasattr(e, "response")
+                else "No response"
+            )
+            self.logger.error(
+                f"Failed to retrieve profile from Memora: {e}\n"
+                f"URL: {url}\n"
+                f"Query params: {params}\n"
+                f"Response: {response_text}"
+            )
             raise
 
         except Exception as e:
