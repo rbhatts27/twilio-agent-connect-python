@@ -115,6 +115,11 @@ class TAFConfig(BaseModel):
 
     twilio_phone_number: str = Field(description="Twilio Phone Number to use for sending messages")
 
+    knowledge_base_id: Optional[str] = Field(
+        default=None,
+        description="Optional Knowledge Base ID for knowledge search functionality",
+    )
+
     log_level: str = Field(
         default="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
@@ -172,6 +177,7 @@ class TAFConfig(BaseModel):
         - TWILIO_TAF_ACCOUNT_SID: Twilio Account SID
         - TWILIO_TAF_AUTH_TOKEN: Twilio Auth Token
         - TWILIO_TAF_PHONE_NUMBER: Twilio Phone Number
+        - TWILIO_TAF_KNOWLEDGE_BASE_ID: Knowledge Base ID (optional)
         - TWILIO_TAF_LOG_LEVEL: Logging level (optional, defaults to INFO)
 
         Memory configuration is automatically loaded via TwilioMemoryConfig.from_env()
@@ -208,6 +214,7 @@ class TAFConfig(BaseModel):
             twilio_account_sid=os.environ["TWILIO_TAF_ACCOUNT_SID"],
             twilio_auth_token=os.environ["TWILIO_TAF_AUTH_TOKEN"],
             twilio_phone_number=os.environ["TWILIO_TAF_PHONE_NUMBER"],
+            knowledge_base_id=os.environ.get("TWILIO_TAF_KNOWLEDGE_BASE_ID"),
             log_level=os.environ.get("TWILIO_TAF_LOG_LEVEL", "INFO"),
             twilio_memory_config=twilio_memory_config,
         )

@@ -1,32 +1,23 @@
 #!/usr/bin/env python3
 """
-Simplified Voice Server Example using built-in server
+Simplified Voice Server Example with SessionManager for Interrupt Handling
 
-This example demonstrates the simplified VoiceChannel integration with built-in server.
-Just provide VoiceServerConfig and call voice_channel.start() - no need to manually
-create FastAPI app or routes!
-
-For a manual approach with full control, see examples/channels/voice.py.
-
-Features:
-- Automatic server setup with single start() call
-- Automatic TwiML and WebSocket endpoint handling
-- OpenAI integration for conversational responses
+This example demonstrates:
+- VoiceChannel with built-in server (VoiceServerConfig)
+- ThreadSafeSessionManager for proper interrupt handling
+- OpenAI streaming integration
 - Memory retrieval and context management
+- LLM service for clean separation of concerns
+
+For a basic example without SessionManager, see examples/channels/voice.py.
 """
 
 import os
 import sys
+from collections.abc import AsyncGenerator
 from typing import Optional
 
-import openai
 from dotenv import load_dotenv
-from openai.types.chat import (
-    ChatCompletionAssistantMessageParam,
-    ChatCompletionMessageParam,
-    ChatCompletionSystemMessageParam,
-    ChatCompletionUserMessageParam,
-)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -34,7 +25,10 @@ load_dotenv()
 # Add parent directory to path to import taf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from llm_service import LLMService  # type: ignore[import-not-found]
+
 from taf import TAF, TAFConfig, VoiceServerConfig, get_logger
+from taf.channels.session_manager import ThreadSafeSessionManager
 from taf.channels.voice import VoiceChannel
 from taf.models.memory import MemoryRetrievalResponse
 from taf.models.session import ConversationSession
@@ -45,60 +39,66 @@ logger = get_logger(__name__)
 # Global variables
 system_prompt = "You're a helpful assistant that helps users over the phone."
 
-# User-managed conversation history
-# Key: conversation_id, Value: list of messages
-conversation_messages: dict[str, list[ChatCompletionMessageParam]] = {}
+# These will be initialized in __main__
+taf: Optional[TAF] = None
+voice_channel: Optional[VoiceChannel] = None
+llm_service: Optional[LLMService] = None
 
 
-async def handle_memory_ready(
+async def stream_generator(prompt: str, conv_id: str) -> AsyncGenerator[str, None]:
+    """
+    Stream generator for SessionManager.
+
+    This function is called by SessionManager to stream LLM responses.
+    It yields chunks that can be cancelled mid-stream when interrupts occur.
+
+    Note: When using SessionManager, this replaces the message_ready callback
+    as the entry point for processing voice messages.
+    """
+    # Get conversation context from voice channel
+    if not voice_channel:
+        logger.error("Voice channel not initialized")
+        yield "I'm sorry, something went wrong."
+        return
+
+    context = voice_channel._conversations.get(conv_id)
+    if not context:
+        logger.warning(f"No session found for conversation {conv_id}")
+        # Create minimal context
+        from taf.models.session import ConversationSession
+
+        context = ConversationSession(
+            conversation_id=conv_id,
+            profile_id=None,
+            channel="voice",
+            profile=None,
+            author_info=None,
+        )
+
+    # Stream response from LLM service
+    if llm_service:
+        async for chunk in llm_service.stream_response(prompt, conv_id, context):
+            yield chunk
+    else:
+        logger.error("LLM service not initialized")
+        yield "I'm sorry, something went wrong."
+
+
+async def handle_message_ready(
     user_message: str,
     context: ConversationSession,
     memory_response: Optional[MemoryRetrievalResponse],
 ) -> None:
     """
-    Callback invoked when memory retrieval completes.
+    Callback invoked when a message is ready to be processed.
 
-    Processes user message with OpenAI, using retrieved memories for context
-    and maintaining conversation history for coherent multi-turn interactions.
+    Note: When using SessionManager with voice channel, this callback is NOT triggered.
+    Message processing happens in stream_generator() instead. This callback is kept
+    for compatibility but won't be called for voice messages when SessionManager is used.
     """
-    logger.info(f"Processing message for conversation {context.conversation_id}")
-    if memory_response:
-        logger.info(
-            f"Retrieved memories: {len(memory_response.observations)} observations, "
-            f"{len(memory_response.summaries)} summaries, "
-            f"{len(memory_response.communications or [])} communications"
-        )
-
-    # Initialize conversation history with system message
-    conv_id = context.conversation_id
-    if conv_id not in conversation_messages:
-        system_msg: ChatCompletionSystemMessageParam = {"role": "system", "content": system_prompt}
-        conversation_messages[conv_id] = [system_msg]
-
-    # Add user message to history
-    user_msg: ChatCompletionUserMessageParam = {"role": "user", "content": user_message}
-    conversation_messages[conv_id].append(user_msg)
-
-    # Generate response with OpenAI
-    client = openai.AsyncOpenAI(api_key=os.environ.get("TWILIO_TAF_OPENAI_API_KEY"))
-    completion = await client.chat.completions.create(
-        model="gpt-4o",
-        messages=conversation_messages[conv_id],
+    logger.debug(
+        f"[CALLBACK] Message ready callback (not used with SessionManager): {user_message[:50]}"
     )
-
-    response = completion.choices[0].message.content
-
-    logger.info("Response generated: %s", response)
-
-    # Send response and update history
-    if response:
-        assistant_msg: ChatCompletionAssistantMessageParam = {
-            "role": "assistant",
-            "content": response,
-        }
-        conversation_messages[conv_id].append(assistant_msg)
-
-        await voice_channel.send_response(context.conversation_id, response, role="assistant")
 
 
 if __name__ == "__main__":
@@ -113,21 +113,33 @@ if __name__ == "__main__":
     #   - TWILIO_TAF_LOG_LEVEL (defaults to INFO)
     #   - TWILIO_TAF_MEMORY_STORE_ID, TWILIO_TAF_MEMORY_API_KEY, TWILIO_TAF_MEMORY_API_TOKEN (for Twilio Memory)
     #   - TWILIO_TAF_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
+    #   - TWILIO_TAF_VOICE_PUBLIC_DOMAIN (required for voice server)
+    #   - TWILIO_TAF_OPENAI_API_KEY (required for OpenAI)
     taf = TAF(config=TAFConfig.from_env())
 
-    # Register callback for memory retrieval
-    taf.on_message_ready(handle_memory_ready)
+    # Initialize LLM service
+    llm_service = LLMService(taf=taf, system_prompt=system_prompt)
+    logger.info("[SETUP] LLM service initialized")
 
-    # Initialize channel with server configuration
+    # Create SessionManager for interrupt handling and streaming
+    session_manager = ThreadSafeSessionManager(stream_generator=stream_generator)
+    logger.info("[SETUP] SessionManager created with streaming support")
+
+    # Register callback for message ready (not used with SessionManager for voice)
+    taf.on_message_ready(handle_message_ready)
+
+    # Initialize channel with server configuration and session manager
     voice_channel = VoiceChannel(
         taf=taf,
+        session_manager=session_manager,
         server_config=VoiceServerConfig(
             public_domain=os.environ["TWILIO_TAF_VOICE_PUBLIC_DOMAIN"],
             host="0.0.0.0",
             port=8000,
         ),
     )
+    logger.info("[SETUP] Voice channel initialized with SessionManager for interrupt handling")
 
     # That's it! Just call start() and everything is handled automatically
-    logger.info("Starting simplified voice server...")
+    logger.info("Starting voice server with interrupt handling...")
     voice_channel.start()

@@ -12,3 +12,11 @@ class Knowledge(BaseModel):
     name: str
     description: str
     type: Literal["Web", "File", "Text", "DB"]
+
+
+class KnowledgeBase(BaseModel):
+    """Represents a Twilio Knowledge Base resource."""
+
+    id: str
+    name: str
+    description: str

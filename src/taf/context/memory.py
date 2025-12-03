@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 
 from taf.core.logging import get_logger
+from taf.models.knowledge import KnowledgeBase
 from taf.models.memory import (
     MemoryRetrievalRequest,
     MemoryRetrievalResponse,
@@ -132,27 +133,24 @@ class MemoryClient:
             httpx.HTTPError: If the API request fails
             ValueError: If the response cannot be parsed
         """
-        # Build the endpoint URL
         endpoint = f"/v1/Services/{self.store_id}/Profiles/{profile_id}"
         url = f"{self.base_url}{endpoint}"
 
-        # Build query parameters
         params = {}
         if trait_groups:
-            # Convert list to comma-separated string
             params["traitGroups"] = ",".join(trait_groups)
+
+        self.logger.debug(f"Fetching profile {profile_id} from {url} with params: {params}")
 
         try:
             async with self._get_client() as client:
                 response = await client.get(url, params=params)
                 response.raise_for_status()
 
-                # Parse the response
                 data = response.json()
                 profile_response = ProfileResponse(**data)
 
                 return profile_response
-
         except httpx.HTTPError as e:
             response_text = (
                 getattr(e.response, "text", "No response body")
@@ -166,7 +164,71 @@ class MemoryClient:
                 f"Response: {response_text}"
             )
             raise
-
         except Exception as e:
-            self.logger.error(f"Failed to parse Memora profile response: {e}")
+            self.logger.error(f"Failed to generate Memora profile response: {e}")
+            raise
+
+    async def get_knowledge_base(self, knowledge_base_id: str) -> KnowledgeBase:
+        """
+        Fetch knowledge base metadata from the Knowledge Base API.
+
+        Args:
+            knowledge_base_id: The knowledge base ID to fetch
+
+        Returns:
+            KnowledgeBase object with metadata from the API
+
+        Raises:
+            httpx.HTTPError: If the API request fails
+        """
+        url = f"{self.base_url}/ControlPlane/KnowledgeBases/{knowledge_base_id}"
+
+        try:
+            async with self._get_client() as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                data = response.json()
+
+                return KnowledgeBase(
+                    id=data.get("id", knowledge_base_id),
+                    name=data.get("uniqueName", ""),
+                    description=data.get("friendlyName", data.get("uniqueName", "")),
+                )
+        except httpx.HTTPError as e:
+            self.logger.error(f"Failed to fetch knowledge base: {e}")
+            raise
+
+    async def search_knowledge_base(
+        self, knowledge_base_id: str, query: str, top_k: int = 5
+    ) -> list[dict[str, Any]]:
+        """
+        Search a knowledge base with the given query.
+
+        Args:
+            knowledge_base_id: The knowledge base ID to search
+            query: The search query string
+            top_k: Number of knowledge chunks to return (default: 5)
+
+        Returns:
+            List of knowledge chunks with content and relevance scores
+
+        Raises:
+            httpx.HTTPError: If the API request fails
+        """
+        url = f"{self.base_url}/KnowledgeBases/{knowledge_base_id}/Search"
+        payload = {
+            "query": query,
+            "top": top_k,
+        }
+
+        try:
+            async with self._get_client() as client:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+
+                result: list[dict[str, Any]] = response.json()["chunks"]
+                return result
+
+        except httpx.HTTPError as e:
+            self.logger.error(f"Failed to search knowledge base: {e}")
             raise
