@@ -181,7 +181,7 @@ class MemoryClient:
         Raises:
             httpx.HTTPError: If the API request fails
         """
-        url = f"{self.base_url}/ControlPlane/KnowledgeBases/{knowledge_base_id}"
+        url = f"{self.base_url}/v1/ControlPlane/KnowledgeBases/{knowledge_base_id}"
 
         try:
             async with self._get_client() as client:
