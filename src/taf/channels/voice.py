@@ -10,7 +10,13 @@ from fastapi.datastructures import FormData
 
 from taf.channels.base import BaseChannel
 from taf.core.taf import TAF
-from taf.models.conversation import ParticipantAddress
+from taf.models.conversation import (
+    CommunicationContent,
+    CommunicationParticipant,
+    CommunicationRequest,
+    ParticipantAddress,
+)
+from taf.models.session import AuthorInfo
 from taf.models.voice import (
     ConversationRelayCallbackPayload,
     InterruptMessage,
@@ -548,6 +554,14 @@ class VoiceChannel(BaseChannel):
             self.logger.error(f"No active websocket connection for conversation {conversation_id}")
             return
 
+        # If active hydration is enabled, send agent response to Maestro
+        if self.taf.config.enable_voice_active_hydration and conversation_id in self._conversations:
+            session = self._conversations[conversation_id]
+            if session.author_info:
+                await self._add_agent_communication(
+                    conversation_id, response, session.author_info.address
+                )
+
         await self._active_websocket.send_text(
             json.dumps({"type": "text", "token": response, "last": True})
         )
@@ -582,6 +596,12 @@ class VoiceChannel(BaseChannel):
 
         await self._start_conversation(conversation_id, profile_id)
 
+        # If active hydration is enabled, populate author_info with customer address
+        if self.taf.config.enable_voice_active_hydration and message.from_number:
+            self._conversations[conversation_id].author_info = AuthorInfo(
+                address=message.from_number
+            )
+
     async def _handle_prompt(self, conv_id: str, message: PromptMessage) -> None:
         """
         Handle incoming voice prompt (user speech).
@@ -599,6 +619,10 @@ class VoiceChannel(BaseChannel):
 
         message_body = message.voice_prompt or ""
         session = self._conversations[conv_id]
+
+        # If active hydration is enabled, send user message to Maestro
+        if self.taf.config.enable_voice_active_hydration and session.author_info:
+            await self._add_user_communication(conv_id, message_body, session.author_info.address)
 
         # Trigger message ready callback without memory (voice channel doesn't fetch memory)
         try:
@@ -668,6 +692,66 @@ class VoiceChannel(BaseChannel):
         if self._current_conversation_id == conv_id:
             self._active_websocket = None
             self._current_conversation_id = None
+
+    async def _add_user_communication(
+        self, conversation_id: str, message_content: str, customer_address: str
+    ) -> None:
+        """
+        Add user message communication to Maestro for active hydration.
+
+        Args:
+            conversation_id: Conversation ID
+            message_content: User message content
+            customer_address: Customer participant address
+        """
+        try:
+            # Agent address is the Twilio phone number from config
+            agent_address = self.taf.config.twilio_phone_number
+
+            communication_request = CommunicationRequest(
+                author=CommunicationParticipant(address=customer_address, channel="VOICE"),
+                content=CommunicationContent(type="TEXT", text=message_content),
+                recipients=[CommunicationParticipant(address=agent_address, channel="VOICE")],
+            )
+
+            await self.taf.maestro_client.add_communication(conversation_id, communication_request)
+            self.logger.debug(
+                f"Added user communication to conversation {conversation_id} for active hydration"
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Failed to add user communication for active hydration: {e}", exc_info=True
+            )
+
+    async def _add_agent_communication(
+        self, conversation_id: str, response_content: str, customer_address: str
+    ) -> None:
+        """
+        Add agent response communication to Maestro for active hydration.
+
+        Args:
+            conversation_id: Conversation ID
+            response_content: Agent response content
+            customer_address: Customer participant address
+        """
+        try:
+            # Agent address is the Twilio phone number from config
+            agent_address = self.taf.config.twilio_phone_number
+
+            communication_request = CommunicationRequest(
+                author=CommunicationParticipant(address=agent_address, channel="VOICE"),
+                content=CommunicationContent(type="TEXT", text=response_content),
+                recipients=[CommunicationParticipant(address=customer_address, channel="VOICE")],
+            )
+
+            await self.taf.maestro_client.add_communication(conversation_id, communication_request)
+            self.logger.debug(
+                f"Added agent communication to conversation {conversation_id} for active hydration"
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Failed to add agent communication for active hydration: {e}", exc_info=True
+            )
 
     def start(self) -> None:
         """

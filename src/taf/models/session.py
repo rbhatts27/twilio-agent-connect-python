@@ -10,7 +10,9 @@ class AuthorInfo(BaseModel):
     """Information about the author of a communication."""
 
     address: str = Field(..., description="Author address (phone number or identifier)")
-    participant_id: str = Field(..., description="Participant ID of the author in the conversation")
+    participant_id: Optional[str] = Field(
+        default=None, description="Participant ID of the author in the conversation"
+    )
 
 
 class ConversationSession(BaseModel):

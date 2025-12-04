@@ -125,6 +125,13 @@ class TAFConfig(BaseModel):
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
     )
 
+    enable_voice_active_hydration: bool = Field(
+        default=False,
+        description="Enable active hydration for voice conversations. When enabled, "
+        "user messages and LLM responses are sent to Maestro via add_communication API "
+        "to keep conversation history in sync.",
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def memora_base_url(self) -> str:
@@ -179,6 +186,8 @@ class TAFConfig(BaseModel):
         - TWILIO_TAF_PHONE_NUMBER: Twilio Phone Number
         - TWILIO_TAF_KNOWLEDGE_BASE_ID: Knowledge Base ID (optional)
         - TWILIO_TAF_LOG_LEVEL: Logging level (optional, defaults to INFO)
+        - TWILIO_TAF_ENABLE_VOICE_ACTIVE_HYDRATION: Enable voice active hydration (optional,
+          defaults to false, set to 'true' or '1' to enable)
 
         Memory configuration is automatically loaded via TwilioMemoryConfig.from_env()
         from these environment variables (all optional):
@@ -208,6 +217,12 @@ class TAFConfig(BaseModel):
         # Load optional memory configuration
         twilio_memory_config = TwilioMemoryConfig.from_env()
 
+        # Parse enable_voice_active_hydration as boolean
+        enable_voice_active_hydration = False
+        voice_hydration_str = os.environ.get("TWILIO_TAF_ENABLE_VOICE_ACTIVE_HYDRATION", "").lower()
+        if voice_hydration_str in ("true", "1", "yes"):
+            enable_voice_active_hydration = True
+
         return cls(
             environment=os.environ["TWILIO_TAF_ENVIRONMENT"],
             conversation_service_sid=os.environ["TWILIO_TAF_CONVERSATION_SERVICE_SID"],
@@ -216,5 +231,6 @@ class TAFConfig(BaseModel):
             twilio_phone_number=os.environ["TWILIO_TAF_PHONE_NUMBER"],
             knowledge_base_id=os.environ.get("TWILIO_TAF_KNOWLEDGE_BASE_ID"),
             log_level=os.environ.get("TWILIO_TAF_LOG_LEVEL", "INFO"),
+            enable_voice_active_hydration=enable_voice_active_hydration,
             twilio_memory_config=twilio_memory_config,
         )
