@@ -215,7 +215,7 @@ class MemoryClient:
         Raises:
             httpx.HTTPError: If the API request fails
         """
-        url = f"{self.base_url}/KnowledgeBases/{knowledge_base_id}/Search"
+        url = f"{self.base_url}/v1/KnowledgeBases/{knowledge_base_id}/Search"
         payload = {
             "query": query,
             "top": top_k,
