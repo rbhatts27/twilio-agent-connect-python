@@ -12,7 +12,6 @@ A complete multi-channel demo showing how to:
 This demo demonstrates TAF's channel-agnostic architecture with both SMS and Voice support.
 """
 
-import logging
 import os
 from typing import Optional
 
@@ -30,19 +29,16 @@ from openai.types.chat import (
 from taf import TAF, TAFConfig
 from taf.channels import SMSChannel
 from taf.channels.voice import VoiceChannel
+from taf.core.logging import get_logger, setup_logging
 from taf.models.memory import MemoryRetrievalResponse
 from taf.models.session import ConversationSession
 
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+# Configure structured logging using TAF's logging utilities
+setup_logging(log_level="INFO", log_format="console")
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 app = FastAPI(
     title="TAF Multi-Channel Demo",
@@ -87,17 +83,17 @@ async def handle_message_ready(
     Uses LLM service with user-managed message history.
     Memory response is optional - SMS channel provides it, Voice channel does not.
     """
+    conv_id = context.conversation_id
     try:
-        logger.info("-" * 80)
         logger.info(
-            f"[CALLBACK] Message ready - Channel: {context.channel}, "
-            f"Conv ID: {context.conversation_id}"
+            "Message ready for processing",
+            conversation_id=conv_id,
+            profile_id=context.profile_id,
+            channel=context.channel,
         )
-        logger.info(f"[CALLBACK] User message: {user_message}")
 
         global active_conversation_sid
         # Initialize conversation history with system message if needed
-        conv_id = context.conversation_id
         active_conversation_sid = conv_id
         if conv_id not in conversation_messages:
             conversation_messages[conv_id] = []
@@ -111,15 +107,21 @@ async def handle_message_ready(
         if taf.is_twilio_memory_enabled():
             try:
                 memory_response = await taf.retrieve_memory(context, query=user_message)
-                logger.debug(f"Memory retrieved for conversation {conv_id}")
+                logger.debug(
+                    "Memory retrieved",
+                    conversation_id=conv_id,
+                )
             except Exception as e:
                 logger.error(
-                    f"Failed to retrieve memory for conversation {conv_id}: {e}",
+                    "Failed to retrieve memory",
+                    conversation_id=conv_id,
+                    error=str(e),
                     exc_info=True,
                 )
         else:
             logger.debug(
-                f"Twilio Memory not enabled, skipping memory retrieval for conversation {conv_id}"
+                "Twilio Memory not enabled, skipping memory retrieval",
+                conversation_id=conv_id,
             )
 
         # Log memory retrieval results
@@ -127,11 +129,18 @@ async def handle_message_ready(
             obs_count = len(memory_response.observations) if memory_response.observations else 0
             sum_count = len(memory_response.summaries) if memory_response.summaries else 0
             logger.info(
-                f"[MEMORY] Retrieved {obs_count} observations, {sum_count} summaries "
-                f"for profile {context.profile_id}"
+                "Memory retrieved",
+                conversation_id=conv_id,
+                profile_id=context.profile_id,
+                observations_count=obs_count,
+                summaries_count=sum_count,
             )
         else:
-            logger.info("[MEMORY] No memory response available for this channel")
+            logger.info(
+                "No memory response available",
+                conversation_id=conv_id,
+                channel=context.channel,
+            )
 
         active_websocket = voice_channel._active_websocket if context.channel == "voice" else None
 
@@ -146,7 +155,11 @@ async def handle_message_ready(
 
         # Send response through appropriate channel
         if llm_response:
-            logger.info(f"[RESPONSE] Sending via {context.channel}: {llm_response}...")
+            logger.info(
+                "Sending response",
+                conversation_id=conv_id,
+                channel=context.channel,
+            )
 
             if context.channel == "voice":
                 await voice_channel.send_response(
@@ -157,10 +170,17 @@ async def handle_message_ready(
                     context.conversation_id, llm_response, role="assistant"
                 )
             else:
-                logger.error("[RESPONSE] Unknown channel, cannot send response")
+                logger.error(
+                    "Unknown channel, cannot send response",
+                    conversation_id=conv_id,
+                    channel=context.channel,
+                )
 
-            logger.info(f"[RESPONSE] Successfully sent via {context.channel}")
-            logger.info("=" * 80)
+            logger.info(
+                "Successfully sent response",
+                conversation_id=conv_id,
+                channel=context.channel,
+            )
 
             # Store assistant response in history
             assistant_msg: ChatCompletionAssistantMessageParam = {
@@ -169,7 +189,12 @@ async def handle_message_ready(
             }
             conversation_messages[conv_id].append(assistant_msg)
     except Exception as e:
-        logger.error(f"[CALLBACK] Error handling message ready callback: {e}", exc_info=True)
+        logger.error(
+            "Error handling message ready callback",
+            conversation_id=conv_id,
+            error=str(e),
+            exc_info=True,
+        )
 
 
 taf.on_message_ready(handle_message_ready)
@@ -182,15 +207,12 @@ async def sms_webhook(request: Request) -> JSONResponse:
         form_data = await request.json()
         webhook_data = dict(form_data)
 
-        # Debug: Log the raw webhook data to see what Twilio is sending
-        logger.debug(f"Received webhook data: {webhook_data}")
-
         # Process all events (including deduplicated communication.created)
         await sms_channel.process_webhook(webhook_data)
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     except Exception as e:
-        logger.error(f"Error processing SMS webhook: {str(e)}")
+        logger.error("Error processing SMS webhook", error=str(e))
         return JSONResponse(content={"status": "error", "message": str(e)}, status_code=400)
 
 
@@ -201,9 +223,12 @@ async def post_twiml(
     call_sid: str = Form(..., alias="CallSid"),
 ) -> Response:
     """Generate TwiML for Twilio voice calls."""
-    logger.info("=" * 80)
-    logger.info(f"[VOICE] Incoming call from: {from_number}")
-    logger.info(f"[VOICE] Incoming call to: {to_number}")
+    logger.info(
+        "Incoming voice call",
+        from_number=from_number,
+        to_number=to_number,
+        call_sid=call_sid,
+    )
 
     # Get WebSocket URL from environment
     public_domain = os.environ.get("TWILIO_TAF_VOICE_PUBLIC_DOMAIN", "")
@@ -220,17 +245,16 @@ async def post_twiml(
         action_url=callback_url,
     )
 
-    logger.info("[VOICE] TwiML generated, connecting to WebSocket")
+    logger.info("TwiML generated, connecting to WebSocket", call_sid=call_sid)
     return Response(content=twiml, media_type="application/xml")
 
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """Handle voice streaming WebSocket connection."""
-    logger.info("[VOICE] WebSocket connection established")
+    logger.info("WebSocket connection established")
     await voice_channel.handle_websocket(websocket)
-    logger.info("[VOICE] WebSocket connection closed")
-    logger.info("=" * 80)
+    logger.info("WebSocket connection closed")
 
 
 @app.post("/conversation-relay-callback")

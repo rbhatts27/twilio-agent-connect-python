@@ -86,7 +86,11 @@ class BaseChannel(ABC):
             profile_id: Profile ID for the conversation (optional)
         """
         if conv_id in self._conversations:
-            self.logger.warning(f"Conversation {conv_id} already exists, skipping initialization")
+            self.logger.warning(
+                "Conversation already exists, skipping initialization",
+                conversation_id=conv_id,
+                channel=self.get_channel_name(),
+            )
             return
 
         # Fetch profile if profile_id is provided
@@ -103,6 +107,13 @@ class BaseChannel(ABC):
             author_info=None,
         )
 
+        self.logger.info(
+            "Started conversation",
+            conversation_id=conv_id,
+            profile_id=profile_id,
+            channel=self.get_channel_name(),
+        )
+
     def _end_conversation(self, conv_id: str) -> None:
         """
         Clean up conversation session.
@@ -112,6 +123,14 @@ class BaseChannel(ABC):
         """
         if conv_id in self._conversations:
             del self._conversations[conv_id]
-            self.logger.info(f"Ended conversation {conv_id}")
+            self.logger.info(
+                "Ended conversation",
+                conversation_id=conv_id,
+                channel=self.get_channel_name(),
+            )
         else:
-            self.logger.warning(f"Attempted to end unknown conversation {conv_id}")
+            self.logger.warning(
+                "Attempted to end unknown conversation",
+                conversation_id=conv_id,
+                channel=self.get_channel_name(),
+            )

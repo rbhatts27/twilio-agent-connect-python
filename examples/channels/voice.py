@@ -132,7 +132,7 @@ async def handle_message_ready(
 
     response = completion.choices[0].message.content
 
-    logger.info("Response generated: %s", response)
+    logger.info("Response generated", response=response)
 
     # Send response and update history
     if response:

@@ -63,7 +63,7 @@ class TAF:
             raise ValueError("Config must be TAFConfig instance or dictionary")
 
         # Setup logging
-        setup_logging(log_level=self.config.log_level)
+        setup_logging(log_level=self.config.log_level, log_format="console")
         self.logger = get_logger(__name__)
 
         # Initialize Memora client only if memory config is provided
