@@ -9,6 +9,7 @@ from fastapi import FastAPI, Form, Request, Response, WebSocket, WebSocketDiscon
 from fastapi.datastructures import FormData
 
 from taf.channels.base import BaseChannel
+from taf.channels.websocket_manager import WebSocketManager
 from taf.core.taf import TAF
 from taf.models.conversation import (
     CommunicationContent,
@@ -67,10 +68,8 @@ class VoiceChannel(BaseChannel):
         # Optional session manager for task tracking, cancellation, and streaming
         self.session_manager = session_manager
 
-        # Connection tracking (single connection for first version)
-        # TODO: Support multiple concurrent calls
-        self._active_websocket: Optional[WebSocket] = None
-        self._current_conversation_id: Optional[str] = None
+        # WebSocket manager for multi-connection support
+        self._websocket_manager = WebSocketManager()
         self._server_config = server_config
 
     async def handle_incoming_call(
@@ -245,8 +244,6 @@ class VoiceChannel(BaseChannel):
         await websocket.accept()
         self.logger.info("WebSocket connection established")
 
-        # Store active websocket
-        self._active_websocket = websocket
         conv_id = None
         session_state = None
         handler_task = None
@@ -259,8 +256,26 @@ class VoiceChannel(BaseChannel):
 
             if data.get("type") == "setup":
                 setup_msg = SetupMessage(**data)
+
+                # Extract conversation ID from setup message
+                if (
+                    not setup_msg.custom_parameters
+                    or not setup_msg.custom_parameters.conversation_id
+                ):
+                    self.logger.error(
+                        "conversationId is required in custom_parameters but was not provided"
+                    )
+                    await websocket.close()
+                    return
+
+                conv_id = setup_msg.custom_parameters.conversation_id
+
+                # Store WebSocket in manager BEFORE calling _handle_setup
+                self._websocket_manager.add_websocket(conv_id, websocket)
+                self.logger.info(f"Registered WebSocket for conversation {conv_id}")
+
+                # Handle setup to initialize conversation
                 await self._handle_setup(setup_msg)
-                conv_id = self._current_conversation_id
                 session_state = None  # Initialize as None
 
                 # Get or create session state if session manager is available
@@ -297,14 +312,10 @@ class VoiceChannel(BaseChannel):
                 except asyncio.CancelledError:
                     pass
 
-            # Clean up
-            self.logger.info(
-                f"Cleanup - active_websocket for conversation {self._current_conversation_id}"
-            )
-            self._active_websocket = None
-            if self._current_conversation_id:
-                self._end_conversation(self._current_conversation_id)
-                self._current_conversation_id = None
+            # Clean up conversation and websocket
+            if conv_id:
+                self.logger.info(f"Cleanup - removing WebSocket for conversation {conv_id}")
+                await self._cleanup_connection(conv_id)
 
     async def _message_handler(
         self,
@@ -438,15 +449,17 @@ class VoiceChannel(BaseChannel):
                         pass
 
                 # Send acknowledgment to Twilio after cancelling
-                try:
-                    if self._active_websocket:
-                        await self._active_websocket.send_text(
+                websocket = self._websocket_manager.get_websocket(conv_id)
+                if websocket:
+                    try:
+                        await websocket.send_text(
                             json.dumps({"type": "text", "token": "", "last": True})
                         )
-                except (WebSocketDisconnect, RuntimeError):
-                    self.logger.info(
-                        f"WebSocket closed before sending interrupt acknowledgment for {conv_id}."
-                    )
+                    except (WebSocketDisconnect, RuntimeError):
+                        self.logger.info(
+                            f"WebSocket closed before sending interrupt acknowledgment "
+                            f"for {conv_id}."
+                        )
 
             # Call the interrupt handler
             self._handle_interrupt(conv_id, interrupt_msg)
@@ -477,8 +490,10 @@ class VoiceChannel(BaseChannel):
             conv_id: Conversation ID
             message: Parsed PromptMessage containing user's speech
         """
-        if not self._active_websocket:
-            self.logger.error(f"No active websocket for conversation {conv_id}")
+        # Get WebSocket from manager
+        websocket = self._websocket_manager.get_websocket(conv_id)
+        if not websocket:
+            self.logger.error(f"No websocket for conversation {conv_id}")
             return
 
         if not self.session_manager:
@@ -503,7 +518,7 @@ class VoiceChannel(BaseChannel):
                     json_template["token"] = chunk
 
                 try:
-                    await self._active_websocket.send_text(json.dumps(json_template))
+                    await websocket.send_text(json.dumps(json_template))
                 except (WebSocketDisconnect, RuntimeError):
                     self.logger.info(f"WebSocket closed during streaming for {conv_id}.")
                     closed = True
@@ -512,7 +527,7 @@ class VoiceChannel(BaseChannel):
             # Send final message marker
             if not closed:
                 try:
-                    await self._active_websocket.send_text(
+                    await websocket.send_text(
                         json.dumps({"type": "text", "token": "", "last": True})
                     )
                 except (WebSocketDisconnect, RuntimeError):
@@ -527,8 +542,7 @@ class VoiceChannel(BaseChannel):
                 {"type": "text", "token": "Sorry, an error occurred.", "last": True}
             )
             try:
-                if self._active_websocket:
-                    await self._active_websocket.send_text(error_msg)
+                await websocket.send_text(error_msg)
             except (WebSocketDisconnect, RuntimeError):
                 self.logger.info(f"WebSocket closed before sending error message for {conv_id}.")
         finally:
@@ -542,7 +556,7 @@ class VoiceChannel(BaseChannel):
         self, conversation_id: str, response: str, role: Optional[str] = None
     ) -> None:
         """
-        Send voice response through the active websocket connection.
+        Send voice response through the websocket connection for this conversation.
 
         Args:
             conversation_id: Conversation ID
@@ -550,24 +564,42 @@ class VoiceChannel(BaseChannel):
             role: Optional message role (not used in this implementation, but kept
                   for API consistency with BaseChannel interface)
         """
-        if not self._active_websocket:
-            self.logger.error(f"No active websocket connection for conversation {conversation_id}")
+        # Get WebSocket from manager
+        websocket = self._websocket_manager.get_websocket(conversation_id)
+        if not websocket:
+            self.logger.error(f"No websocket connection for conversation {conversation_id}")
             return
 
-        # If active hydration is enabled, send agent response to Maestro
-        if self.taf.config.enable_voice_active_hydration and conversation_id in self._conversations:
-            session = self._conversations[conversation_id]
-            if session.author_info:
-                await self._add_agent_communication(
-                    conversation_id, response, session.author_info.address
-                )
+        try:
+            await websocket.send_text(json.dumps({"type": "text", "token": response, "last": True}))
 
-        await self._active_websocket.send_text(
-            json.dumps({"type": "text", "token": response, "last": True})
-        )
+            # If active hydration is enabled, send agent response to Maestro
+            if (
+                self.taf.config.enable_voice_active_hydration
+                and conversation_id in self._conversations
+            ):
+                session = self._conversations[conversation_id]
+                if session.author_info:
+                    await self._add_agent_communication(
+                        conversation_id, response, session.author_info.address
+                    )
+        except (WebSocketDisconnect, RuntimeError):
+            self.logger.info(f"WebSocket closed before sending response for {conversation_id}")
 
     def get_channel_name(self) -> str:
         return "voice"
+
+    def get_websocket(self, conversation_id: str) -> Optional[WebSocket]:
+        """
+        Get the WebSocket connection for a specific conversation.
+
+        Args:
+            conversation_id: Conversation ID
+
+        Returns:
+            WebSocket connection if exists, None otherwise
+        """
+        return self._websocket_manager.get_websocket(conversation_id)
 
     async def _handle_setup(self, message: SetupMessage) -> None:
         """
@@ -585,9 +617,6 @@ class VoiceChannel(BaseChannel):
 
         # Use the conversation ID from custom parameters as the canonical conversation ID
         conversation_id = message.custom_parameters.conversation_id
-
-        # Store current conversation ID
-        self._current_conversation_id = conversation_id
 
         # Extract profile ID from custom parameters if available
         profile_id = None
@@ -660,13 +689,18 @@ class VoiceChannel(BaseChannel):
                 f"Received interrupt for unknown conversation {conv_id}, skipping callback"
             )
 
-    def _end_conversation(self, conv_id: str) -> None:
+    async def _cleanup_connection(self, conv_id: str) -> None:
         """
-        Clean up conversation session and clear websocket connection.
+        Clean up all resources for a conversation (WebSocket, session, conversation state).
 
         Args:
             conv_id: Conversation ID
         """
+        # Remove WebSocket from manager
+        if self._websocket_manager.has_websocket(conv_id):
+            self._websocket_manager.remove_websocket(conv_id)
+            self.logger.info(f"Removed WebSocket for conversation {conv_id}")
+
         # Cancel any running stream task and cleanup session if session manager is enabled
         if self.session_manager and self.session_manager.has_session(conv_id):
             sessions_before = len(self.session_manager)
@@ -685,13 +719,10 @@ class VoiceChannel(BaseChannel):
                 f"Cleaned up conversation {conv_id} - sessions after: {sessions_after}"
             )
 
-        # Call parent implementation to clean up conversation
-        super()._end_conversation(conv_id)
-
-        # Clear active websocket if this was the current conversation
-        if self._current_conversation_id == conv_id:
-            self._active_websocket = None
-            self._current_conversation_id = None
+        # Clean up conversation state from BaseChannel
+        if conv_id in self._conversations:
+            del self._conversations[conv_id]
+            self.logger.info(f"Ended conversation {conv_id}")
 
     async def _add_user_communication(
         self, conversation_id: str, message_content: str, customer_address: str

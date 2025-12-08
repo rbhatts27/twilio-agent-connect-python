@@ -146,7 +146,9 @@ async def handle_message_ready(
     conversation_messages[conv_id].append(user_msg)
 
     # Generate response with OpenAI
-    flex_escalation_tool = create_flex_escalation_tool(websocket=voice_channel._active_websocket)
+    # Get the active websocket for this conversation
+    active_websocket = voice_channel.get_websocket(context.conversation_id)
+    flex_escalation_tool = create_flex_escalation_tool(websocket=active_websocket)
     tools = [flex_escalation_tool]
     tool_map = {tool.name: tool for tool in tools}
 

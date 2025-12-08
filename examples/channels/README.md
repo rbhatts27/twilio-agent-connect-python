@@ -264,8 +264,10 @@ from taf.tools.flex_escalation import create_flex_escalation_tool
 from taf.util.flex import handle_flex_handoff_logic
 
 # Create escalation tool
+# Get the active websocket for this conversation
+active_websocket = voice_channel.get_websocket(context.conversation_id)
 flex_escalation_tool = create_flex_escalation_tool(
-    websocket=voice_channel._active_websocket
+    websocket=active_websocket
 )
 
 # Register handoff handler

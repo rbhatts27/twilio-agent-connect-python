@@ -66,8 +66,6 @@ llm_service = LLMService(taf)
 # User-managed conversation history
 # Key: conversation_id, Value: list of messages
 conversation_messages: dict[str, list[ChatCompletionMessageParam]] = {}
-# todo: use a global conversation id until vnext is ready
-active_conversation_sid = None
 
 
 # Register message ready callback
@@ -92,9 +90,6 @@ async def handle_message_ready(
             channel=context.channel,
         )
 
-        global active_conversation_sid
-        # Initialize conversation history with system message if needed
-        active_conversation_sid = conv_id
         if conv_id not in conversation_messages:
             conversation_messages[conv_id] = []
 
@@ -142,7 +137,10 @@ async def handle_message_ready(
                 channel=context.channel,
             )
 
-        active_websocket = voice_channel._active_websocket if context.channel == "voice" else None
+        # Get the active websocket for this conversation if it's a voice channel
+        active_websocket = (
+            voice_channel.get_websocket(conv_id) if context.channel == "voice" else None
+        )
 
         # Call LLM service with conversation history
         llm_response = await llm_service.process_message(
