@@ -89,7 +89,7 @@ class LLMService:
             ]
 
             if websocket is not None:
-                tools = tools + [create_flex_escalation_tool(websocket)]
+                tools = tools + [create_flex_escalation_tool(context)]
 
             logger.info(f"[LLM] Processing message with {len(tools)} tools available")
 

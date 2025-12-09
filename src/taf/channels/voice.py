@@ -192,6 +192,9 @@ class VoiceChannel(BaseChannel):
                 f"Status: {payload.call_status}"
             )
 
+            if payload.call_status == "in-progress" and payload.handoff_data:
+                return await self.handle_handoff(request)
+
             # If call is completed, close associated conversations
             if payload.call_status == "completed":
                 # Get all conversations associated with this call
@@ -221,7 +224,6 @@ class VoiceChannel(BaseChannel):
                         )
 
             return Response(content="OK", media_type="text/plain", status_code=200)
-
         except Exception as e:
             self.logger.error(f"Error handling ConversationRelay callback: {e}", exc_info=True)
             return Response(

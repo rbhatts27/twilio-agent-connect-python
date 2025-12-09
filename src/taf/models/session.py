@@ -38,5 +38,8 @@ class ConversationSession(BaseModel):
     author_info: Optional[AuthorInfo] = Field(
         None, description="Author information from communication event (optional)"
     )
+    metadata: dict = Field(
+        default_factory=dict, description="Generic metadata storage for session-specific data"
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

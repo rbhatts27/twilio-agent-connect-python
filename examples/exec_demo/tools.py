@@ -2,14 +2,11 @@
 Order management and pricing tools for OpenAI Agents SDK.
 """
 
-import asyncio
-import json
 import logging
 from typing import Any, Optional
 
 from agents import function_tool as agents_function_tool
 from business_data import COMPANY_INFO, INTERNET_PLANS
-from fastapi import WebSocket
 
 from taf import TAF
 from taf.models.handoff_data import HandoffData
@@ -250,13 +247,14 @@ def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> Any:
 
 
 def create_flex_escalation_tool(
-    websocket: Optional[WebSocket] = None,
+    session: Optional[ConversationSession] = None,
 ) -> Any:
     """
-    Create a Flex escalation tool with injected websocket context.
-    This tool, when called, will end the websocket and signal handoff intent.
+    Create a Flex escalation tool with injected websocket and session context.
+    Stores escalation data in session metadata for the channel to handle.
     Args:
         websocket: Active WebSocket connection (if any)
+        session: Conversation session for storing escalation metadata
     Returns:
         TAFTool instance for escalation
     """
@@ -267,21 +265,20 @@ def create_flex_escalation_tool(
     )
     def flex_escalate_to_human(reason: str = "User requested human help") -> dict[str, Any]:
         """
-        Escalate the conversation to a human agent in Flex, ending websocket and signaling handoff
+        Escalate the conversation to a human agent in Flex.
+        Stores handoff data in session metadata for post-response processing.
         Args:
             reason: The reason for escalation (default: user requested human help).
         Returns:
             dict with escalation status and reason.
         """
-        if websocket is not None:
-            handoff_data = HandoffData(reason="handoff", call_summary=reason, sentiment="neutral")
-            logger.info(f"[TOOL:FLEX_ESCALATE] Sending handoff data: {handoff_data}")
+        handoff_data = HandoffData(reason="handoff", call_summary=reason, sentiment="neutral")
+        logger.info(f"[TOOL:FLEX_ESCALATE] Marking conversation for escalation: {handoff_data}")
 
-            asyncio.create_task(
-                websocket.send_text(
-                    json.dumps({"type": "end", "handoffData": handoff_data.model_dump_json()})
-                )
-            )
+        # Store escalation data in session metadata
+        if session is not None:
+            session.metadata["pending_handoff"] = {"handoff_data": handoff_data.model_dump_json()}
+
         return {"status": "escalated", "reason": reason}
 
     return flex_escalate_to_human

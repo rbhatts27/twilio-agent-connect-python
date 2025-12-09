@@ -12,12 +12,14 @@ A complete multi-channel demo showing how to:
 This demo demonstrates TAF's channel-agnostic architecture with both SMS and Voice support.
 """
 
+import json
 import os
 from typing import Optional
 
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request, WebSocket
+from fastapi.datastructures import FormData
 from fastapi.responses import JSONResponse, Response
 from llm_service import LLMService
 from openai.types.chat import (
@@ -32,6 +34,7 @@ from taf.channels.voice import VoiceChannel
 from taf.core.logging import get_logger, setup_logging
 from taf.models.memory import MemoryRetrievalResponse
 from taf.models.session import ConversationSession
+from taf.util.flex import handle_flex_handoff_logic
 
 load_dotenv()
 
@@ -66,6 +69,18 @@ llm_service = LLMService(taf)
 # User-managed conversation history
 # Key: conversation_id, Value: list of messages
 conversation_messages: dict[str, list[ChatCompletionMessageParam]] = {}
+
+
+async def flex_handoff_handler(request_data: FormData) -> Response:
+    """
+    Handler for Flex handoff requests.
+
+    This function is called when the AI agent triggers a handoff to a human agent.
+    It processes the handoff logic and returns the appropriate response.
+    """
+    return handle_flex_handoff_logic(
+        request_data, flex_workflow_sid=os.environ.get("TWILIO_TAF_VOICE_HANDOFF_FLEX_WORKFLOW_SID")
+    )
 
 
 # Register message ready callback
@@ -180,6 +195,25 @@ async def handle_message_ready(
                 channel=context.channel,
             )
 
+            # Check if there's a pending handoff in session metadata
+            if "pending_handoff" in context.metadata:
+                pending_handoff = context.metadata["pending_handoff"]
+                handoff_data_json = pending_handoff.get("handoff_data")
+
+                if context.channel == "voice" and handoff_data_json:
+                    try:
+                        logger.info("[HANDOFF] Sending end message to trigger handoff")
+                        await active_websocket.send_text(
+                            json.dumps({"type": "end", "handoffData": handoff_data_json})
+                        )
+                        logger.info("[HANDOFF] End message sent, conversation will be handed off")
+                        # Clear the metadata after processing
+                        del context.metadata["pending_handoff"]
+                    except Exception as e:
+                        logger.error(f"[HANDOFF] Error sending end message: {e}", exc_info=True)
+
+            logger.info("=" * 80)
+
             # Store assistant response in history
             assistant_msg: ChatCompletionAssistantMessageParam = {
                 "role": "assistant",
@@ -196,6 +230,8 @@ async def handle_message_ready(
 
 
 taf.on_message_ready(handle_message_ready)
+
+taf.on_handoff(flex_handoff_handler)
 
 
 @app.post("/sms")
