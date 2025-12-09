@@ -73,6 +73,7 @@ async def stream_generator(prompt: str, conv_id: str) -> AsyncGenerator[str, Non
             channel="voice",
             profile=None,
             author_info=None,
+            ai_agent_info=None,
         )
 
     # Stream response from LLM service

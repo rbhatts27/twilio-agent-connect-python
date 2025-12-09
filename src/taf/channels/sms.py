@@ -297,7 +297,7 @@ class SMSChannel(BaseChannel):
         """
         # Check if conversation is closed
         if event.conversation_status == "CLOSED":
-            self.logger.info(
+            self.logger.debug(
                 "Conversation closed, cleaning up",
                 conversation_id=conv_id,
             )

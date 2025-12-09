@@ -1,4 +1,7 @@
-.PHONY: help install test lint format type-check pre-commit clean build server ngrok sync dev-setup ci check install-pre-commit
+.PHONY: help install test lint format type-check pre-commit clean build server sync dev-setup ci check install-pre-commit
+
+# Include local overrides if present (not tracked in git)
+-include Makefile.local
 
 sync:
 	uv sync --all-extras --all-packages
@@ -49,9 +52,6 @@ server: ## Start the webhook test server on port 8000
 
 exec-demo: ## Start the exec_demo server with hot reloading (watches both examples and src)
 	cd examples/exec_demo && uv run uvicorn server:app --host 0.0.0.0 --port 8000 --reload --reload-dir . --reload-dir ../../src/taf
-
-ngrok: ## Start ngrok tunnel to local server with custom domain
-	ngrok http 8000 --domain=taf-stage.ngrok.app
 
 dev-setup: sync install-pre-commit ## Complete development environment setup
 

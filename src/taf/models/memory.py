@@ -158,8 +158,8 @@ class SummaryInfo(BaseModel):
             "example": "Customer discussed billing concerns and was satisfied with resolution."
         },
     )
-    conversation_id: str = Field(
-        ...,
+    conversation_id: Optional[str] = Field(
+        default=None,
         alias="conversationId",
         description="Unique identifier for the conversation using Twilio Type ID (TTID) format",
         json_schema_extra={"example": "comms_conversation_00000000000000000000000000"},

@@ -578,3 +578,252 @@ class TestVoiceChannel:
 
         # Verify still only one websocket tracked
         assert len(channel._websocket_manager) == 1
+
+    @pytest.mark.asyncio
+    async def test_active_hydration_setup(self) -> None:
+        """Test that active hydration setup populates author_info and ai_agent_info."""
+        config = get_test_config()
+        config["enable_voice_active_hydration"] = True
+        taf = TAF(config)
+        channel = VoiceChannel(taf=taf)
+
+        # Create setup message with all required fields for active hydration
+        setup_msg = SetupMessage(
+            type="setup",
+            conversationId="CONV123",
+            from_number="+15551234567",
+            to_number="+15559876543",
+            customParameters={
+                "conversationId": "CONV123",
+                "customerParticipantId": "PART_CUSTOMER_123",
+                "aiAgentParticipantId": "PART_AGENT_456",
+            },
+        )
+
+        # Call handler directly
+        await channel._handle_setup(setup_msg)
+
+        # Verify conversation was started with author and AI agent info
+        assert "CONV123" in channel._conversations
+        session = channel._conversations["CONV123"]
+        assert session.author_info is not None
+        assert session.author_info.address == "+15551234567"
+        assert session.author_info.participant_id == "PART_CUSTOMER_123"
+        assert session.ai_agent_info is not None
+        assert session.ai_agent_info.address == "+15559876543"
+        assert session.ai_agent_info.participant_id == "PART_AGENT_456"
+
+    @pytest.mark.asyncio
+    async def test_active_hydration_disabled(self) -> None:
+        """Test that author_info and ai_agent_info are not set when active hydration is disabled."""
+        config = get_test_config()
+        config["enable_voice_active_hydration"] = False
+        taf = TAF(config)
+        channel = VoiceChannel(taf=taf)
+
+        # Create setup message with all fields
+        setup_msg = SetupMessage(
+            type="setup",
+            conversationId="CONV456",
+            from_number="+15551234567",
+            to_number="+15559876543",
+            customParameters={
+                "conversationId": "CONV456",
+                "customerParticipantId": "PART_CUSTOMER_123",
+                "aiAgentParticipantId": "PART_AGENT_456",
+            },
+        )
+
+        # Call handler directly
+        await channel._handle_setup(setup_msg)
+
+        # Verify conversation was started but without author/AI agent info
+        assert "CONV456" in channel._conversations
+        session = channel._conversations["CONV456"]
+        assert session.author_info is None
+        assert session.ai_agent_info is None
+
+    @pytest.mark.asyncio
+    async def test_add_communication_with_optional_params(self) -> None:
+        """Test _add_communication with optional participant IDs."""
+        config = get_test_config()
+        config["enable_voice_active_hydration"] = True
+        taf = TAF(config)
+        channel = VoiceChannel(taf=taf)
+
+        # Mock the maestro client's add_communication method
+        with patch.object(
+            taf.maestro_client, "add_communication", new_callable=AsyncMock
+        ) as mock_add_comm:
+            # Call _add_communication with optional parameters
+            await channel._add_communication(
+                conversation_id="CONV123",
+                message_content="Hello world",
+                author_address="+15551234567",
+                recipient_address="+15559876543",
+                author_participant_id="PART_AUTHOR",
+                recipient_participant_id="PART_RECIPIENT",
+            )
+
+            # Verify add_communication was called
+            assert mock_add_comm.call_count == 1
+
+            # Verify the request structure
+            call_args = mock_add_comm.call_args
+            assert call_args[0][0] == "CONV123"  # conversation_id
+            comm_request = call_args[0][1]  # CommunicationRequest
+            assert comm_request.author.address == "+15551234567"
+            assert comm_request.author.participant_id == "PART_AUTHOR"
+            assert comm_request.content.text == "Hello world"
+            assert len(comm_request.recipients) == 1
+            assert comm_request.recipients[0].address == "+15559876543"
+            assert comm_request.recipients[0].participant_id == "PART_RECIPIENT"
+
+    @pytest.mark.asyncio
+    async def test_add_communication_without_participant_ids(self) -> None:
+        """Test _add_communication without participant IDs (optional parameters)."""
+        config = get_test_config()
+        config["enable_voice_active_hydration"] = True
+        taf = TAF(config)
+        channel = VoiceChannel(taf=taf)
+
+        # Mock the maestro client's add_communication method
+        with patch.object(
+            taf.maestro_client, "add_communication", new_callable=AsyncMock
+        ) as mock_add_comm:
+            # Call _add_communication without participant IDs
+            await channel._add_communication(
+                conversation_id="CONV456",
+                message_content="Test message",
+                author_address="+15551111111",
+                recipient_address="+15552222222",
+            )
+
+            # Verify add_communication was called
+            assert mock_add_comm.call_count == 1
+
+            # Verify the request structure
+            call_args = mock_add_comm.call_args
+            assert call_args[0][0] == "CONV456"
+            comm_request = call_args[0][1]
+            assert comm_request.author.address == "+15551111111"
+            assert comm_request.author.participant_id is None  # Should be None
+            assert comm_request.content.text == "Test message"
+            assert len(comm_request.recipients) == 1
+            assert comm_request.recipients[0].address == "+15552222222"
+            assert comm_request.recipients[0].participant_id is None  # Should be None
+
+    @pytest.mark.asyncio
+    async def test_send_response_with_active_hydration(self) -> None:
+        """Test that send_response triggers _add_communication when active hydration is enabled."""
+        config = get_test_config()
+        config["enable_voice_active_hydration"] = True
+        taf = TAF(config)
+        channel = VoiceChannel(taf=taf)
+
+        # Start conversation
+        await channel._start_conversation("CALL789", "profile_test")
+
+        # Set up author and AI agent info
+        from taf.models.session import AuthorInfo
+
+        channel._conversations["CALL789"].author_info = AuthorInfo(
+            address="+15551234567", participant_id="PART_CUSTOMER"
+        )
+        channel._conversations["CALL789"].ai_agent_info = AuthorInfo(
+            address="+15559876543", participant_id="PART_AGENT"
+        )
+
+        # Mock websocket and add_communication
+        mock_websocket = AsyncMock()
+        channel._websocket_manager.add_websocket("CALL789", mock_websocket)
+
+        with patch.object(
+            taf.maestro_client, "add_communication", new_callable=AsyncMock
+        ) as mock_add_comm:
+            # Send response
+            await channel.send_response("CALL789", "Agent response")
+
+            # Verify websocket was called
+            assert mock_websocket.send_text.call_count == 1
+
+            # Verify add_communication was called for active hydration
+            assert mock_add_comm.call_count == 1
+
+            # Verify the communication request
+            call_args = mock_add_comm.call_args
+            assert call_args[0][0] == "CALL789"
+            comm_request = call_args[0][1]
+            assert comm_request.author.address == "+15559876543"  # AI agent
+            assert comm_request.recipients[0].address == "+15551234567"  # Customer
+
+    @pytest.mark.asyncio
+    async def test_handle_prompt_with_active_hydration(self) -> None:
+        """Test that _handle_prompt triggers _add_communication when active hydration is enabled."""
+        config = get_test_config()
+        config["enable_voice_active_hydration"] = True
+        taf = TAF(config)
+        channel = VoiceChannel(taf=taf)
+
+        # Start conversation
+        await channel._start_conversation("CALL999", "profile_test")
+
+        # Set up author and AI agent info
+        from taf.models.session import AuthorInfo
+
+        channel._conversations["CALL999"].author_info = AuthorInfo(
+            address="+15551234567", participant_id="PART_CUSTOMER"
+        )
+        channel._conversations["CALL999"].ai_agent_info = AuthorInfo(
+            address="+15559876543", participant_id="PART_AGENT"
+        )
+
+        # Create prompt message
+        prompt_msg = PromptMessage(
+            type="prompt",
+            conversationId="CALL999",
+            voicePrompt="Customer message",
+        )
+
+        with patch.object(
+            taf.maestro_client, "add_communication", new_callable=AsyncMock
+        ) as mock_add_comm:
+            # Handle prompt
+            await channel._handle_prompt("CALL999", prompt_msg)
+
+            # Verify add_communication was called for active hydration
+            assert mock_add_comm.call_count == 1
+
+            # Verify the communication request
+            call_args = mock_add_comm.call_args
+            assert call_args[0][0] == "CALL999"
+            comm_request = call_args[0][1]
+            assert comm_request.author.address == "+15551234567"  # Customer
+            assert comm_request.recipients[0].address == "+15559876543"  # AI agent
+
+    @pytest.mark.asyncio
+    async def test_active_hydration_skipped_when_missing_info(self) -> None:
+        """Test that active hydration is skipped when author_info or ai_agent_info is missing."""
+        config = get_test_config()
+        config["enable_voice_active_hydration"] = True
+        taf = TAF(config)
+        channel = VoiceChannel(taf=taf)
+
+        # Start conversation without setting author/AI agent info
+        await channel._start_conversation("CALL_NO_INFO", "profile_test")
+
+        # Mock websocket
+        mock_websocket = AsyncMock()
+        channel._websocket_manager.add_websocket("CALL_NO_INFO", mock_websocket)
+
+        with patch.object(
+            taf.maestro_client, "add_communication", new_callable=AsyncMock
+        ) as mock_add_comm:
+            # Send response
+            await channel.send_response("CALL_NO_INFO", "Response")
+
+            # Verify websocket was called
+            assert mock_websocket.send_text.call_count == 1
+
+            # Verify add_communication was NOT called (missing info)
+            assert mock_add_comm.call_count == 0

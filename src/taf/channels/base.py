@@ -105,13 +105,13 @@ class BaseChannel(ABC):
             channel=self.get_channel_name(),
             profile=profile,
             author_info=None,
+            ai_agent_info=None,
         )
 
         self.logger.info(
-            "Started conversation",
+            f"🎯 CONVERSATION | Started {self.get_channel_name().upper()} conversation",
             conversation_id=conv_id,
             profile_id=profile_id,
-            channel=self.get_channel_name(),
         )
 
     def _end_conversation(self, conv_id: str) -> None:
@@ -123,7 +123,7 @@ class BaseChannel(ABC):
         """
         if conv_id in self._conversations:
             del self._conversations[conv_id]
-            self.logger.info(
+            self.logger.debug(
                 "Ended conversation",
                 conversation_id=conv_id,
                 channel=self.get_channel_name(),

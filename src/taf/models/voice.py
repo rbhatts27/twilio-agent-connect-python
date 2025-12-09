@@ -29,6 +29,8 @@ class CustomParameters(BaseModel):
 
     conversation_id: Optional[str] = Field(None, alias="conversationId")
     profile_id: Optional[str] = Field(None, alias="profileId")
+    customer_participant_id: Optional[str] = Field(None, alias="customerParticipantId")
+    ai_agent_participant_id: Optional[str] = Field(None, alias="aiAgentParticipantId")
 
     model_config = {"populate_by_name": True}
 

@@ -154,3 +154,6 @@ Desktop.ini
 *.tmp
 *.swp
 *.swo
+
+# Local Makefile overrides
+Makefile.local

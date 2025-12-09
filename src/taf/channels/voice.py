@@ -105,7 +105,7 @@ class VoiceChannel(BaseChannel):
         conversation = await self.taf.maestro_client.create_conversation(name=conversation_name)
         conversation_id = conversation.id
 
-        self.logger.info(
+        self.logger.debug(
             f"[Voice Channel] Created conversation {conversation_id} for CallSid: {call_sid}"
         )
 
@@ -118,11 +118,15 @@ class VoiceChannel(BaseChannel):
             participant_type="CUSTOMER",
         )
         profile_id = participant_response.profile_id if participant_response else ""
+        customer_participant_id = participant_response.id if participant_response else ""
 
-        await self.taf.maestro_client.add_participant(
+        ai_agent_participant_response = await self.taf.maestro_client.add_participant(
             conversation_id=conversation_id,
             addresses=[ParticipantAddress(channel="VOICE", address=to_number, channelId=call_sid)],
             participant_type="AI_AGENT",
+        )
+        ai_agent_participant_id = (
+            ai_agent_participant_response.id if ai_agent_participant_response else ""
         )
 
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -131,6 +135,8 @@ class VoiceChannel(BaseChannel):
         <ConversationRelay url="{websocket_url}" welcomeGreeting="{welcome_greeting}">
             <Parameter name="conversationId" value="{conversation_id}" />
             <Parameter name="profileId" value="{profile_id}" />
+            <Parameter name="customerParticipantId" value="{customer_participant_id}" />
+            <Parameter name="aiAgentParticipantId" value="{ai_agent_participant_id}" />
         </ConversationRelay>
     </Connect>
 </Response>"""
@@ -187,7 +193,7 @@ class VoiceChannel(BaseChannel):
             # Parse into Pydantic model
             payload = ConversationRelayCallbackPayload(**payload_dict)
 
-            self.logger.info(
+            self.logger.debug(
                 f"[ConversationRelay Callback] CallSid: {payload.call_sid}, "
                 f"Status: {payload.call_status}"
             )
@@ -203,8 +209,8 @@ class VoiceChannel(BaseChannel):
                 )
 
                 self.logger.info(
-                    f"[ConversationRelay Callback] Closing {len(conversations)} "
-                    f"conversation(s) for CallSid: {payload.call_sid}"
+                    f"\n{'=' * 80}\n📞 CALL ENDED | Closing {len(conversations)} conversation(s)",
+                    call_sid=payload.call_sid,
                 )
 
                 # Close each conversation
@@ -213,13 +219,12 @@ class VoiceChannel(BaseChannel):
                         await self.taf.maestro_client.update_conversation(
                             conversation_id=conversation.id, status="CLOSED"
                         )
-                        self.logger.info(
+                        self.logger.debug(
                             f"[ConversationRelay Callback] Closed conversation: {conversation.id}"
                         )
                     except Exception as e:
                         self.logger.error(
-                            f"[ConversationRelay Callback] Failed to close conversation "
-                            f"{conversation.id}: {e}",
+                            f"❌ Failed to close conversation {conversation.id}: {e}",
                             exc_info=True,
                         )
 
@@ -244,7 +249,7 @@ class VoiceChannel(BaseChannel):
             websocket: FastAPI WebSocket instance
         """
         await websocket.accept()
-        self.logger.info("WebSocket connection established")
+        self.logger.debug("WebSocket connection established")
 
         conv_id = None
         session_state = None
@@ -274,7 +279,7 @@ class VoiceChannel(BaseChannel):
 
                 # Store WebSocket in manager BEFORE calling _handle_setup
                 self._websocket_manager.add_websocket(conv_id, websocket)
-                self.logger.info(f"Registered WebSocket for conversation {conv_id}")
+                self.logger.debug("Registered WebSocket", conversation_id=conv_id)
 
                 # Handle setup to initialize conversation
                 await self._handle_setup(setup_msg)
@@ -302,7 +307,7 @@ class VoiceChannel(BaseChannel):
             await handler_task
 
         except WebSocketDisconnect:
-            self.logger.info(f"WebSocket connection closed for conversation {conv_id}")
+            self.logger.info("WebSocket connection closed", conversation_id=conv_id)
         except Exception as e:
             self.logger.error(f"WebSocket error: {str(e)}")
         finally:
@@ -316,7 +321,7 @@ class VoiceChannel(BaseChannel):
 
             # Clean up conversation and websocket
             if conv_id:
-                self.logger.info(f"Cleanup - removing WebSocket for conversation {conv_id}")
+                self.logger.debug("Cleanup - removing WebSocket", conversation_id=conv_id)
                 await self._cleanup_connection(conv_id)
 
     async def _message_handler(
@@ -352,7 +357,7 @@ class VoiceChannel(BaseChannel):
                     self.logger.debug(f"Unknown message type received: {msg_type}")
 
         except WebSocketDisconnect:
-            self.logger.info(
+            self.logger.debug(
                 f"WebSocket disconnected during message handling for conversation {conv_id}"
             )
         except Exception as e:
@@ -391,7 +396,9 @@ class VoiceChannel(BaseChannel):
                 if session_state:
                     if session_state.stream_task and not session_state.stream_task.done():
                         if self.logger.isEnabledFor(logging.DEBUG):
-                            self.logger.debug(f"Cancelling previous stream task for {conv_id}")
+                            self.logger.debug(
+                                "Cancelling previous stream task", conversation_id=conv_id
+                            )
                         session_state.stream_task.cancel()
                         try:
                             await asyncio.wait_for(
@@ -444,7 +451,9 @@ class VoiceChannel(BaseChannel):
             if session_state:
                 if session_state.stream_task and not session_state.stream_task.done():
                     session_state.stream_task.cancel()
-                    self.logger.info(f"Canceled streaming task for {conv_id} due to interrupt.")
+                    self.logger.info(
+                        "Canceled streaming task due to interrupt", conversation_id=conv_id
+                    )
                     try:
                         await session_state.stream_task
                     except asyncio.CancelledError:
@@ -495,11 +504,11 @@ class VoiceChannel(BaseChannel):
         # Get WebSocket from manager
         websocket = self._websocket_manager.get_websocket(conv_id)
         if not websocket:
-            self.logger.error(f"No websocket for conversation {conv_id}")
+            self.logger.error("No websocket for conversation", conversation_id=conv_id)
             return
 
         if not self.session_manager:
-            self.logger.error(f"No session_manager available for conversation {conv_id}")
+            self.logger.error("No session_manager available", conversation_id=conv_id)
             return
 
         prompt = message.voice_prompt or ""
@@ -522,7 +531,7 @@ class VoiceChannel(BaseChannel):
                 try:
                     await websocket.send_text(json.dumps(json_template))
                 except (WebSocketDisconnect, RuntimeError):
-                    self.logger.info(f"WebSocket closed during streaming for {conv_id}.")
+                    self.logger.info("WebSocket closed during streaming", conversation_id=conv_id)
                     closed = True
                     break
 
@@ -533,22 +542,28 @@ class VoiceChannel(BaseChannel):
                         json.dumps({"type": "text", "token": "", "last": True})
                     )
                 except (WebSocketDisconnect, RuntimeError):
-                    self.logger.info(f"WebSocket closed before sending final marker for {conv_id}.")
+                    self.logger.info(
+                        "WebSocket closed before sending final marker", conversation_id=conv_id
+                    )
 
         except asyncio.CancelledError:
-            self.logger.info(f"Streaming cancelled for conversation {conv_id}")
+            self.logger.info("Streaming cancelled", conversation_id=conv_id)
             raise
         except Exception as e:
-            self.logger.error(f"Error during streaming for {conv_id}: {e}", exc_info=True)
+            self.logger.error(
+                f"Error during streaming: {e}", conversation_id=conv_id, exc_info=True
+            )
             error_msg = json.dumps(
                 {"type": "text", "token": "Sorry, an error occurred.", "last": True}
             )
             try:
                 await websocket.send_text(error_msg)
             except (WebSocketDisconnect, RuntimeError):
-                self.logger.info(f"WebSocket closed before sending error message for {conv_id}.")
+                self.logger.info(
+                    "WebSocket closed before sending error message", conversation_id=conv_id
+                )
         finally:
-            self.logger.info(f"Finished streaming response for {conv_id}.")
+            self.logger.info("Finished streaming response", conversation_id=conv_id)
 
     # todo: voice does not support webhooks yet
     async def process_webhook(self, webhook_data: dict[str, Any]) -> None:
@@ -569,24 +584,37 @@ class VoiceChannel(BaseChannel):
         # Get WebSocket from manager
         websocket = self._websocket_manager.get_websocket(conversation_id)
         if not websocket:
-            self.logger.error(f"No websocket connection for conversation {conversation_id}")
+            self.logger.error("No websocket connection", conversation_id=conversation_id)
             return
 
         try:
             await websocket.send_text(json.dumps({"type": "text", "token": response, "last": True}))
 
-            # If active hydration is enabled, send agent response to Maestro
             if (
                 self.taf.config.enable_voice_active_hydration
                 and conversation_id in self._conversations
             ):
                 session = self._conversations[conversation_id]
-                if session.author_info:
-                    await self._add_agent_communication(
-                        conversation_id, response, session.author_info.address
+
+                if session.author_info and session.ai_agent_info:
+                    # Agent is author, customer is recipient
+                    await self._add_communication(
+                        conversation_id=conversation_id,
+                        message_content=response,
+                        author_address=session.ai_agent_info.address,
+                        recipient_address=session.author_info.address,
+                        author_participant_id=session.ai_agent_info.participant_id,
+                        recipient_participant_id=session.author_info.participant_id,
+                    )
+                else:
+                    self.logger.warning(
+                        "[Active Hydration] Missing author or AI agent info",
+                        conversation_id=conversation_id,
                     )
         except (WebSocketDisconnect, RuntimeError):
-            self.logger.info(f"WebSocket closed before sending response for {conversation_id}")
+            self.logger.info(
+                "WebSocket closed before sending response", conversation_id=conversation_id
+            )
 
     def get_channel_name(self) -> str:
         return "voice"
@@ -627,11 +655,20 @@ class VoiceChannel(BaseChannel):
 
         await self._start_conversation(conversation_id, profile_id)
 
-        # If active hydration is enabled, populate author_info with customer address
-        if self.taf.config.enable_voice_active_hydration and message.from_number:
-            self._conversations[conversation_id].author_info = AuthorInfo(
-                address=message.from_number
-            )
+        # If active hydration is enabled, populate author_info and ai_agent_info
+        if self.taf.config.enable_voice_active_hydration:
+            # Save customer info if from_number is available
+            if message.from_number:
+                self._conversations[conversation_id].author_info = AuthorInfo(
+                    address=message.from_number,
+                    participant_id=message.custom_parameters.customer_participant_id,
+                )
+            # Save AI agent info if to_number is available
+            if message.to_number:
+                self._conversations[conversation_id].ai_agent_info = AuthorInfo(
+                    address=message.to_number,
+                    participant_id=message.custom_parameters.ai_agent_participant_id,
+                )
 
     async def _handle_prompt(self, conv_id: str, message: PromptMessage) -> None:
         """
@@ -652,8 +689,20 @@ class VoiceChannel(BaseChannel):
         session = self._conversations[conv_id]
 
         # If active hydration is enabled, send user message to Maestro
-        if self.taf.config.enable_voice_active_hydration and session.author_info:
-            await self._add_user_communication(conv_id, message_body, session.author_info.address)
+        if (
+            self.taf.config.enable_voice_active_hydration
+            and session.author_info
+            and session.ai_agent_info
+        ):
+            # Customer is author, agent is recipient
+            await self._add_communication(
+                conversation_id=conv_id,
+                message_content=message_body,
+                author_address=session.author_info.address,
+                recipient_address=session.ai_agent_info.address,
+                author_participant_id=session.author_info.participant_id,
+                recipient_participant_id=session.ai_agent_info.participant_id,
+            )
 
         # Trigger message ready callback without memory (voice channel doesn't fetch memory)
         try:
@@ -677,9 +726,8 @@ class VoiceChannel(BaseChannel):
             message: Parsed InterruptMessage with interruption details
         """
         self.logger.info(
-            f"Received interrupt signal from Twilio - "
-            f"utterance: {message.utterance_until_interrupt}, "
-            f"duration: {message.duration_until_interrupt_ms}ms"
+            f"⏸️  INTERRUPT | User interrupted (after {message.duration_until_interrupt_ms}ms)",
+            conversation_id=conv_id,
         )
 
         # Trigger interrupt callback if conversation exists
@@ -701,7 +749,7 @@ class VoiceChannel(BaseChannel):
         # Remove WebSocket from manager
         if self._websocket_manager.has_websocket(conv_id):
             self._websocket_manager.remove_websocket(conv_id)
-            self.logger.info(f"Removed WebSocket for conversation {conv_id}")
+            self.logger.debug("Removed WebSocket", conversation_id=conv_id)
 
         # Cancel any running stream task and cleanup session if session manager is enabled
         if self.session_manager and self.session_manager.has_session(conv_id):
@@ -713,7 +761,7 @@ class VoiceChannel(BaseChannel):
             session_state = self.session_manager.get_or_create_session(conv_id)
             if session_state.stream_task and not session_state.stream_task.done():
                 session_state.stream_task.cancel()
-                self.logger.info(f"Cancelled stream_task for conversation {conv_id}")
+                self.logger.info("Cancelled stream_task", conversation_id=conv_id)
 
             self.session_manager.remove_session(conv_id)
             sessions_after = len(self.session_manager)
@@ -724,66 +772,53 @@ class VoiceChannel(BaseChannel):
         # Clean up conversation state from BaseChannel
         if conv_id in self._conversations:
             del self._conversations[conv_id]
-            self.logger.info(f"Ended conversation {conv_id}")
+            self.logger.debug("Ended conversation", conversation_id=conv_id)
 
-    async def _add_user_communication(
-        self, conversation_id: str, message_content: str, customer_address: str
+    async def _add_communication(
+        self,
+        conversation_id: str,
+        message_content: str,
+        author_address: str,
+        recipient_address: str,
+        author_participant_id: Optional[str] = None,
+        recipient_participant_id: Optional[str] = None,
     ) -> None:
         """
-        Add user message communication to Maestro for active hydration.
+        Add communication to Maestro for active hydration.
 
         Args:
             conversation_id: Conversation ID
-            message_content: User message content
-            customer_address: Customer participant address
+            message_content: Message content
+            author_address: Author's address (phone number)
+            recipient_address: Recipient's address (phone number)
+            author_participant_id: Optional author's participant ID
+            recipient_participant_id: Optional recipient's participant ID
         """
         try:
-            # Agent address is the Twilio phone number from config
-            agent_address = self.taf.config.twilio_phone_number
-
             communication_request = CommunicationRequest(
-                author=CommunicationParticipant(address=customer_address, channel="VOICE"),
+                author=CommunicationParticipant(
+                    address=author_address, channel="VOICE", participantId=author_participant_id
+                ),
                 content=CommunicationContent(type="TEXT", text=message_content),
-                recipients=[CommunicationParticipant(address=agent_address, channel="VOICE")],
+                recipients=[
+                    CommunicationParticipant(
+                        address=recipient_address,
+                        channel="VOICE",
+                        participantId=recipient_participant_id,
+                    )
+                ],
             )
 
             await self.taf.maestro_client.add_communication(conversation_id, communication_request)
             self.logger.debug(
-                f"Added user communication to conversation {conversation_id} for active hydration"
+                "[Active Hydration] Added communication to conversation",
+                conversation_id=conversation_id,
             )
-        except Exception as e:
+        except Exception:
             self.logger.error(
-                f"Failed to add user communication for active hydration: {e}", exc_info=True
-            )
-
-    async def _add_agent_communication(
-        self, conversation_id: str, response_content: str, customer_address: str
-    ) -> None:
-        """
-        Add agent response communication to Maestro for active hydration.
-
-        Args:
-            conversation_id: Conversation ID
-            response_content: Agent response content
-            customer_address: Customer participant address
-        """
-        try:
-            # Agent address is the Twilio phone number from config
-            agent_address = self.taf.config.twilio_phone_number
-
-            communication_request = CommunicationRequest(
-                author=CommunicationParticipant(address=agent_address, channel="VOICE"),
-                content=CommunicationContent(type="TEXT", text=response_content),
-                recipients=[CommunicationParticipant(address=customer_address, channel="VOICE")],
-            )
-
-            await self.taf.maestro_client.add_communication(conversation_id, communication_request)
-            self.logger.debug(
-                f"Added agent communication to conversation {conversation_id} for active hydration"
-            )
-        except Exception as e:
-            self.logger.error(
-                f"Failed to add agent communication for active hydration: {e}", exc_info=True
+                "[Active Hydration] Failed to add communication",
+                conversation_id=conversation_id,
+                exc_info=True,
             )
 
     def start(self) -> None:
