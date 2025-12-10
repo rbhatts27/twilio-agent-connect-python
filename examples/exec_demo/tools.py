@@ -3,7 +3,7 @@ Order management and pricing tools for OpenAI Agents SDK.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
 from agents import function_tool as agents_function_tool
 from business_data import COMPANY_INFO, INTERNET_PLANS
@@ -11,7 +11,7 @@ from business_data import COMPANY_INFO, INTERNET_PLANS
 from taf import TAF
 from taf.models.handoff_data import HandoffData
 from taf.models.session import ConversationSession
-from taf.tools.messaging import create_messaging_tools
+from taf.tools.base import InjectedToolArg, function_tool
 
 logger = logging.getLogger(__name__)
 
@@ -177,38 +177,22 @@ def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> Any:
     """
     Create confirm_order tool with injected TAF context for dynamic phone lookup.
 
-    This wraps TAF's send_message tool, deriving the phone number from Maestro
-    participants so the LLM doesn't need to provide it.
+    Uses TAF's function_tool with dependency injection to send SMS via Twilio client,
+    deriving the phone number from Maestro participants so the LLM doesn't need to provide it.
 
     Args:
-        taf: TAF instance with maestro_client for participant lookup
+        taf: TAF instance with maestro_client for participant lookup and Twilio client
         context: ConversationSession with conversation_id
 
     Returns:
         Function tool compatible with OpenAI Agents SDK
     """
-    # Get TAF's send_message tool (TAFTool instance)
-    messaging_tools = create_messaging_tools(taf.config)
-    send_message_impl = messaging_tools[0].implementation  # Extract the actual function
 
-    async def get_customer_phone() -> Optional[str]:
-        """Derive customer phone number from Maestro participants."""
-        try:
-            participants = taf.maestro_client.list_participants(context.conversation_id)
-
-            # Find customer participant with SMS address
-            for participant in participants:
-                if participant.type == "CUSTOMER":
-                    for address in participant.addresses:
-                        if address.channel == "SMS":
-                            return address.address  # Phone number in E.164 format
-            return None
-        except Exception as e:
-            logger.error(f"Failed to lookup customer phone: {e}")
-            return None
-
-    @agents_function_tool
-    async def confirm_order(order_details: str = "") -> str:
+    async def send_sms_via_twilio(
+        order_details: str,
+        taf_instance: Annotated[TAF, InjectedToolArg],
+        conversation_id: Annotated[str, InjectedToolArg],
+    ) -> str:
         """Send order confirmation via SMS to the customer.
 
         Args:
@@ -220,28 +204,68 @@ def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> Any:
         logger.info(f"[TOOL:CONFIRM] Called with order_details: {order_details[:50]}...")
 
         # Derive phone number dynamically from Maestro participants
-        phone_number = await get_customer_phone()
+        try:
+            participants = await taf_instance.maestro_client.list_participants(conversation_id)
 
-        logger.info(f"[TOOL:CONFIRM] Derived phone number {phone_number} for customer confirmation")
+            # Find customer participant with SMS address
+            customer_phone = None
+            for participant in participants:
+                if participant.type == "CUSTOMER":
+                    for address in participant.addresses:
+                        customer_phone = address.address  # Phone number in E.164 format
+                        break
+                    if customer_phone:
+                        break
 
-        if not phone_number:
-            logger.error("[TOOL:CONFIRM] Unable to derive customer phone number")
-            return "Unable to send confirmation - customer phone number not found."
+            if not customer_phone:
+                logger.error("[TOOL:CONFIRM] Unable to derive customer phone number")
+                return "Unable to send confirmation - customer phone number not found."
 
-        logger.info(f"[TOOL:CONFIRM] Sending SMS to: {phone_number}")
+            logger.info(
+                f"[TOOL:CONFIRM] Derived phone number {customer_phone} for customer confirmation"
+            )
+            logger.info(f"[TOOL:CONFIRM] Sending SMS to: {customer_phone}")
 
-        # Use TAF's send_message implementation to send SMS
-        success = send_message_impl(phone_number, order_details)
+            # Send SMS using Twilio client directly
+            from twilio.rest import Client
 
-        if success:
-            logger.info("[TOOL:CONFIRM] SMS sent successfully")
+            client = Client(
+                taf_instance.config.twilio_account_sid, taf_instance.config.twilio_auth_token
+            )
+            message = client.messages.create(
+                body=order_details,
+                from_=taf_instance.config.twilio_phone_number,
+                to=customer_phone,
+            )
+
+            logger.info(f"[TOOL:CONFIRM] SMS sent successfully, SID: {message.sid}")
             return (
                 f"Order confirmation sent via SMS! You should receive it shortly with order details"
                 f"{f': {order_details}' if order_details else ''}."
             )
-        else:
-            logger.error("[TOOL:CONFIRM] Failed to send SMS")
-            return "Failed to send order confirmation via SMS."
+
+        except Exception as e:
+            logger.error(f"[TOOL:CONFIRM] Failed to send SMS: {e}", exc_info=True)
+            return f"Failed to send order confirmation via SMS: {str(e)}"
+
+    # Create TAF tool with dependency injection
+    taf_tool = function_tool()(send_sms_via_twilio)
+    taf_tool.configure_injection(taf_instance=taf, conversation_id=context.conversation_id)
+
+    # Wrap the TAF tool's implementation for OpenAI Agents SDK compatibility
+    # The implementation property returns an async callable with clean signature
+    @agents_function_tool
+    async def confirm_order(order_details: str = "") -> str:
+        """Send order confirmation via SMS to the customer.
+
+        Args:
+            order_details: Details of the order to confirm
+
+        Returns:
+            Confirmation of message sent
+        """
+        # Call the TAF tool implementation
+        return await taf_tool.implementation(order_details=order_details)
 
     return confirm_order
 

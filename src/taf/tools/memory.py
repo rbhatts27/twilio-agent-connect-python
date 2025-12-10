@@ -1,59 +1,58 @@
 """Memory API tools for the Twilio Agentic Framework."""
 
-from typing import Any
+from typing import Annotated, Any
 
-import requests
-
-from taf.core.config import TAFConfig
+from taf.context.memory import MemoryClient
 from taf.models.session import ConversationSession
-from taf.tools.base import TAFTool, function_tool
+from taf.tools.base import InjectedToolArg, TAFTool, function_tool
 
 
-def create_memory_tools(config: TAFConfig, session: ConversationSession) -> list[TAFTool]:
+async def retrieve_profile_memory(
+    query: str,
+    memory_client: Annotated[MemoryClient, InjectedToolArg],
+    profile_id: Annotated[str, InjectedToolArg],
+) -> dict[str, Any]:
     """
-    Create memory tools with injected configuration and session context.
+    Search and retrieve relevant memories for the current profile.
+
+    Performs semantic search across the user's conversation history, observations,
+    and stored traits to find contextually relevant information.
 
     Args:
-        config: TAF configuration containing API URLs, auth tokens, and service SIDs
+        query: What to search for in the user's memory (e.g., "preferences about food",
+               "previous complaints", "contact information")
+
+    Returns:
+        Dictionary containing relevant memories, traits, and metadata
+    """
+    memory_response = await memory_client.retrieve_memory(
+        profile_id=profile_id,
+        query=query,
+    )
+    return memory_response.model_dump(by_alias=True, exclude_none=True)
+
+
+def create_memory_tool(memory_client: MemoryClient, session: ConversationSession) -> TAFTool:
+    """
+    Create memory tool with injected MemoryClient and session context.
+
+    Args:
+        memory_client: MemoryClient instance for retrieving memories
         session: Current session identity with profile and conversation IDs
 
     Returns:
-        List of configured memory tools
+        Configured memory tool
+
+    Example:
+        >>> tool = create_memory_tool(memory_client, session)
+        >>> # LLM only sees: retrieve_profile_memory(query: str)
+        >>> result = await tool(query="user preferences")
     """
+    # Wrap the standalone function with the tool decorator
+    memory_tool = function_tool()(retrieve_profile_memory)
 
-    @function_tool()
-    def retrieve_profile_memory(query: str) -> dict[str, Any]:
-        """
-        Search and retrieve relevant memories for the current profile.
-
-        Performs semantic search across the user's conversation history, observations,
-        and stored traits to find contextually relevant information.
-
-        Args:
-            query: What to search for in the user's memory (e.g., "preferences about food",
-                   "previous complaints", "contact information")
-
-        Returns:
-            Dictionary containing relevant memories, traits, and metadata
-        """
-        # Use injected config and session context
-        if not config.twilio_memory_config:
-            raise ValueError(
-                "twilio_memory_config is required for memory retrieval but was not provided"
-            )
-        url = (
-            f"{config.memora_base_url}/v1/Services/{config.twilio_memory_config.memory_store_id}"
-            f"/Profiles/{session.profile_id}/Recall"
-        )
-        headers = {
-            # TODO: Change this to use proper auth when Memora supports it
-            "X-Pre-Auth-Context": "account_00000000000000000000000000",
-            "Content-Type": "application/json",
-        }
-        payload = {"query": query}
-
-        response = requests.post(url, json=payload, headers=headers)
-        response.raise_for_status()
-        return response.json()  # type: ignore[no-any-return]
-
-    return [retrieve_profile_memory]
+    # Configure injection with the memory client and profile ID
+    return memory_tool.configure_injection(
+        memory_client=memory_client,
+        profile_id=session.profile_id,
+    )

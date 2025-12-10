@@ -32,6 +32,7 @@ from taf.channels.session_manager import ThreadSafeSessionManager
 from taf.channels.voice import VoiceChannel
 from taf.models.memory import MemoryRetrievalResponse
 from taf.models.session import ConversationSession
+from taf.tools.knowledge import KnowledgeBase, KnowledgeToolConfig, create_knowledge_tool
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -116,11 +117,32 @@ if __name__ == "__main__":
     #   - TWILIO_TAF_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
     #   - TWILIO_TAF_VOICE_PUBLIC_DOMAIN (required for voice server)
     #   - TWILIO_TAF_OPENAI_API_KEY (required for OpenAI)
+    #   - TWILIO_TAF_KNOWLEDGE_BASE_ID (optional, for knowledge base search)
     taf = TAF(config=TAFConfig.from_env())
 
-    # Initialize LLM service
-    llm_service = LLMService(taf=taf, system_prompt=system_prompt)
-    logger.info("[SETUP] LLM service initialized")
+    # Create knowledge tool if knowledge base ID is provided
+    tools = []
+    knowledge_id = os.environ.get("TWILIO_TAF_KNOWLEDGE_BASE_ID")
+    if knowledge_id and taf.memora_client:
+        knowledge_base = KnowledgeBase(
+            id=knowledge_id,
+            name="Knowledge Base",
+            description="Search the knowledge base for information to help answer user questions",
+        )
+
+        knowledge_tool = create_knowledge_tool(
+            memory_client=taf.memora_client,
+            knowledge_base=knowledge_base,
+            tool_config=KnowledgeToolConfig(top_k=3),
+        )
+        tools.append(knowledge_tool)
+        logger.info(f"[SETUP] Knowledge tool created: {knowledge_tool.name}")
+    elif knowledge_id and not taf.memora_client:
+        logger.warning("[SETUP] Knowledge ID provided but Memora client is not initialized")
+
+    # Initialize LLM service with tools
+    llm_service = LLMService(taf=taf, system_prompt=system_prompt, tools=tools)
+    logger.info(f"[SETUP] LLM service initialized with {len(tools)} tool(s)")
 
     # Create SessionManager for interrupt handling and streaming
     session_manager = ThreadSafeSessionManager(stream_generator=stream_generator)

@@ -2,12 +2,12 @@
 
 import json
 from typing import Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from taf.core.config import TAFConfig, TwilioMemoryConfig
-from taf.models.knowledge import Knowledge
+from taf.context.memory import MemoryClient
+from taf.models.knowledge import KnowledgeBase
 from taf.models.session import ConversationSession
 from taf.tools.base import (
     TAFTool,
@@ -20,9 +20,8 @@ from taf.tools.base import (
 from taf.tools.knowledge import (
     KnowledgeToolConfig,
     create_knowledge_tool,
-    create_knowledge_tools,
 )
-from taf.tools.memory import create_memory_tools
+from taf.tools.memory import create_memory_tool
 
 
 class TestTAFTool:
@@ -42,12 +41,13 @@ class TestTAFTool:
                 "properties": {"x": {"type": "string"}},
                 "required": ["x"],
             },
-            implementation=dummy_func,
+            _raw_implementation=dummy_func,
         )
 
         assert tool.name == "test_tool"
         assert tool.description == "A test tool"
-        assert tool.implementation == dummy_func
+        # implementation is now a property that returns a clean callable
+        assert callable(tool.implementation)
 
     def test_to_openai_format(self):
         """Test conversion to OpenAI function format."""
@@ -63,7 +63,7 @@ class TestTAFTool:
                 "properties": {"x": {"type": "string"}},
                 "required": ["x"],
             },
-            implementation=dummy_func,
+            _raw_implementation=dummy_func,
         )
 
         openai_format = tool.to_openai_format()
@@ -88,7 +88,7 @@ class TestTAFTool:
                 "properties": {"x": {"type": "string"}},
                 "required": ["x"],
             },
-            implementation=dummy_func,
+            _raw_implementation=dummy_func,
         )
 
         anthropic_format = tool.to_anthropic_format()
@@ -112,7 +112,7 @@ class TestTAFTool:
                 "properties": {"x": {"type": "string"}},
                 "required": ["x"],
             },
-            implementation=dummy_func,
+            _raw_implementation=dummy_func,
         )
 
         json_str = tool.to_json()
@@ -191,7 +191,8 @@ class TestFunctionTool:
         assert "message" in default_tool.params_json_schema["required"]
         assert "priority" not in default_tool.params_json_schema["required"]
 
-    def test_function_tool_execution(self):
+    @pytest.mark.asyncio
+    async def test_function_tool_execution(self):
         """Test that decorated function can still be executed."""
 
         @function_tool()
@@ -199,7 +200,8 @@ class TestFunctionTool:
             """Add two numbers."""
             return a + b
 
-        result = add_numbers.implementation(5, 3)
+        # implementation property returns an async callable
+        result = await add_numbers.implementation(5, 3)
         assert result == 8
 
     def test_function_tool_with_list_params(self):
@@ -275,7 +277,8 @@ class TestFunctionTool:
 class TestCreateTool:
     """Test create_tool function."""
 
-    def test_create_tool_manually(self):
+    @pytest.mark.asyncio
+    async def test_create_tool_manually(self):
         """Test manual tool creation with explicit schema."""
 
         def custom_impl(x: str) -> str:
@@ -295,7 +298,9 @@ class TestCreateTool:
         assert isinstance(tool, TAFTool)
         assert tool.name == "manual_tool"
         assert tool.description == "Manually created tool"
-        assert tool.implementation(x="test") == "TEST"
+        # implementation property returns an async callable
+        result = await tool.implementation(x="test")
+        assert result == "TEST"
 
 
 class TestTypeToJsonSchema:
@@ -438,120 +443,245 @@ class TestExtractSchemaFromFunction:
 
 
 class TestMemoryTools:
-    """Test create_memory_tools function."""
+    """Test create_memory_tool function."""
 
-    def test_create_memory_tools_returns_list(self):
-        """Test that create_memory_tools returns a list of tools."""
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
+    def test_create_memory_tool_returns_tool(self):
+        """Test that create_memory_tool returns a TAFTool."""
+        # Create mock MemoryClient
+        mock_memory_client = MagicMock(spec=MemoryClient)
+
         session = ConversationSession(
             profile_id="prof_123", conversation_id="conv_123", channel="sms"
         )
 
-        tools = create_memory_tools(config, session)
+        tool = create_memory_tool(mock_memory_client, session)
 
-        assert isinstance(tools, list)
-        assert len(tools) > 0
-        assert all(isinstance(tool, TAFTool) for tool in tools)
+        assert isinstance(tool, TAFTool)
 
     def test_memory_tool_has_correct_schema(self):
         """Test that memory tool has correct schema."""
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
+        # Create mock MemoryClient
+        mock_memory_client = MagicMock(spec=MemoryClient)
+
         session = ConversationSession(
             profile_id="prof_123", conversation_id="conv_123", channel="sms"
         )
 
-        tools = create_memory_tools(config, session)
-        memory_tool = tools[0]
+        memory_tool = create_memory_tool(mock_memory_client, session)
 
         assert memory_tool.name == "retrieve_profile_memory"
         assert "query" in memory_tool.params_json_schema["properties"]
         assert memory_tool.params_json_schema["properties"]["query"]["type"] == "string"
 
-    @patch("taf.tools.memory.requests.post")
-    def test_memory_tool_makes_api_call(self, mock_post):
-        """Test that memory tool makes correct API call."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"memories": []}
-        mock_response.raise_for_status = MagicMock()
-        mock_post.return_value = mock_response
+    @pytest.mark.asyncio
+    async def test_memory_tool_makes_api_call(self):
+        """Test that memory tool makes correct API call via MemoryClient."""
+        # Create mock MemoryClient with async method
+        mock_memory_client = MagicMock(spec=MemoryClient)
 
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
+        async def mock_retrieve(*args, **kwargs):
+            from taf.models.memory import MemoryRetrievalResponse
+
+            return MemoryRetrievalResponse()
+
+        mock_memory_client.retrieve_memory = MagicMock(side_effect=mock_retrieve)
+
         session = ConversationSession(
             profile_id="prof_123", conversation_id="conv_123", channel="sms"
         )
 
-        tools = create_memory_tools(config, session)
-        memory_tool = tools[0]
+        memory_tool = create_memory_tool(mock_memory_client, session)
 
-        result = memory_tool.implementation(query="test query")
+        result = await memory_tool(query="test query")
 
-        # Verify API call
-        mock_post.assert_called_once()
-        call_args = mock_post.call_args
-        assert "MGtest" in call_args[0][0]  # URL contains service SID
-        assert "prof_123" in call_args[0][0]  # URL contains profile ID
-        assert call_args[1]["json"]["query"] == "test query"
-        assert result == {"memories": []}
+        # Verify MemoryClient call
+        mock_memory_client.retrieve_memory.assert_called_once_with(
+            profile_id="prof_123",
+            query="test query",
+        )
+
+        # Verify result structure
+        assert "observations" in result
+        assert "summaries" in result
+        assert "communications" in result
+        assert "meta" in result
 
     def test_memory_tool_uses_injected_config(self):
-        """Test that memory tool uses injected config and session."""
-        config1 = TAFConfig(
-            twilio_account_sid="ACtest1",
-            twilio_auth_token="token1",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest1", api_key="api_key1", api_token="api_token1"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest1",
-            twilio_phone_number="+15551234567",
-        )
-        session1 = ConversationSession(profile_id="prof_1", conversation_id="conv_1", channel="sms")
+        """Test that memory tools use injected dependencies."""
+        # Create mock MemoryClients
+        mock_client1 = MagicMock(spec=MemoryClient)
+        mock_client2 = MagicMock(spec=MemoryClient)
 
-        config2 = TAFConfig(
-            twilio_account_sid="ACtest2",
-            twilio_auth_token="token2",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest2", api_key="api_key2", api_token="api_token2"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest2",
-            twilio_phone_number="+15551234567",
-        )
+        session1 = ConversationSession(profile_id="prof_1", conversation_id="conv_1", channel="sms")
         session2 = ConversationSession(profile_id="prof_2", conversation_id="conv_2", channel="sms")
 
-        tools1 = create_memory_tools(config1, session1)
-        tools2 = create_memory_tools(config2, session2)
+        tool1 = create_memory_tool(mock_client1, session1)
+        tool2 = create_memory_tool(mock_client2, session2)
 
-        # Tools should have different implementations based on injected config
-        assert tools1[0].name == tools2[0].name  # Same tool name
-        assert tools1[0].implementation != tools2[0].implementation  # Different closures
+        # Tools share the same tool name and raw implementation but have different injected args
+        assert tool1.name == tool2.name  # Same tool name
+        assert tool1._raw_implementation == tool2._raw_implementation  # Same raw function
+        client1 = tool1._injected_args["memory_client"]
+        client2 = tool2._injected_args["memory_client"]
+        assert client1 != client2
+        assert tool1._injected_args["profile_id"] == "prof_1"
+        assert tool2._injected_args["profile_id"] == "prof_2"
+
+    @pytest.mark.asyncio
+    async def test_memory_tool_injected_params_not_in_schema(self):
+        """Test that injected parameters are not exposed in tool schema."""
+        # Create mock MemoryClient with async method
+        mock_memory_client = MagicMock(spec=MemoryClient)
+
+        async def mock_retrieve(*args, **kwargs):
+            from taf.models.memory import MemoryRetrievalResponse
+
+            return MemoryRetrievalResponse()
+
+        mock_memory_client.retrieve_memory = MagicMock(side_effect=mock_retrieve)
+
+        session = ConversationSession(
+            profile_id="prof_123", conversation_id="conv_123", channel="sms"
+        )
+
+        memory_tool = create_memory_tool(mock_memory_client, session)
+
+        # Only query should be in schema, not the injected params
+        assert "query" in memory_tool.params_json_schema["properties"]
+        assert "memory_client" not in memory_tool.params_json_schema["properties"]
+        assert "profile_id" not in memory_tool.params_json_schema["properties"]
+
+        # Verify tool still works
+        await memory_tool(query="test query")
+        mock_memory_client.retrieve_memory.assert_called_once()
+
+    def test_memory_tool_type_validation(self):
+        """Test that configure_injection validates types correctly."""
+        from typing import Annotated
+
+        from taf.tools.base import InjectedToolArg, function_tool
+
+        # Create a tool with typed injected parameters
+        async def test_tool(
+            query: str,
+            client: Annotated[MemoryClient, InjectedToolArg],
+            count: Annotated[int, InjectedToolArg],
+        ) -> str:
+            """Test tool with typed injections."""
+            return "result"
+
+        tool = function_tool()(test_tool)
+
+        # Valid types should work
+        mock_client = MagicMock(spec=MemoryClient)
+        tool.configure_injection(client=mock_client, count=5)
+
+        # Wrong type should raise TypeError
+        with pytest.raises(TypeError, match="Type mismatch.*count"):
+            tool.configure_injection(count="wrong")
+
+        # Unknown parameter should raise ValueError
+        with pytest.raises(ValueError, match="Unknown injected parameter 'unknown'"):
+            tool.configure_injection(unknown="value")
+
+    def test_type_validation_with_generic_types(self):
+        """Test that configure_injection validates generic types correctly."""
+        from typing import Annotated, Any
+
+        from taf.tools.base import InjectedToolArg, function_tool
+
+        # Create a tool with generic type annotations
+        async def test_tool(
+            query: str,
+            items: Annotated[list[str], InjectedToolArg],
+            config: Annotated[dict[str, Any], InjectedToolArg],
+        ) -> str:
+            """Test tool with generic type injections."""
+            return "result"
+
+        tool = function_tool()(test_tool)
+
+        # Valid generic types should work
+        tool.configure_injection(items=["a", "b", "c"], config={"key": "value"})
+
+        # Wrong type for list[str] should raise TypeError
+        with pytest.raises(TypeError, match="Type mismatch.*items"):
+            tool.configure_injection(items={"wrong": "type"})
+
+        # Wrong item type in list should raise TypeError
+        with pytest.raises(TypeError, match="Type mismatch.*items"):
+            tool.configure_injection(items=[1, 2, 3])  # list[int] not list[str]
+
+        # Wrong type for dict should raise TypeError
+        with pytest.raises(TypeError, match="Type mismatch.*config"):
+            tool.configure_injection(config=["not", "a", "dict"])
+
+    def test_type_validation_with_pydantic_models(self):
+        """Test that configure_injection validates Pydantic models correctly."""
+        from typing import Annotated
+
+        from pydantic import BaseModel
+
+        from taf.tools.base import InjectedToolArg, function_tool
+
+        class TestConfig(BaseModel):
+            name: str
+            value: int
+
+        # Create a tool with Pydantic model annotation
+        async def test_tool(
+            query: str,
+            config: Annotated[TestConfig, InjectedToolArg],
+        ) -> str:
+            """Test tool with Pydantic model injection."""
+            return "result"
+
+        tool = function_tool()(test_tool)
+
+        # Valid Pydantic model should work
+        valid_config = TestConfig(name="test", value=42)
+        tool.configure_injection(config=valid_config)
+
+        # Pydantic accepts dicts and coerces them to models (this is expected behavior)
+        tool.configure_injection(config={"name": "test", "value": 42})
+
+        # Invalid dict structure should raise TypeError
+        with pytest.raises(TypeError, match="Type mismatch.*config"):
+            tool.configure_injection(config={"wrong": "fields"})
+
+        # Completely wrong type should raise TypeError
+        with pytest.raises(TypeError, match="Type mismatch.*config"):
+            tool.configure_injection(config="not a model")
+
+        # Invalid field type should raise TypeError
+        with pytest.raises(TypeError, match="Type mismatch.*config"):
+            tool.configure_injection(config={"name": "test", "value": "not_an_int"})
+
+    def test_type_validation_with_optional_generic_types(self):
+        """Test that configure_injection validates Optional generic types correctly."""
+        from typing import Annotated
+
+        from taf.tools.base import InjectedToolArg, function_tool
+
+        # Create a tool with Optional generic type annotations
+        async def test_tool(
+            query: str,
+            items: Annotated[Optional[list[str]], InjectedToolArg],
+        ) -> str:
+            """Test tool with optional generic type injections."""
+            return "result"
+
+        tool = function_tool()(test_tool)
+
+        # Valid list[str] should work
+        tool.configure_injection(items=["a", "b", "c"])
+
+        # None should work for Optional
+        tool.configure_injection(items=None)
+
+        # Wrong type should raise TypeError
+        with pytest.raises(TypeError, match="Type mismatch.*items"):
+            tool.configure_injection(items={"wrong": "type"})
 
 
 class TestKnowledgeTools:
@@ -559,100 +689,68 @@ class TestKnowledgeTools:
 
     def test_create_knowledge_tool_returns_taf_tool(self):
         """Test that create_knowledge_tool returns a TAFTool."""
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge = Knowledge(
+        # Create mock MemoryClient
+        mock_memory_client = MagicMock(spec=MemoryClient)
+
+        knowledge_base = KnowledgeBase(
             id="KN123",
             name="Product FAQ",
             description="Frequently asked questions about products",
-            type="Web",
         )
 
-        tool = create_knowledge_tool(config, knowledge)
+        tool = create_knowledge_tool(mock_memory_client, knowledge_base)
 
         assert isinstance(tool, TAFTool)
 
     def test_knowledge_tool_default_name_and_description(self):
         """Test that knowledge tool has correct default name and description."""
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge = Knowledge(
+        # Create mock MemoryClient
+        mock_memory_client = MagicMock(spec=MemoryClient)
+
+        knowledge_base = KnowledgeBase(
             id="KN123",
             name="Product FAQ",
             description="Frequently asked questions about products",
-            type="Web",
         )
 
-        tool = create_knowledge_tool(config, knowledge)
+        tool = create_knowledge_tool(mock_memory_client, knowledge_base)
 
-        assert tool.name == "Knowledge: Product FAQ"
+        assert tool.name == "search_product_faq"
         assert "Frequently asked questions about products" in tool.description
         assert "The input MUST be a question in the form of a string." in tool.description
 
     def test_knowledge_tool_custom_name_and_description(self):
         """Test that knowledge tool respects custom name and description."""
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge = Knowledge(
+        # Create mock MemoryClient
+        mock_memory_client = MagicMock(spec=MemoryClient)
+
+        knowledge_base = KnowledgeBase(
             id="KN123",
             name="Product FAQ",
             description="Frequently asked questions about products",
-            type="Web",
         )
         tool_config = KnowledgeToolConfig(
             name="custom_product_search", description="Search product documentation"
         )
 
-        tool = create_knowledge_tool(config, knowledge, tool_config)
+        tool = create_knowledge_tool(mock_memory_client, knowledge_base, tool_config)
 
         assert tool.name == "custom_product_search"
         assert tool.description == "Search product documentation"
 
     def test_knowledge_tool_custom_top_k(self):
         """Test that knowledge tool respects custom top-K value."""
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge = Knowledge(
+        # Create mock MemoryClient
+        mock_memory_client = MagicMock(spec=MemoryClient)
+
+        knowledge_base = KnowledgeBase(
             id="KN123",
             name="Product FAQ",
             description="Frequently asked questions about products",
-            type="Web",
         )
         tool_config = KnowledgeToolConfig(top_k=10)
 
-        tool = create_knowledge_tool(config, knowledge, tool_config)
+        tool = create_knowledge_tool(mock_memory_client, knowledge_base, tool_config)
 
         # We can't directly access tool_config.top_k from outside,
         # but we can verify it's used in the API call via mocking
@@ -660,71 +758,50 @@ class TestKnowledgeTools:
 
     def test_knowledge_tool_has_correct_schema(self):
         """Test that knowledge tool has correct parameter schema."""
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge = Knowledge(
+        # Create mock MemoryClient
+        mock_memory_client = MagicMock(spec=MemoryClient)
+
+        knowledge_base = KnowledgeBase(
             id="KN123",
             name="Product FAQ",
             description="Frequently asked questions about products",
-            type="Web",
         )
 
-        tool = create_knowledge_tool(config, knowledge)
+        tool = create_knowledge_tool(mock_memory_client, knowledge_base)
 
         assert "query" in tool.params_json_schema["properties"]
         assert tool.params_json_schema["properties"]["query"]["type"] == "string"
         assert "query" in tool.params_json_schema["required"]
 
-    @patch("taf.tools.knowledge.requests.post")
-    def test_knowledge_tool_makes_api_call(self, mock_post):
-        """Test that knowledge tool makes correct API call."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "chunks": [
+    @pytest.mark.asyncio
+    async def test_knowledge_tool_makes_api_call(self):
+        """Test that knowledge tool makes correct API call via MemoryClient."""
+        # Create mock MemoryClient with async method
+        mock_memory_client = MagicMock(spec=MemoryClient)
+
+        async def mock_search(*args, **kwargs):
+            return [
                 {"content": "Answer 1", "score": 0.95},
                 {"content": "Answer 2", "score": 0.87},
             ]
-        }
-        mock_response.raise_for_status = MagicMock()
-        mock_post.return_value = mock_response
 
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge = Knowledge(
+        mock_memory_client.search_knowledge_base = MagicMock(side_effect=mock_search)
+
+        knowledge_base = KnowledgeBase(
             id="KN123",
             name="Product FAQ",
             description="Frequently asked questions about products",
-            type="Web",
         )
 
-        tool = create_knowledge_tool(config, knowledge)
-        result = tool.implementation(query="What is the return policy?")
+        tool = create_knowledge_tool(mock_memory_client, knowledge_base)
+        result = await tool(query="What is the return policy?")
 
-        # Verify API call
-        mock_post.assert_called_once()
-        call_args = mock_post.call_args
-        assert call_args[0][0] == "https://knowledge.twilio.com/v1/Knowledge/Search"
-        assert call_args[1]["json"]["query"] == "What is the return policy?"
-        assert call_args[1]["json"]["knowledge_ids"] == ["KN123"]
-        assert call_args[1]["json"]["top"] == 5  # Default value
-        assert call_args[1]["auth"] == ("ACtest", "test_token")  # HTTP Basic Auth
-        assert call_args[1]["headers"]["Content-Type"] == "application/json"
+        # Verify MemoryClient call
+        mock_memory_client.search_knowledge_base.assert_called_once_with(
+            knowledge_base_id="KN123",
+            query="What is the return policy?",
+            top_k=5,  # Default value
+        )
 
         # Verify result
         assert result == [
@@ -732,219 +809,91 @@ class TestKnowledgeTools:
             {"content": "Answer 2", "score": 0.87},
         ]
 
-    @patch("taf.tools.knowledge.requests.post")
-    def test_knowledge_tool_uses_custom_top_k(self, mock_post):
+    @pytest.mark.asyncio
+    async def test_knowledge_tool_uses_custom_top_k(self):
         """Test that knowledge tool uses custom top-K value in API call."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"chunks": []}
-        mock_response.raise_for_status = MagicMock()
-        mock_post.return_value = mock_response
+        # Create mock MemoryClient with async method
+        mock_memory_client = MagicMock(spec=MemoryClient)
 
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge = Knowledge(
+        async def mock_search(*args, **kwargs):
+            return []
+
+        mock_memory_client.search_knowledge_base = MagicMock(side_effect=mock_search)
+
+        knowledge_base = KnowledgeBase(
             id="KN123",
             name="Product FAQ",
             description="Frequently asked questions about products",
-            type="Web",
         )
         tool_config = KnowledgeToolConfig(top_k=10)
 
-        tool = create_knowledge_tool(config, knowledge, tool_config)
-        tool.implementation(query="test query")
+        tool = create_knowledge_tool(mock_memory_client, knowledge_base, tool_config)
+        await tool(query="test query")
 
         # Verify top-K value
-        call_args = mock_post.call_args
-        assert call_args[1]["json"]["top"] == 10
+        mock_memory_client.search_knowledge_base.assert_called_once_with(
+            knowledge_base_id="KN123",
+            query="test query",
+            top_k=10,
+        )
 
     def test_knowledge_tool_uses_injected_config(self):
-        """Test that knowledge tools use injected config."""
-        config1 = TAFConfig(
-            twilio_account_sid="ACtest1",
-            twilio_auth_token="token1",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest1", api_key="api_key1", api_token="api_token1"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest1",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge1 = Knowledge(id="KN123", name="FAQ 1", description="First FAQ", type="Web")
+        """Test that knowledge tools use injected dependencies."""
+        # Create mock MemoryClients
+        mock_client1 = MagicMock(spec=MemoryClient)
+        mock_client2 = MagicMock(spec=MemoryClient)
 
-        config2 = TAFConfig(
-            twilio_account_sid="ACtest2",
-            twilio_auth_token="token2",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest2", api_key="api_key2", api_token="api_token2"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest2",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge2 = Knowledge(id="KN456", name="FAQ 2", description="Second FAQ", type="Web")
+        knowledge_base1 = KnowledgeBase(id="KN123", name="FAQ 1", description="First FAQ")
+        knowledge_base2 = KnowledgeBase(id="KN456", name="FAQ 2", description="Second FAQ")
 
-        tool1 = create_knowledge_tool(config1, knowledge1)
-        tool2 = create_knowledge_tool(config2, knowledge2)
+        tool1 = create_knowledge_tool(mock_client1, knowledge_base1)
+        tool2 = create_knowledge_tool(mock_client2, knowledge_base2)
 
-        # Tools should have different implementations based on injected config
-        assert tool1.implementation != tool2.implementation  # Different closures
+        # Tools share the same raw implementation function but have different injected args
+        assert tool1._raw_implementation == tool2._raw_implementation  # Same raw function
+        assert tool1._injected_args["memory_client"] != tool2._injected_args["memory_client"]
+        assert tool1._injected_args["knowledge_base_id"] == "KN123"
+        assert tool2._injected_args["knowledge_base_id"] == "KN456"
 
     def test_knowledge_types(self):
         """Test that all knowledge types are supported."""
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
+        # Create mock MemoryClient
+        mock_memory_client = MagicMock(spec=MemoryClient)
 
         for knowledge_type in ["Web", "File", "Text", "DB"]:
-            knowledge = Knowledge(
+            knowledge_base = KnowledgeBase(
                 id=f"KN{knowledge_type}",
                 name=f"{knowledge_type} Knowledge",
                 description=f"Knowledge of type {knowledge_type}",
-                type=knowledge_type,
             )
-            tool = create_knowledge_tool(config, knowledge)
+            tool = create_knowledge_tool(mock_memory_client, knowledge_base)
             assert isinstance(tool, TAFTool)
 
-    def test_create_knowledge_tools_returns_list(self):
-        """Test that create_knowledge_tools returns a list of tools."""
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge_list = [
-            Knowledge(id="KN1", name="FAQ", description="FAQs", type="Web"),
-            Knowledge(id="KN2", name="Docs", description="Documentation", type="Text"),
-            Knowledge(id="KN3", name="Policies", description="Policies", type="File"),
-        ]
+    @pytest.mark.asyncio
+    async def test_knowledge_tool_injected_params_not_in_schema(self):
+        """Test that injected parameters are not exposed in tool schema."""
+        # Create mock MemoryClient with async method
+        mock_memory_client = MagicMock(spec=MemoryClient)
 
-        tools = create_knowledge_tools(config, knowledge_list)
+        async def mock_search(*args, **kwargs):
+            return []
 
-        assert isinstance(tools, list)
-        assert len(tools) == 3
-        assert all(isinstance(tool, TAFTool) for tool in tools)
+        mock_memory_client.search_knowledge_base = MagicMock(side_effect=mock_search)
 
-    def test_create_knowledge_tools_with_configs(self):
-        """Test create_knowledge_tools with custom configurations."""
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge_list = [
-            Knowledge(id="KN1", name="FAQ", description="FAQs", type="Web"),
-            Knowledge(id="KN2", name="Docs", description="Documentation", type="Text"),
-        ]
-        tool_configs = {
-            "KN1": KnowledgeToolConfig(name="search_faq", top_k=3),
-            "KN2": KnowledgeToolConfig(description="Custom docs description"),
-        }
-
-        tools = create_knowledge_tools(config, knowledge_list, tool_configs)
-
-        assert len(tools) == 2
-        assert tools[0].name == "search_faq"
-        assert tools[1].description == "Custom docs description"
-
-    def test_create_knowledge_tools_empty_list(self):
-        """Test create_knowledge_tools with empty list."""
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
-
-        tools = create_knowledge_tools(config, [])
-
-        assert isinstance(tools, list)
-        assert len(tools) == 0
-
-    def test_create_knowledge_tools_partial_configs(self):
-        """Test create_knowledge_tools with partial tool_configs."""
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge_list = [
-            Knowledge(id="KN1", name="FAQ", description="FAQs", type="Web"),
-            Knowledge(id="KN2", name="Docs", description="Documentation", type="Text"),
-            Knowledge(id="KN3", name="Policies", description="Policies", type="File"),
-        ]
-        # Only configure the first knowledge
-        tool_configs = {"KN1": KnowledgeToolConfig(name="custom_faq")}
-
-        tools = create_knowledge_tools(config, knowledge_list, tool_configs)
-
-        assert len(tools) == 3
-        assert tools[0].name == "custom_faq"  # Custom config
-        assert tools[1].name == "Knowledge: Docs"  # Default
-        assert tools[2].name == "Knowledge: Policies"  # Default
-
-    @patch("taf.tools.knowledge.requests.post")
-    @patch.dict("os.environ", {"TWILIO_TAF_KNOWLEDGE_BASE_URL": "http://localhost:8080"})
-    def test_knowledge_tool_respects_env_variable(self, mock_post):
-        """Test that knowledge tool respects TWILIO_TAF_KNOWLEDGE_BASE_URL environment variable."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"chunks": []}
-        mock_response.raise_for_status = MagicMock()
-        mock_post.return_value = mock_response
-
-        config = TAFConfig(
-            twilio_account_sid="ACtest",
-            twilio_auth_token="test_token",
-            twilio_memory_config=TwilioMemoryConfig(
-                memory_store_id="MGtest", api_key="test_api_key", api_token="test_api_token"
-            ),
-            environment="prod",
-            conversation_service_sid="IStest",
-            twilio_phone_number="+15551234567",
-        )
-        knowledge = Knowledge(
+        knowledge_base = KnowledgeBase(
             id="KN123",
             name="Product FAQ",
             description="Frequently asked questions about products",
-            type="Web",
         )
 
-        tool = create_knowledge_tool(config, knowledge)
-        tool.implementation(query="test query")
+        tool = create_knowledge_tool(mock_memory_client, knowledge_base)
 
-        # Verify that custom base URL from environment variable is used
-        call_args = mock_post.call_args
-        assert call_args[0][0] == "http://localhost:8080/v1/Knowledge/Search"
+        # Only query should be in schema, not the injected params
+        assert "query" in tool.params_json_schema["properties"]
+        assert "memory_client" not in tool.params_json_schema["properties"]
+        assert "knowledge_base_id" not in tool.params_json_schema["properties"]
+        assert "top_k" not in tool.params_json_schema["properties"]
+
+        # Verify tool still works
+        await tool(query="test query")
+        mock_memory_client.search_knowledge_base.assert_called_once()

@@ -1,28 +1,35 @@
 # TAF Tools
 
-A generic tool framework for LLM function calling that works with both OpenAI and Anthropic APIs.
+Tool framework for LLM function calling that works with OpenAI and Anthropic APIs. Supports dependency injection to hide runtime values like API keys and client instances from LLM schemas.
 
-## How it Works
+## Core Concepts
 
-The `@function_tool` decorator automatically extracts function metadata to create LLM-compatible tool schemas:
+### TAFTool
 
-1. **Name**: Uses function name (or override with `name=` parameter)
-2. **Description**: Uses docstring first line (or override with `description=` parameter)
-3. **Parameters**: Extracts from function signature and type hints:
-   - Parameter names become JSON schema property names
-   - Type hints map to JSON schema types:
-     * `str` → `"string"`
-     * `int` → `"integer"`
-     * `float` → `"number"`
-     * `bool` → `"boolean"`
-     * `List[T]` → `"array"` with items of type T
-     * `Optional[T]` → same as T but not required
-   - Default values make parameters optional
-   - No default = required parameter
+The `TAFTool` class represents a tool/function that can be used with LLMs:
 
-## Basic Usage
+- `name`: Function name
+- `description`: What the tool does
+- `params_json_schema`: JSON Schema for parameters (auto-generated from type hints)
+- `implementation`: Property that returns an async callable with clean signature for LLM SDK introspection
+- `configure_injection()`: Configure runtime dependencies to inject when the tool is called
+- `to_openai_format()`: Convert to OpenAI function calling format
+- `to_anthropic_format()`: Convert to Anthropic tool format
 
-### Simple Tools
+### Dependency Injection
+
+Parameters marked with `Annotated[T, InjectedToolArg]` are:
+- Hidden from the LLM schema
+- Injected at runtime via `configure_injection()`
+- Not visible to LLM SDK introspection
+
+This allows tools to use API clients, credentials, and session context without exposing them to the LLM.
+
+## Creating Tools
+
+### Using the Decorator
+
+The `@function_tool()` decorator automatically extracts function metadata:
 
 ```python
 from taf.tools import function_tool
@@ -32,73 +39,54 @@ def calculate_tip(bill_amount: float, tip_percentage: float = 15.0) -> dict:
     """Calculate tip amount and total bill."""
     tip_amount = bill_amount * (tip_percentage / 100)
     return {"tip": tip_amount, "total": bill_amount + tip_amount}
-
-# Generate schemas for different LLM providers
-openai_schema = calculate_tip.to_openai_format()
-anthropic_schema = calculate_tip.to_anthropic_format()
 ```
 
-### Tools with Configuration Injection
+Schema generation:
+- Name: Uses function name (override with `name=` parameter)
+- Description: Uses docstring (override with `description=` parameter)
+- Parameters: Extracted from type hints
+  - `str` → `"string"`
+  - `int` → `"integer"`
+  - `float` → `"number"`
+  - `bool` → `"boolean"`
+  - `list[T]` → `"array"` with items type T
+  - `Optional[T]` → same as T but not required
+  - `Literal["a", "b"]` → `"string"` with enum constraint
+- Required vs Optional: Parameters with default values are optional, others are required
 
-For tools that need access to TAF configuration (API keys, service IDs, etc.) without exposing them to the LLM:
+### With Dependency Injection
+
+Use `Annotated[T, InjectedToolArg]` to inject runtime dependencies:
 
 ```python
-from taf.tools.memory import create_memory_tools
-from taf.core.config import TAFConfig, TwilioMemoryConfig
-from taf.core.context import ConversationSession
+from typing import Annotated
+from taf.tools import function_tool, InjectedToolArg
+from taf.context.memory import MemoryClient
 
-# Configuration and session context (not exposed to LLM)
-config = TAFConfig(
-    environment="prod",
-    twilio_account_sid="AC...",
-    twilio_auth_token="your_token",
-    twilio_memory_config=TwilioMemoryConfig(
-        memory_store_id="MG...",
-        api_key="your_api_key",
-        api_token="your_api_token"
-    ),
-    conversation_service_sid="IS...",
-    twilio_phone_number="+1234567890"
+async def retrieve_profile_memory(
+    query: str,
+    memory_client: Annotated[MemoryClient, InjectedToolArg],
+    profile_id: Annotated[str, InjectedToolArg],
+) -> dict:
+    """Search and retrieve relevant memories for the current profile."""
+    memory_response = await memory_client.retrieve_memory(
+        profile_id=profile_id,
+        query=query,
+    )
+    return memory_response.model_dump(by_alias=True, exclude_none=True)
+
+# Wrap with decorator and configure injection
+tool = function_tool()(retrieve_profile_memory)
+tool.configure_injection(
+    memory_client=my_memory_client,
+    profile_id="prof_123"
 )
-session = ConversationSession(
-    profile_id="profile_456...",
-    conversation_id="conversation_789...",
-    channel="sms"
-)
 
-# Create tools with injected config
-memory_tools = create_memory_tools(config, session)
-
-# LLM only sees the query parameter
-tool_schemas = [tool.to_openai_format() for tool in memory_tools]
-
-# Execute tool (config/auth handled automatically)
-result = memory_tools[0].implementation(query="user preferences about food")
+# LLM only sees: retrieve_profile_memory(query: str)
+# memory_client and profile_id are hidden from schema
 ```
 
-## Integration Examples
-
-### OpenAI Chat Completions API
-
-See: [`examples/openai_chat.py`](../../../examples/openai_chat_with_tools.py)
-
-### OpenAI Agents SDK
-
-See: [`examples/openai_agents.py`](../../../examples/openai_agents_with_tools.py)
-
-## Creating Custom Tools
-
-### Method 1: Decorator (Recommended)
-
-```python
-@function_tool()
-def search_contacts(query: str, limit: int = 10) -> List[dict]:
-    """Search contacts by name or phone number."""
-    # Your implementation here
-    return [{"name": "John", "phone": "+1234567890"}]
-```
-
-### Method 2: Manual Creation
+### Manual Creation
 
 ```python
 from taf.tools import create_tool
@@ -121,10 +109,90 @@ tool = create_tool(
 )
 ```
 
-## JSON Schema Output
+## Built-in Tools
 
-A function like this:
+### Memory Tool
 
+Retrieve memories from Twilio Memora:
+
+```python
+from taf import TAF, TAFConfig
+from taf.tools.memory import create_memory_tool
+from taf.models.session import ConversationSession
+
+# Initialize TAF
+taf = TAF(config=TAFConfig.from_env())
+
+# Create session
+session = ConversationSession(
+    profile_id="prof_123",
+    conversation_id="conv_456",
+    channel="sms"
+)
+
+# Create tool with injected dependencies
+memory_tool = create_memory_tool(taf.memora_client, session)
+
+# LLM only sees: retrieve_profile_memory(query: str)
+# Execute tool (async)
+result = await memory_tool(query="user preferences about food")
+```
+
+### Knowledge Tool
+
+Search a knowledge base via Twilio Memora:
+
+```python
+from taf.tools.knowledge import create_knowledge_tool, KnowledgeToolConfig
+from taf.models.knowledge import KnowledgeBase
+
+# Define knowledge base
+knowledge_base = KnowledgeBase(
+    id="know_knowledgebase_000000000000000000000000",
+    name="Product FAQ",
+    description="Frequently asked questions about products",
+)
+
+# Create tool with optional config
+knowledge_tool = create_knowledge_tool(
+    memory_client=taf.memora_client,
+    knowledge_base=knowledge_base,
+    tool_config=KnowledgeToolConfig(
+        name="search_product_faq",  # Optional custom name
+        description="Search product FAQs",  # Optional custom description
+        top_k=3  # Number of results to return
+    )
+)
+
+# LLM only sees: search_product_faq(query: str)
+# Execute tool (async)
+results = await knowledge_tool(query="What is the return policy?")
+```
+
+## Implementation Property
+
+The `implementation` property returns an async callable with clean signature:
+
+```python
+tool = function_tool()(my_function)
+
+# Get callable with clean signature (non-injected params only)
+callable_func = tool.implementation
+
+# Inspect signature
+import inspect
+sig = inspect.signature(callable_func)
+# Only non-injected parameters appear in signature
+
+# Call it (always async, handles sync/async implementations)
+result = await callable_func(param1="value")
+```
+
+This property is cached and automatically cleared when injection configuration changes.
+
+## Schema Output Examples
+
+Function:
 ```python
 @function_tool()
 def send_message(to: str, message: str, priority: int = 1) -> dict:
@@ -132,8 +200,7 @@ def send_message(to: str, message: str, priority: int = 1) -> dict:
     pass
 ```
 
-Becomes this OpenAI schema:
-
+OpenAI format:
 ```json
 {
   "type": "function",
@@ -153,8 +220,7 @@ Becomes this OpenAI schema:
 }
 ```
 
-And this Anthropic schema:
-
+Anthropic format:
 ```json
 {
   "name": "send_message",
