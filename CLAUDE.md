@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Twilio Agentic Framework (TAF) is a Python SDK that integrates third-party LLM agentic applications with Twilio communication APIs. TAF provides middleware for identity resolution, memory/context management (via Memora), conversation orchestration (via Maestro), and channel handling (Voice, SMS).
+Twilio Agent Connect (TAC) is a Python SDK that integrates third-party LLM agentic applications with Twilio communication APIs. TAC provides middleware for identity resolution, memory/context management (via Memora), conversation orchestration (via Maestro), and channel handling (Voice, SMS).
 
-**Key Architecture Principle**: TAF is not an agent runtime itself—it's middleware that enables existing LLM applications (OpenAI Agents SDK, Bedrock, LangChain, etc.) to leverage Twilio Sierra primitives (Memora for memory, Maestro for conversations, ConversationRelay for voice).
+**Key Architecture Principle**: TAC is not an agent runtime itself—it's middleware that enables existing LLM applications (OpenAI Agents SDK, Bedrock, LangChain, etc.) to leverage Twilio Sierra primitives (Memora for memory, Maestro for conversations, ConversationRelay for voice).
 
 ## Development Commands
 
@@ -43,10 +43,10 @@ make pre-commit
 make test
 
 # Run single test file
-uv run pytest tests/test_taf.py
+uv run pytest tests/test_tac.py
 
 # Run specific test
-uv run pytest tests/test_taf.py::test_function_name
+uv run pytest tests/test_tac.py::test_function_name
 ```
 
 ### Examples
@@ -65,18 +65,18 @@ make ngrok
 
 ### Package Structure
 
-The codebase follows a modular design matching the architecture diagram in TAF.md:
+The codebase follows a modular design matching the architecture diagram in TAC.md:
 
-- **`src/taf/core/`** - Core TAF class, configuration, and context models
-  - `taf.py` - Main `TAF` class with `retrieve_memory()`, `fetch_profile()`, and `on_message_ready()` hook
-  - `config.py` - `TAFConfig` Pydantic model for SDK configuration; `TwilioMemoryConfig` with optional `trait_groups`
+- **`src/tac/core/`** - Core TAC class, configuration, and context models
+  - `tac.py` - Main `TAC` class with `retrieve_memory()`, `fetch_profile()`, and `on_message_ready()` hook
+  - `config.py` - `TACConfig` Pydantic model for SDK configuration; `TwilioMemoryConfig` with optional `trait_groups`
   - `context.py` - `SessionIdentity`, `Profile`, `Memory`, `ConversationSession` models (Note: `ConversationSession` does not store message history but includes optional `profile` field)
 
-- **`src/taf/context/`** - Integration with Twilio Sierra primitives
+- **`src/tac/context/`** - Integration with Twilio Sierra primitives
   - `memory.py` - `MemoryClient` for memory retrieval (traits, observations, sessions) and profile retrieval with `get_profile()`
   - `conversation.py` - `ConversationClient` for conversation/participant management
 
-- **`src/taf/models/`** - Data models
+- **`src/tac/models/`** - Data models
   - `memory.py` - Memory API models: `MemoryRetrievalRequest`, `MemoryRetrievalResponse`, `ObservationInfo`, `SummaryInfo`, `SessionInfo`, `SessionMessage`, `ProfileResponse`
   - `conversation.py` - Conversation API models: `ConversationRequest`, `ConversationResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`
   - `voice.py` - Voice WebSocket message models: `SetupMessage`, `PromptMessage`, `InterruptMessage`, `CustomParameters`, `VoiceServerConfig`, `ConversationRelayCallbackPayload`
@@ -84,18 +84,18 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
   - `knowledge.py` - `Knowledge` model for knowledge tool integration
   - `conversation_event.py` - `ConversationEvent` model with comprehensive event fields
 
-- **`src/taf/channels/`** - Channel-specific orchestration and conversation lifecycle management
+- **`src/tac/channels/`** - Channel-specific orchestration and conversation lifecycle management
   - `base.py` - `BaseChannel` abstract class with conversation session management (`_start_conversation`, `_end_conversation`); `send_response()` with optional `role` parameter
   - `sms.py` - `SMSChannel` implementation handling webhook events, message validation, and memory retrieval
   - `voice.py` - `VoiceChannel` for Voice/ConversationRelay WebSocket protocol handling; supports both simplified server (via `VoiceServerConfig`) and manual FastAPI approaches
 
-- **`src/taf/tools/`** - LLM tool integration for Sierra primitives
-  - `base.py` - `TAFTool` dataclass with `to_openai_format()` and `to_anthropic_format()` methods; `function_tool` decorator for creating tools from functions
+- **`src/tac/tools/`** - LLM tool integration for Sierra primitives
+  - `base.py` - `TACTool` dataclass with `to_openai_format()` and `to_anthropic_format()` methods; `function_tool` decorator for creating tools from functions
   - `messaging.py` - `create_messaging_tools(config)` factory returning `send_message` tool
   - `memory.py` - `create_memory_tools(config, session)` factory returning `retrieve_profile_memory` tool
   - `example.py` - Example tool implementations
 
-- **`src/taf/adapters/`** - Runtime-specific adapters (future: OpenAI, Bedrock, etc.)
+- **`src/tac/adapters/`** - Runtime-specific adapters (future: OpenAI, Bedrock, etc.)
 
 ### Critical Workflow
 
@@ -105,21 +105,21 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
 
 2. **Conversation Management**: Channel handles conversation lifecycle:
    - `onConversationAdded`: Channel extracts `profile_id` from webhook → calls `_start_conversation(conv_id, profile_id)` → stores conversation session
-   - `onMessageAdded`: Channel validates message → auto-initializes conversation if needed → creates `ConversationSession` with all fields → calls `taf.retrieve_memory(conversation_context, query)`
+   - `onMessageAdded`: Channel validates message → auto-initializes conversation if needed → creates `ConversationSession` with all fields → calls `tac.retrieve_memory(conversation_context, query)`
    - `onConversationRemoved`: Channel calls `_end_conversation(conv_id)` → cleans up session
 
-3. **Message Processing**: `TAF.retrieve_memory(conversation_context, query)` → retrieves memories using one of two paths:
+3. **Message Processing**: `TAC.retrieve_memory(conversation_context, query)` → retrieves memories using one of two paths:
    - **If Memora is configured** (`twilio_memory_config` provided): Retrieves full memory (observations, summaries, communications) from Memora using `conversation_context.profile_id` and `config.twilio_memory_config.memory_store_id`
    - **If Memora is NOT configured**: Falls back to Maestro's `list_communications()` API to retrieve only communications (conversation history) - observations and summaries arrays will be empty
    - Both paths return `MemoryRetrievalResponse` → triggers `on_message_ready()` callback with memory response
 
-4. **Message Ready Hook**: Developers register callbacks via `taf.on_message_ready(callback)` to handle incoming messages
+4. **Message Ready Hook**: Developers register callbacks via `tac.on_message_ready(callback)` to handle incoming messages
    - For SMS: Receives `user_message`, `context` (ConversationSession), and `memory_response` (MemoryRetrievalResponse)
    - For Voice: Receives `user_message`, `context`, and `memory_response` (may be None)
 
 ### API Clients
 
-**MemoryClient** (`src/taf/context/memory.py`):
+**MemoryClient** (`src/tac/context/memory.py`):
 - `retrieve_memory()`: Retrieve conversation memories
   - Endpoint: `POST /Services/{service_id}/Profiles/{profile_id}/Recall`
   - Returns: `MemoryRetrievalResponse` with `observations`, `summaries`, `sessions` fields
@@ -128,7 +128,7 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
   - Query param: `traitGroups` (comma-separated list)
   - Returns: `ProfileResponse` with `id`, `createdAt`, `traits` fields
 - Auth: Uses HTTP Basic Authentication (Account SID as username, Auth Token as password)
-- Models (from `src/taf/models/memory.py`):
+- Models (from `src/tac/models/memory.py`):
   - `MemoryRetrievalRequest`: Request with `conversation_id`, `query`, optional date filters
   - `MemoryRetrievalResponse`: Response with observations, summaries, sessions arrays
   - `ObservationInfo`: Individual observation memories
@@ -137,7 +137,7 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
   - `SessionMessage`: Individual messages within sessions (includes `timestamp`, `direction`, `channel`, `from_address`, `to_address`, `content`)
   - `ProfileResponse`: Profile information with `id`, `createdAt`, `traits` (dict)
 
-**ConversationClient** (`src/taf/context/conversation.py`):
+**ConversationClient** (`src/tac/context/conversation.py`):
 - `create_conversation(name, layers, intelligence_agents)`: Creates new conversation, returns `ConversationResponse`
   - Endpoint: `POST /Services/{service_id}/Conversations`
 - `list_conversations(status, channel_id, page_size, page_token)`: Lists conversations with optional filtering
@@ -153,8 +153,8 @@ The codebase follows a modular design matching the architecture diagram in TAF.m
   - Returns: List of `CommunicationResponse` objects
   - Used for memory fallback when Memora is not configured
 - Auth: Uses HTTP Basic Authentication (Account SID as username, Auth Token as password)
-- Models (from `src/taf/models/conversation.py`): `ConversationRequest`, `ConversationResponse`, `UpdateConversationRequest`, `ConversationsListResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`, `CommunicationResponse`, `CommunicationsListResponse`
-- Pagination (from `src/taf/models/pagination.py`): `PaginationMeta` - Reusable pagination metadata for API list responses
+- Models (from `src/tac/models/conversation.py`): `ConversationRequest`, `ConversationResponse`, `UpdateConversationRequest`, `ConversationsListResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`, `CommunicationResponse`, `CommunicationsListResponse`
+- Pagination (from `src/tac/models/pagination.py`): `PaginationMeta` - Reusable pagination metadata for API list responses
 
 ## Type Checking and Code Style
 
@@ -173,7 +173,7 @@ This project uses **strict mypy configuration** (see pyproject.toml):
 **Code Formatting**:
 - Line length: 100 characters
 - Use ruff for formatting and linting (black-compatible)
-- Known first party: `["taf"]`
+- Known first party: `["tac"]`
 - Import combining: `combine-as-imports = true`
 - Enabled lint rules: pycodestyle (E/W), pyflakes (F), isort (I), flake8-bugbear (B), flake8-comprehensions (C4), pyupgrade (UP)
 - Per-file ignores: Examples allow E402 (import order) and E501 (line length)
@@ -181,7 +181,7 @@ This project uses **strict mypy configuration** (see pyproject.toml):
 ## Testing
 
 Tests are located in `tests/` directory:
-- `test_taf.py` - Core TAF class tests
+- `test_tac.py` - Core TAC class tests
 - `test_config.py` - Configuration tests
 - `test_integration.py` - Integration tests
 - `test_sms_channel.py` - SMS channel tests
@@ -189,7 +189,7 @@ Tests are located in `tests/` directory:
 - `test_voice_models.py` - Voice WebSocket message model tests
 - `test_conversation.py` - Conversation client tests
 - `test_webhook.py` - Webhook event parsing tests
-- `test_tools.py` - Tools module tests (function_tool decorator, TAFTool format conversions)
+- `test_tools.py` - Tools module tests (function_tool decorator, TACTool format conversions)
 - `test_profile_retrieval.py` - Profile retrieval tests (trait_groups, fetch_profile, context.profile)
 - `test_memory_fallback.py` - Memory retrieval fallback tests (Memora to Maestro fallback)
 - `test_init.py` - Package initialization tests
@@ -201,8 +201,8 @@ Test requirements (pytest.ini_options in pyproject.toml):
 
 ## Configuration Requirements
 
-When initializing TAF, developers must provide:
-- `environment` - TAF environment ("dev", "stage", or "prod") - automatically sets Memora and Maestro base URLs
+When initializing TAC, developers must provide:
+- `environment` - TAC environment ("dev", "stage", or "prod") - automatically sets Memora and Maestro base URLs
 - `twilio_account_sid` - From Twilio Console
 - `twilio_auth_token` - From Twilio Console
 - `twilio_phone_number` - Twilio Phone Number to use for sending messages (required for messaging tools)
@@ -218,12 +218,12 @@ When initializing TAF, developers must provide:
 ### SMS Channel Usage
 
 ```python
-from taf import TAF, TAFConfig
-from taf.channels import SMSChannel
-from taf.core.config import TwilioMemoryConfig
+from tac import TAC, TACConfig
+from tac.channels import SMSChannel
+from tac.core.config import TwilioMemoryConfig
 
-# 1. Setup TAF and SMS Channel
-config = TAFConfig(
+# 1. Setup TAC and SMS Channel
+config = TACConfig(
     environment="prod",  # or "dev" or "stage"
     twilio_account_sid="AC...",
     twilio_auth_token="...",
@@ -234,8 +234,8 @@ config = TAFConfig(
         trait_groups=["Contact", "Preferences"]  # Optional: specify trait groups
     )  # Optional - only if using Twilio Memory
 )
-taf = TAF(config)
-sms_channel = SMSChannel(taf)
+tac = TAC(config)
+sms_channel = SMSChannel(tac)
 
 # 2. Register callback to handle message processing
 def handle_message(user_message, context, memory_response=None):
@@ -247,7 +247,7 @@ def handle_message(user_message, context, memory_response=None):
     llm_response = call_your_llm(user_message, memory_response, context.profile)
     sms_channel.send_response(context.conversation_id, llm_response)
 
-taf.on_message_ready(handle_message)
+tac.on_message_ready(handle_message)
 
 # 3. In your webhook handler
 @app.route('/webhook', methods=['POST'])
@@ -270,7 +270,7 @@ The SMS channel handles three webhook events:
    - Auto-initializes conversation if not already started (extracts `profile_id` from webhook)
    - Fetches profile if `profile_id` is available (updates `context.profile` with fresh data)
    - Creates `ConversationSession` with `conversation_id`, `profile_id`, `channel`, `started_at`, and `profile`
-   - Calls `taf.retrieve_memory(conversation_context, query=message_body)`
+   - Calls `tac.retrieve_memory(conversation_context, query=message_body)`
    - This triggers `on_message_ready` callback with `user_message`, `context`, and optional `memory_response`
    - `context.profile` contains profile traits if memory config includes `trait_groups`
 
@@ -281,19 +281,19 @@ The SMS channel handles three webhook events:
 
 ### Voice Channel Usage
 
-The Voice channel provides WebSocket protocol handling for Twilio ConversationRelay. TAF offers two approaches:
+The Voice channel provides WebSocket protocol handling for Twilio ConversationRelay. TAC offers two approaches:
 
 **Simplified Approach (Recommended for Getting Started):**
 
 Use `VoiceServerConfig` for automatic server setup with minimal boilerplate:
 
 ```python
-from taf import TAF, TAFConfig, VoiceServerConfig
-from taf.channels.voice import VoiceChannel
-from taf.core.config import TwilioMemoryConfig
+from tac import TAC, TACConfig, VoiceServerConfig
+from tac.channels.voice import VoiceChannel
+from tac.core.config import TwilioMemoryConfig
 
-# 1. Setup TAF and Voice Channel with server config
-config = TAFConfig(
+# 1. Setup TAC and Voice Channel with server config
+config = TACConfig(
     environment="prod",  # or "dev" or "stage"
     twilio_account_sid="AC...",
     twilio_auth_token="...",
@@ -304,7 +304,7 @@ config = TAFConfig(
         trait_groups=["Contact", "Preferences"]  # Optional: specify trait groups
     )  # Optional - only if using Twilio Memory
 )
-taf = TAF(config)
+tac = TAC(config)
 
 # 2. Register callback to handle memory-ready events
 # Note: context.profile available (fetched once at conversation start for Voice)
@@ -312,11 +312,11 @@ async def handle_memory(context, memory_response, user_message):
     llm_response = await call_your_llm(user_message, memory_response)
     await voice_channel.send_response(context.conversation_id, llm_response)
 
-taf.on_memory_ready(handle_memory)
+tac.on_memory_ready(handle_memory)
 
 # 3. Initialize channel with server configuration
 voice_channel = VoiceChannel(
-    taf=taf,
+    tac=tac,
     server_config=VoiceServerConfig(
         public_domain="example.ngrok.io",  # Required
         host="0.0.0.0",  # Optional (default: "0.0.0.0")
@@ -338,12 +338,12 @@ Create your own FastAPI application for full control over server configuration:
 ```python
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import Response
-from taf import TAF, TAFConfig
-from taf.channels.voice import VoiceChannel
-from taf.core.config import TwilioMemoryConfig
+from tac import TAC, TACConfig
+from tac.channels.voice import VoiceChannel
+from tac.core.config import TwilioMemoryConfig
 
-# 1. Setup TAF and Voice Channel
-config = TAFConfig(
+# 1. Setup TAC and Voice Channel
+config = TACConfig(
     environment="prod",  # or "dev" or "stage"
     twilio_account_sid="AC...",
     twilio_auth_token="...",
@@ -354,8 +354,8 @@ config = TAFConfig(
         trait_groups=["Contact", "Preferences"]  # Optional: specify trait groups
     )  # Optional - only if using Twilio Memory
 )
-taf = TAF(config)
-voice_channel = VoiceChannel(taf)
+tac = TAC(config)
+voice_channel = VoiceChannel(tac)
 
 # 2. Register callback to handle message processing
 async def handle_message(user_message, context, memory_response=None):
@@ -367,14 +367,14 @@ async def handle_message(user_message, context, memory_response=None):
     llm_response = await call_your_llm(user_message, memory_response, context.profile)
     await voice_channel.send_response(context.conversation_id, llm_response)
 
-taf.on_message_ready(handle_message)
+tac.on_message_ready(handle_message)
 
 # 3. Create FastAPI app with TwiML and WebSocket endpoints
 app = FastAPI()
 
 @app.get("/twiml")
 async def get_twiml():
-    conversation = taf.maestro_client.create_conversation()
+    conversation = tac.maestro_client.create_conversation()
     twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
@@ -394,7 +394,7 @@ See `examples/channels/voice.py` for a complete implementation.
 
 ### Voice Channel Architecture
 
-TAF provides two architectural patterns:
+TAC provides two architectural patterns:
 
 **Simplified Pattern (VoiceServerConfig):**
 - **Built-in Server**: Automatic FastAPI app creation and endpoint setup
@@ -419,15 +419,15 @@ TAF provides two architectural patterns:
 - `voice` - Voice channel support: `fastapi>=0.115.0,<1`, `uvicorn>=0.32.0,<1` (WebSocket support built-in to FastAPI)
 - `dev` - Development tools: `pytest>=7.0.0,<8`, `pytest-cov>=5.0.0,<6`, `ruff>=0.8.0,<1`, `mypy>=1.0.0,<2`, `types-requests>=2.31.0,<3`, `openai>=1.0.0,<2`, `openai-agents>=0.1.0`, `fastapi`, `uvicorn`
 
-**Note**: FastAPI and uvicorn are only required if using the Voice channel (either simplified or manual approach). The core TAF package does not depend on them.
+**Note**: FastAPI and uvicorn are only required if using the Voice channel (either simplified or manual approach). The core TAC package does not depend on them.
 
 ## Tools Integration
 
 The tools module provides LLM-compatible tool definitions for integrating Twilio Sierra primitives with LLM runtimes:
 
-### TAFTool Class (`tools/base.py`)
+### TACTool Class (`tools/base.py`)
 
-The `TAFTool` dataclass represents a tool/function for LLM integration:
+The `TACTool` dataclass represents a tool/function for LLM integration:
 - `name` - Function name
 - `description` - What the tool does
 - `params_json_schema` - JSON Schema for parameters (auto-generated from type hints)
@@ -442,7 +442,7 @@ The `TAFTool` dataclass represents a tool/function for LLM integration:
 
 **Using `@function_tool()` decorator** (recommended):
 ```python
-from taf.tools import function_tool
+from tac.tools import function_tool
 
 @function_tool()
 def send_message(phone_number: str, message: str) -> bool:
@@ -464,11 +464,11 @@ The decorator automatically:
 - Extracts function name and docstring
 - Generates JSON Schema from type hints (supports `str`, `int`, `bool`, `float`, `Optional`, `Literal`, `list`, `dict`, etc.)
 - Tracks required vs optional parameters
-- Creates TAFTool instance
+- Creates TACTool instance
 
 **Using `create_tool()` function**:
 ```python
-from taf.tools import create_tool
+from tac.tools import create_tool
 
 tool = create_tool(
     name="send_message",
@@ -489,26 +489,26 @@ tool = create_tool(
 
 **Messaging Tools** (`tools/messaging.py`):
 ```python
-from taf.tools.messaging import create_messaging_tools
+from tac.tools.messaging import create_messaging_tools
 
 tools = create_messaging_tools(config)  # Returns [send_message]
 ```
 
 **Memory Tools** (`tools/memory.py`):
 ```python
-from taf.tools.memory import create_memory_tools
+from tac.tools.memory import create_memory_tools
 
 tools = create_memory_tools(config, session)  # Returns [retrieve_profile_memory]
 ```
 
-Both factories return lists of `TAFTool` objects configured with your TAF settings.
+Both factories return lists of `TACTool` objects configured with your TAC settings.
 
 ## Future Enhancements
 
-Based on TAF.md architecture, these modules are planned but not yet implemented:
+Based on TAC.md architecture, these modules are planned but not yet implemented:
 - **Adapters**: Runtime-specific adapters for OpenAI, Bedrock, Azure AI, LangChain (with `toOpenAiMessages()`, `toBedrockMessages()` formatting)
 - **Additional Tools**: `twilio.escalate-to-human`, `twilio.session-memory.fetch`
 - **Server**: Standalone server package for "batteries included" setup (separate from core to avoid forcing FastAPI dependency)
 - **Analytics**: Integration with Twilio workbench observability
 
-When implementing these features, refer to the detailed architecture diagrams and sequence flows in TAF.md.
+When implementing these features, refer to the detailed architecture diagrams and sequence flows in TAC.md.

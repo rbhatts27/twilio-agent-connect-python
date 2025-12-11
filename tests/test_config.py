@@ -1,18 +1,18 @@
-"""Tests for TAF configuration models."""
+"""Tests for TAC configuration models."""
 
 import pytest
 from pydantic import ValidationError
 
-from taf import TAFConfig
-from taf.core.config import TwilioMemoryConfig
+from tac import TACConfig
+from tac.core.config import TwilioMemoryConfig
 
 
-class TestTAFConfig:
-    """Test TAFConfig model."""
+class TestTACConfig:
+    """Test TACConfig model."""
 
     def test_config_with_required_fields(self):
         """Test config with all required fields."""
-        config = TAFConfig(
+        config = TACConfig(
             twilio_auth_token="test_token_123",
             environment="prod",
             twilio_account_sid="ACtest123",
@@ -29,7 +29,7 @@ class TestTAFConfig:
 
     def test_config_with_custom_log_level(self):
         """Test config with custom log level."""
-        config = TAFConfig(
+        config = TACConfig(
             twilio_auth_token="test_token_123",
             environment="dev",
             twilio_account_sid="ACtest123",
@@ -49,7 +49,7 @@ class TestTAFConfig:
         memory_config = TwilioMemoryConfig(
             memory_store_id="MGtest123", api_key="test_api_key", api_token="test_api_token"
         )
-        config = TAFConfig(
+        config = TACConfig(
             twilio_auth_token="test_token_123",
             environment="prod",
             twilio_account_sid="ACtest123",
@@ -64,7 +64,7 @@ class TestTAFConfig:
 
     def test_config_dict_conversion(self):
         """Test converting config to dictionary."""
-        config = TAFConfig(
+        config = TACConfig(
             twilio_auth_token="test_token_123",
             environment="stage",
             twilio_account_sid="ACtest123",
@@ -102,7 +102,7 @@ class TestTAFConfig:
                 "api_token": "test_api_token",
             },
         }
-        config = TAFConfig(**config_data)
+        config = TACConfig(**config_data)
         assert config.twilio_auth_token == "test_token_123"
         assert config.memora_base_url == "https://memory.twilio.com"
         assert config.environment == "prod"
@@ -113,7 +113,7 @@ class TestTAFConfig:
 
     def test_config_json_schema(self):
         """Test that config has valid JSON schema."""
-        schema = TAFConfig.model_json_schema()
+        schema = TACConfig.model_json_schema()
 
         assert "properties" in schema
         assert "twilio_auth_token" in schema["properties"]
@@ -141,12 +141,12 @@ class TestTAFConfig:
             "conversation_service_sid": "IS123test",
             "twilio_phone_number": "+15551234567",
         }
-        config1 = TAFConfig(**base_config)
-        config2 = TAFConfig(**base_config)
+        config1 = TACConfig(**base_config)
+        config2 = TACConfig(**base_config)
 
         different_config = base_config.copy()
         different_config["twilio_auth_token"] = "different_token"
-        config3 = TAFConfig(**different_config)
+        config3 = TACConfig(**different_config)
 
         assert config1 == config2
         assert config1 != config3
@@ -154,7 +154,7 @@ class TestTAFConfig:
     def test_missing_required_fields(self):
         """Test that missing required fields raise validation error."""
         with pytest.raises(ValidationError) as exc_info:
-            TAFConfig()
+            TACConfig()
 
         error = exc_info.value
         assert "twilio_auth_token" in str(error)
@@ -164,12 +164,12 @@ class TestTAFConfig:
     def test_partial_config_fails(self):
         """Test that partial config raises validation error."""
         with pytest.raises(ValidationError):
-            TAFConfig(twilio_auth_token="test_token_123")  # Missing other required fields
+            TACConfig(twilio_auth_token="test_token_123")  # Missing other required fields
 
     def test_invalid_environment_fails(self):
         """Test that invalid environment value raises validation error."""
         with pytest.raises(ValidationError) as exc_info:
-            TAFConfig(
+            TACConfig(
                 twilio_auth_token="test_token_123",
                 environment="invalid",  # Invalid environment
                 twilio_account_sid="ACtest123",

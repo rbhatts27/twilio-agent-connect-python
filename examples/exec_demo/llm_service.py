@@ -1,7 +1,7 @@
 """
-LLM Service for TAF SMS Demo
+LLM Service for TAC SMS Demo
 
-This module provides an LLM service that processes messages with context from TAF memory.
+This module provides an LLM service that processes messages with context from TAC memory.
 It builds enhanced system prompts with customer profile information and conversation history.
 Uses OpenAI Agents SDK for tool integration and conversation management.
 """
@@ -27,25 +27,25 @@ from tools import (
     run_diagnostic,
 )
 
-from taf.models.memory import MemoryRetrievalResponse
-from taf.models.session import ConversationSession
+from tac.models.memory import MemoryRetrievalResponse
+from tac.models.session import ConversationSession
 
 logger = logging.getLogger(__name__)
 
 
 class LLMService:
-    """Service for processing messages with LLM using TAF memory context and OpenAI Agents SDK."""
+    """Service for processing messages with LLM using TAC memory context and OpenAI Agents SDK."""
 
-    def __init__(self, taf):
+    def __init__(self, tac):
         """
         Initialize LLM service with OpenAI Agents SDK.
 
         Args:
-            taf: TAF instance for accessing Maestro/Memora APIs
+            tac: TAC instance for accessing Maestro/Memora APIs
         """
-        self.taf = taf
+        self.tac = tac
         # Configure OpenAI API key for Agents SDK
-        openai_api_key = os.environ.get("TWILIO_TAF_OPENAI_API_KEY")
+        openai_api_key = os.environ.get("TWILIO_TAC_OPENAI_API_KEY")
         if openai_api_key:
             set_default_openai_key(openai_api_key)
         # Base tools that don't need context injection
@@ -70,22 +70,22 @@ class LLMService:
 
         Args:
             user_message: The user's message
-            memory_response: Memory response from TAF with observations, summaries, and sessions
+            memory_response: Memory response from TAC with observations, summaries, and sessions
             context: ConversationSession with conversation details
             websocket: Optional WebSocket connection for voice channel
             conversation_history: Optional conversation history (OpenAI ChatCompletionMessageParam format).
-                                 If provided, uses this instead of building from TAF session memories.
+                                 If provided, uses this instead of building from TAC session memories.
 
         Returns:
             Generated response from LLM
         """
         try:
-            # Build TAF-enhanced instructions with profile context
+            # Build TAC-enhanced instructions with profile context
             enhanced_instructions = self._build_enhanced_instructions(memory_response, context)
 
             # Create context-aware tools dynamically
             tools = self.base_tools + [
-                create_confirm_order_tool(self.taf, context),
+                create_confirm_order_tool(self.tac, context),
             ]
 
             if websocket is not None:
@@ -93,7 +93,7 @@ class LLMService:
 
             logger.info(f"[LLM] Processing message with {len(tools)} tools available")
 
-            # Create agent with TAF-enhanced instructions
+            # Create agent with TAC-enhanced instructions
             agent = Agent(
                 name="Owl Internet Customer Service",
                 instructions=enhanced_instructions,
@@ -101,7 +101,7 @@ class LLMService:
                 tools=tools,
             )
 
-            # Use passed conversation history if provided, otherwise build from TAF session memories
+            # Use passed conversation history if provided, otherwise build from TAC session memories
             if conversation_history is not None:
                 messages_history = conversation_history
             else:
@@ -143,10 +143,10 @@ class LLMService:
         self, memory_response: MemoryRetrievalResponse | None, context: ConversationSession
     ) -> str:
         """
-        Build enhanced agent instructions with TAF memory context.
+        Build enhanced agent instructions with TAC memory context.
 
         Args:
-            memory_response: Memory response from TAF
+            memory_response: Memory response from TAC
             context: ConversationSession with conversation details
 
         Returns:
@@ -192,7 +192,7 @@ class LLMService:
             logger.info(
                 f"[CONTEXT] Including {len(memory_response.observations)} observations in instructions"
             )
-            instruction_parts.append("=== RELEVANT OBSERVATIONS (from TAF Memory) ===")
+            instruction_parts.append("=== RELEVANT OBSERVATIONS (from TAC Memory) ===")
             for obs in memory_response.observations:
                 instruction_parts.append(f"- {obs.content}")
             instruction_parts.append("")
@@ -207,7 +207,7 @@ class LLMService:
                 instruction_parts.append(f"- {summary.content}")
             instruction_parts.append("")
 
-        # Add TAF-enhanced behavioral instructions
+        # Add TAC-enhanced behavioral instructions
         instruction_parts.extend(
             [
                 "=== BEHAVIOR GUIDELINES ===",
@@ -267,7 +267,7 @@ class LLMService:
         Session memories contain previous conversation exchanges with structured messages.
 
         Args:
-            memory_response: Memory response from TAF
+            memory_response: Memory response from TAC
 
         Returns:
             List of OpenAI ChatCompletionMessageParam (properly typed message objects)

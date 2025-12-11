@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from taf import TwilioWebhookEvent, WebhookEventType
+from tac import TwilioWebhookEvent, WebhookEventType
 
 
 class TestWebhookEventType:

@@ -5,12 +5,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from taf import TAF
-from taf.channels.voice import VoiceChannel
-from taf.models.conversation import ConversationResponse, ParticipantResponse
-from taf.models.memory import MemoryRetrievalResponse
-from taf.models.session import ConversationSession
-from taf.models.voice import InterruptMessage, PromptMessage, SetupMessage
+from tac import TAC
+from tac.channels.voice import VoiceChannel
+from tac.models.conversation import ConversationResponse, ParticipantResponse
+from tac.models.memory import MemoryRetrievalResponse
+from tac.models.session import ConversationSession
+from tac.models.voice import InterruptMessage, PromptMessage, SetupMessage
 
 
 def get_test_config() -> dict:
@@ -29,25 +29,25 @@ class TestVoiceChannel:
 
     def test_initialization(self) -> None:
         """Test Voice channel initialization."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
-        assert channel.taf == taf
+        assert channel.tac == tac
         assert channel._websocket_manager is not None
         assert len(channel._websocket_manager) == 0
 
     def test_get_channel_name(self) -> None:
         """Test get_channel_name returns 'voice'."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         assert channel.get_channel_name() == "voice"
 
     @pytest.mark.asyncio
     async def test_handle_setup_message(self) -> None:
         """Test handling setup message initializes conversation."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Create setup message
         setup_msg = SetupMessage(
@@ -67,8 +67,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_handle_prompt_message(self) -> None:
         """Test handling prompt message does NOT trigger memory retrieval (voice channel)."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Setup conversation first
         await channel._start_conversation("CALL123", "profile_test_123")
@@ -88,8 +88,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_handle_interrupt_message(self) -> None:
         """Test handling interrupt message."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Setup conversation first
         await channel._start_conversation("CALL123", None)
@@ -109,8 +109,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_handle_message_without_conversation_id(self) -> None:
         """Test handling setup message without conversation ID logs error."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Create setup message without conversationId in custom parameters
         setup_msg = SetupMessage(type="setup")
@@ -124,8 +124,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_send_response(self) -> None:
         """Test sending voice response through websocket."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Start conversation directly
         await channel._start_conversation("CALL123", "profile_test")
@@ -149,8 +149,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_send_response_without_websocket(self) -> None:
         """Test sending response without active websocket logs error."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Start conversation directly
         await channel._start_conversation("CALL123", "profile_test")
@@ -164,8 +164,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_end_conversation_cleanup(self) -> None:
         """Test ending conversation cleans up resources."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Start conversation directly
         await channel._start_conversation("CALL123", "profile_test")
@@ -188,8 +188,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_process_webhook_not_implemented(self) -> None:
         """Test that process_webhook is stubbed."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Should not raise
         await channel.process_webhook({})
@@ -197,8 +197,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_message_callback_integration(self) -> None:
         """Test message callback is invoked with conversation context."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Callback to capture context
         captured_context = None
@@ -215,7 +215,7 @@ class TestVoiceChannel:
             captured_memories = memory_response
             captured_user_message = user_message
 
-        taf.on_message_ready(message_callback)
+        tac.on_message_ready(message_callback)
 
         # Setup conversation first
         await channel._start_conversation("CALL123", "profile_test")
@@ -240,16 +240,16 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_handle_incoming_call(self) -> None:
         """Test handle_incoming_call generates valid TwiML."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Mock conversation creation and participant addition
         with (
             patch.object(
-                taf.maestro_client, "create_conversation", new_callable=AsyncMock
+                tac.maestro_client, "create_conversation", new_callable=AsyncMock
             ) as mock_create,
             patch.object(
-                taf.maestro_client, "add_participant", new_callable=AsyncMock
+                tac.maestro_client, "add_participant", new_callable=AsyncMock
             ) as mock_add_participant,
         ):
             mock_create.return_value = ConversationResponse(
@@ -289,16 +289,16 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_handle_incoming_call_default_greeting(self) -> None:
         """Test handle_incoming_call uses default greeting."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Mock conversation creation and participant addition
         with (
             patch.object(
-                taf.maestro_client, "create_conversation", new_callable=AsyncMock
+                tac.maestro_client, "create_conversation", new_callable=AsyncMock
             ) as mock_create,
             patch.object(
-                taf.maestro_client, "add_participant", new_callable=AsyncMock
+                tac.maestro_client, "add_participant", new_callable=AsyncMock
             ) as mock_add_participant,
         ):
             mock_create.return_value = ConversationResponse(
@@ -328,8 +328,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_setup_with_custom_parameters_profile_id(self) -> None:
         """Test setup message extracts profile_id from custom parameters."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Create setup message with profile_id
         setup_msg = SetupMessage(
@@ -348,8 +348,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_setup_without_conversation_id_raises_error(self) -> None:
         """Test setup message logs error when conversationId missing from custom parameters."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Create setup message without conversationId in custom parameters
         setup_msg = SetupMessage(type="setup")
@@ -363,8 +363,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_prompt_with_empty_voice_prompt(self) -> None:
         """Test handling prompt message with empty voice_prompt."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Setup conversation first
         await channel._start_conversation("CALL111", "profile_test")
@@ -384,8 +384,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_multiple_concurrent_conversations(self) -> None:
         """Test managing multiple concurrent conversations with separate websockets."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Start three concurrent conversations
         await channel._start_conversation("CALL_001", "profile_001")
@@ -431,8 +431,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_multiple_conversations_independent_cleanup(self) -> None:
         """Test that cleaning up one conversation doesn't affect others."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Start three conversations
         await channel._start_conversation("CALL_A", "profile_A")
@@ -474,8 +474,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_websocket_manager_get_all_conversation_ids(self) -> None:
         """Test WebSocketManager returns all active conversation IDs."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Initially empty
         assert channel._websocket_manager.get_all_conversation_ids() == []
@@ -497,8 +497,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_concurrent_responses_correct_routing(self) -> None:
         """Test that concurrent responses are routed to correct websockets."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Setup two conversations
         await channel._start_conversation("CONV_X", "profile_X")
@@ -535,8 +535,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_websocket_removal_idempotent(self) -> None:
         """Test that removing a websocket multiple times is safe."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Add a websocket
         channel._websocket_manager.add_websocket("CONV_Z", AsyncMock())
@@ -556,8 +556,8 @@ class TestVoiceChannel:
     @pytest.mark.asyncio
     async def test_websocket_replacement(self) -> None:
         """Test that adding a websocket with same conversation ID replaces the old one."""
-        taf = TAF(get_test_config())
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(get_test_config())
+        channel = VoiceChannel(tac=tac)
 
         # Add first websocket
         first_ws = AsyncMock()
@@ -584,8 +584,8 @@ class TestVoiceChannel:
         """Test that active hydration setup populates author_info and ai_agent_info."""
         config = get_test_config()
         config["enable_voice_active_hydration"] = True
-        taf = TAF(config)
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(config)
+        channel = VoiceChannel(tac=tac)
 
         # Create setup message with all required fields for active hydration
         setup_msg = SetupMessage(
@@ -618,8 +618,8 @@ class TestVoiceChannel:
         """Test that author_info and ai_agent_info are not set when active hydration is disabled."""
         config = get_test_config()
         config["enable_voice_active_hydration"] = False
-        taf = TAF(config)
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(config)
+        channel = VoiceChannel(tac=tac)
 
         # Create setup message with all fields
         setup_msg = SetupMessage(
@@ -648,12 +648,12 @@ class TestVoiceChannel:
         """Test _add_communication with optional participant IDs."""
         config = get_test_config()
         config["enable_voice_active_hydration"] = True
-        taf = TAF(config)
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(config)
+        channel = VoiceChannel(tac=tac)
 
         # Mock the maestro client's add_communication method
         with patch.object(
-            taf.maestro_client, "add_communication", new_callable=AsyncMock
+            tac.maestro_client, "add_communication", new_callable=AsyncMock
         ) as mock_add_comm:
             # Call _add_communication with optional parameters
             await channel._add_communication(
@@ -684,12 +684,12 @@ class TestVoiceChannel:
         """Test _add_communication without participant IDs (optional parameters)."""
         config = get_test_config()
         config["enable_voice_active_hydration"] = True
-        taf = TAF(config)
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(config)
+        channel = VoiceChannel(tac=tac)
 
         # Mock the maestro client's add_communication method
         with patch.object(
-            taf.maestro_client, "add_communication", new_callable=AsyncMock
+            tac.maestro_client, "add_communication", new_callable=AsyncMock
         ) as mock_add_comm:
             # Call _add_communication without participant IDs
             await channel._add_communication(
@@ -718,14 +718,14 @@ class TestVoiceChannel:
         """Test that send_response triggers _add_communication when active hydration is enabled."""
         config = get_test_config()
         config["enable_voice_active_hydration"] = True
-        taf = TAF(config)
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(config)
+        channel = VoiceChannel(tac=tac)
 
         # Start conversation
         await channel._start_conversation("CALL789", "profile_test")
 
         # Set up author and AI agent info
-        from taf.models.session import AuthorInfo
+        from tac.models.session import AuthorInfo
 
         channel._conversations["CALL789"].author_info = AuthorInfo(
             address="+15551234567", participant_id="PART_CUSTOMER"
@@ -739,7 +739,7 @@ class TestVoiceChannel:
         channel._websocket_manager.add_websocket("CALL789", mock_websocket)
 
         with patch.object(
-            taf.maestro_client, "add_communication", new_callable=AsyncMock
+            tac.maestro_client, "add_communication", new_callable=AsyncMock
         ) as mock_add_comm:
             # Send response
             await channel.send_response("CALL789", "Agent response")
@@ -762,14 +762,14 @@ class TestVoiceChannel:
         """Test that _handle_prompt triggers _add_communication when active hydration is enabled."""
         config = get_test_config()
         config["enable_voice_active_hydration"] = True
-        taf = TAF(config)
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(config)
+        channel = VoiceChannel(tac=tac)
 
         # Start conversation
         await channel._start_conversation("CALL999", "profile_test")
 
         # Set up author and AI agent info
-        from taf.models.session import AuthorInfo
+        from tac.models.session import AuthorInfo
 
         channel._conversations["CALL999"].author_info = AuthorInfo(
             address="+15551234567", participant_id="PART_CUSTOMER"
@@ -786,7 +786,7 @@ class TestVoiceChannel:
         )
 
         with patch.object(
-            taf.maestro_client, "add_communication", new_callable=AsyncMock
+            tac.maestro_client, "add_communication", new_callable=AsyncMock
         ) as mock_add_comm:
             # Handle prompt
             await channel._handle_prompt("CALL999", prompt_msg)
@@ -806,8 +806,8 @@ class TestVoiceChannel:
         """Test that active hydration is skipped when author_info or ai_agent_info is missing."""
         config = get_test_config()
         config["enable_voice_active_hydration"] = True
-        taf = TAF(config)
-        channel = VoiceChannel(taf=taf)
+        tac = TAC(config)
+        channel = VoiceChannel(tac=tac)
 
         # Start conversation without setting author/AI agent info
         await channel._start_conversation("CALL_NO_INFO", "profile_test")
@@ -817,7 +817,7 @@ class TestVoiceChannel:
         channel._websocket_manager.add_websocket("CALL_NO_INFO", mock_websocket)
 
         with patch.object(
-            taf.maestro_client, "add_communication", new_callable=AsyncMock
+            tac.maestro_client, "add_communication", new_callable=AsyncMock
         ) as mock_add_comm:
             # Send response
             await channel.send_response("CALL_NO_INFO", "Response")

@@ -1,5 +1,5 @@
 [project]
-name = "taf"
+name = "tac"
 version = "0.0.1"
 description = "A Python framework for building agentic applications with Twilio"
 authors = [{ name = "Twilio Conversation AI", email = "team_conversational-ai@twilio.com" }]
@@ -56,17 +56,17 @@ bedrock = [
 ]
 
 [tool.uv.workspace]
-members = ["taf"]
+members = ["tac"]
 
 [tool.uv.sources]
-taf = { workspace = true }
+tac = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/taf"]
+packages = ["src/tac"]
 
 [tool.ruff]
 line-length = 100
@@ -88,7 +88,7 @@ select = [
 "examples/**/*.py" = ["E402", "E501", "N803"]  # Allow import order, long lines, and Twilio parameter names in examples
 
 [tool.ruff.lint.isort]
-known-first-party = ["taf"]
+known-first-party = ["tac"]
 combine-as-imports = true
 
 [tool.ruff.format]
@@ -112,13 +112,13 @@ warn_unreachable = true
 strict_equality = true
 explicit_package_bases = true
 exclude = [
-    "taf/tools/examples/.*",
+    "tac/tools/examples/.*",
     ".*/site-packages/mcp/.*"
 ]
 
 # Specify the paths to type check
 [[tool.mypy.overrides]]
-module = ["src.taf.*", "twilio.*"]  # twilio.* added to ignore missing type stubs
+module = ["src.tac.*", "twilio.*"]  # twilio.* added to ignore missing type stubs
 ignore_missing_imports = true
 
 # Bedrock examples use boto3 which lacks type stubs
@@ -154,7 +154,7 @@ disallow_untyped_decorators = false
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --strict-markers --strict-config --cov=src/taf --cov-report=term-missing --cov-report=html"
+addopts = "-ra -q --strict-markers --strict-config --cov=src/tac --cov-report=term-missing --cov-report=html"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
@@ -164,7 +164,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src/taf"]
+source = ["src/tac"]
 omit = ["*/tests/*", "*/__pycache__/*", "*/.venv/*"]
 
 [tool.coverage.report]

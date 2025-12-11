@@ -1,0 +1,136 @@
+"""Base channel interface for TAC channels."""
+
+from abc import ABC, abstractmethod
+from typing import Any, Optional
+
+from tac import TAC
+from tac.core.logging import get_logger
+from tac.models.session import ConversationSession
+
+
+class BaseChannel(ABC):
+    """
+    Abstract base class for TAC channels.
+
+    Channels handle protocol-specific webhook processing and response delivery
+    for different communication channels (SMS, Voice, etc.).
+
+    This class provides common conversation lifecycle management that is shared
+    across all channel types.
+    """
+
+    def __init__(self, tac: TAC):
+        """
+        Initialize base channel.
+
+        Args:
+            tac: TAC instance for memory/context operations
+        """
+        self.tac = tac
+        self.logger = get_logger(__name__)
+
+        # Track active conversations (shared across all channel types)
+        self._conversations: dict[str, ConversationSession] = {}
+
+    @abstractmethod
+    async def process_webhook(self, webhook_data: dict[str, Any]) -> None:
+        """
+        Process incoming webhook event from Twilio.
+
+        This method should:
+        1. Parse and validate webhook data
+        2. Handle conversation lifecycle (start, message, end)
+        3. Trigger memory retrieval via TAC
+        4. Invoke registered callbacks
+
+        Args:
+            webhook_data: Raw webhook event data from Twilio
+        """
+        pass
+
+    @abstractmethod
+    async def send_response(
+        self, conversation_id: str, response: str, role: Optional[str] = None
+    ) -> None:
+        """
+        Send response back through the channel.
+
+        Args:
+            conversation_id: Conversation ID to send response to
+            response: Message content to send
+            role: Optional message role (e.g., 'assistant', 'user', 'system')
+        """
+        pass
+
+    @abstractmethod
+    def get_channel_name(self) -> str:
+        """
+        Get the channel name identifier.
+
+        Returns:
+            Channel name (e.g., 'sms', 'voice')
+        """
+        # TODO: Parse Channel Type based on webhook data
+        pass
+
+    async def _start_conversation(
+        self,
+        conv_id: str,
+        profile_id: Optional[str] = None,
+    ) -> None:
+        """
+        Initialize new conversation session and fetch profile if available.
+
+        Args:
+            conv_id: Conversation ID
+            profile_id: Profile ID for the conversation (optional)
+        """
+        if conv_id in self._conversations:
+            self.logger.warning(
+                "Conversation already exists, skipping initialization",
+                conversation_id=conv_id,
+                channel=self.get_channel_name(),
+            )
+            return
+
+        # Fetch profile if profile_id is provided
+        profile = None
+        if profile_id:
+            profile = await self.tac.fetch_profile(profile_id)
+
+        # Store conversation session
+        self._conversations[conv_id] = ConversationSession(
+            conversation_id=conv_id,
+            profile_id=profile_id,
+            channel=self.get_channel_name(),
+            profile=profile,
+            author_info=None,
+            ai_agent_info=None,
+        )
+
+        self.logger.info(
+            f"🎯 CONVERSATION | Started {self.get_channel_name().upper()} conversation",
+            conversation_id=conv_id,
+            profile_id=profile_id,
+        )
+
+    def _end_conversation(self, conv_id: str) -> None:
+        """
+        Clean up conversation session.
+
+        Args:
+            conv_id: Conversation ID
+        """
+        if conv_id in self._conversations:
+            del self._conversations[conv_id]
+            self.logger.debug(
+                "Ended conversation",
+                conversation_id=conv_id,
+                channel=self.get_channel_name(),
+            )
+        else:
+            self.logger.warning(
+                "Attempted to end unknown conversation",
+                conversation_id=conv_id,
+                channel=self.get_channel_name(),
+            )

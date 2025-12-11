@@ -1,15 +1,15 @@
 """
-TAF Multi-Channel Demo - Executable Example
+TAC Multi-Channel Demo - Executable Example
 
 A complete multi-channel demo showing how to:
-1. Set up TAF with SMS and Voice channels
+1. Set up TAC with SMS and Voice channels
 2. Process webhooks from Twilio (SMS and Voice)
 3. Retrieve memories and context
 4. Process messages with LLM (OpenAI)
 5. Send responses back through SMS and Voice
 6. Handle WebSocket connections for Voice streaming
 
-This demo demonstrates TAF's channel-agnostic architecture with both SMS and Voice support.
+This demo demonstrates TAC's channel-agnostic architecture with both SMS and Voice support.
 """
 
 import json
@@ -28,43 +28,43 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 
-from taf import TAF, TAFConfig
-from taf.channels import SMSChannel
-from taf.channels.voice import VoiceChannel
-from taf.core.logging import get_logger, setup_logging
-from taf.models.memory import MemoryRetrievalResponse
-from taf.models.session import ConversationSession
-from taf.util.flex import handle_flex_handoff_logic
+from tac import TAC, TACConfig
+from tac.channels import SMSChannel
+from tac.channels.voice import VoiceChannel
+from tac.core.logging import get_logger, setup_logging
+from tac.models.memory import MemoryRetrievalResponse
+from tac.models.session import ConversationSession
+from tac.util.flex import handle_flex_handoff_logic
 
 load_dotenv()
 
-# Configure structured logging using TAF's logging utilities
+# Configure structured logging using TAC's logging utilities
 setup_logging(log_level="INFO", log_format="console")
 
 logger = get_logger(__name__)
 
 app = FastAPI(
-    title="TAF Multi-Channel Demo",
-    description="Multi-channel demo using Twilio Agentic Framework",
+    title="TAC Multi-Channel Demo",
+    description="Multi-channel demo using Twilio Agent Connect",
     version="1.0.0",
 )
 
-# Initialize TAF - automatically loads all configuration from environment variables
+# Initialize TAC - automatically loads all configuration from environment variables
 # Required env vars:
-#   - TWILIO_TAF_ENVIRONMENT (dev, stage, or prod)
-#   - TWILIO_TAF_CONVERSATION_SERVICE_SID
-#   - TWILIO_TAF_ACCOUNT_SID
-#   - TWILIO_TAF_AUTH_TOKEN
-#   - TWILIO_TAF_PHONE_NUMBER
+#   - TWILIO_TAC_ENVIRONMENT (dev, stage, or prod)
+#   - TWILIO_TAC_CONVERSATION_SERVICE_SID
+#   - TWILIO_TAC_ACCOUNT_SID
+#   - TWILIO_TAC_AUTH_TOKEN
+#   - TWILIO_TAC_PHONE_NUMBER
 # Optional env vars:
-#   - TWILIO_TAF_LOG_LEVEL (defaults to INFO)
-#   - TWILIO_TAF_MEMORY_STORE_ID, TWILIO_TAF_MEMORY_API_KEY, TWILIO_TAF_MEMORY_API_TOKEN (for Twilio Memory)
-#   - TWILIO_TAF_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
-taf = TAF(config=TAFConfig.from_env())
-voice_channel = VoiceChannel(taf)
-sms_channel = SMSChannel(taf)
+#   - TWILIO_TAC_LOG_LEVEL (defaults to INFO)
+#   - TWILIO_TAC_MEMORY_STORE_ID, TWILIO_TAC_MEMORY_API_KEY, TWILIO_TAC_MEMORY_API_TOKEN (for Twilio Memory)
+#   - TWILIO_TAC_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
+tac = TAC(config=TACConfig.from_env())
+voice_channel = VoiceChannel(tac)
+sms_channel = SMSChannel(tac)
 
-llm_service = LLMService(taf)
+llm_service = LLMService(tac)
 
 # User-managed conversation history
 # Key: conversation_id, Value: list of messages
@@ -79,7 +79,7 @@ async def flex_handoff_handler(request_data: FormData) -> Response:
     It processes the handoff logic and returns the appropriate response.
     """
     return handle_flex_handoff_logic(
-        request_data, flex_workflow_sid=os.environ.get("TWILIO_TAF_VOICE_HANDOFF_FLEX_WORKFLOW_SID")
+        request_data, flex_workflow_sid=os.environ.get("TWILIO_TAC_VOICE_HANDOFF_FLEX_WORKFLOW_SID")
     )
 
 
@@ -119,9 +119,9 @@ async def handle_message_ready(
 
         # Retrieve memory only if Twilio Memory is enabled
         memory_response = None
-        if taf.is_twilio_memory_enabled():
+        if tac.is_twilio_memory_enabled():
             try:
-                memory_response = await taf.retrieve_memory(context, query=user_message)
+                memory_response = await tac.retrieve_memory(context, query=user_message)
                 if memory_response:
                     obs_count = (
                         len(memory_response.observations) if memory_response.observations else 0
@@ -220,9 +220,9 @@ async def handle_message_ready(
         )
 
 
-taf.on_message_ready(handle_message_ready)
+tac.on_message_ready(handle_message_ready)
 
-taf.on_handoff(flex_handoff_handler)
+tac.on_handoff(flex_handoff_handler)
 
 
 @app.post("/sms")
@@ -254,7 +254,7 @@ async def post_twiml(
     )
 
     # Get WebSocket URL from environment
-    public_domain = os.environ.get("TWILIO_TAF_VOICE_PUBLIC_DOMAIN", "")
+    public_domain = os.environ.get("TWILIO_TAC_VOICE_PUBLIC_DOMAIN", "")
     websocket_url = f"wss://{public_domain}/ws"
     callback_url = f"https://{public_domain}/conversation-relay-callback"
 

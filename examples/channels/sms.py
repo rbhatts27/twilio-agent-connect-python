@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SMS Server for Twilio Agentic Framework
+SMS Server for Twilio Agent Connect
 
 Example demonstrating SMSChannel with FastAPI server for webhook endpoint.
 """
@@ -24,13 +24,13 @@ from openai.types.chat import (
 # Load environment variables from .env file
 load_dotenv()
 
-# Add parent directory to path to import taf
+# Add parent directory to path to import tac
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from taf import TAF, TAFConfig, get_logger
-from taf.channels.sms import SMSChannel
-from taf.models.memory import MemoryRetrievalResponse
-from taf.models.session import ConversationSession
+from tac import TAC, TACConfig, get_logger
+from tac.channels.sms import SMSChannel
+from tac.models.memory import MemoryRetrievalResponse
+from tac.models.session import ConversationSession
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -111,7 +111,7 @@ async def handle_message_ready(
     conversation_messages[conv_id].append(user_msg)
 
     # Generate response with OpenAI
-    client = openai.AsyncOpenAI(api_key=os.environ.get("TWILIO_TAF_OPENAI_API_KEY"))
+    client = openai.AsyncOpenAI(api_key=os.environ.get("TWILIO_TAC_OPENAI_API_KEY"))
     completion = await client.chat.completions.create(
         model="gpt-4o-mini",
         messages=conversation_messages[conv_id],
@@ -133,27 +133,27 @@ async def handle_message_ready(
 
 
 if __name__ == "__main__":
-    # Initialize TAF - automatically loads all configuration from environment variables
+    # Initialize TAC - automatically loads all configuration from environment variables
     # Required env vars:
-    #   - TWILIO_TAF_ENVIRONMENT (dev, stage, or prod)
-    #   - TWILIO_TAF_CONVERSATION_SERVICE_SID
-    #   - TWILIO_TAF_ACCOUNT_SID
-    #   - TWILIO_TAF_AUTH_TOKEN
-    #   - TWILIO_TAF_PHONE_NUMBER
+    #   - TWILIO_TAC_ENVIRONMENT (dev, stage, or prod)
+    #   - TWILIO_TAC_CONVERSATION_SERVICE_SID
+    #   - TWILIO_TAC_ACCOUNT_SID
+    #   - TWILIO_TAC_AUTH_TOKEN
+    #   - TWILIO_TAC_PHONE_NUMBER
     # Optional env vars:
-    #   - TWILIO_TAF_LOG_LEVEL (defaults to INFO)
-    #   - TWILIO_TAF_MEMORY_STORE_ID, TWILIO_TAF_MEMORY_API_KEY, TWILIO_TAF_MEMORY_API_TOKEN (for Twilio Memory)
-    #   - TWILIO_TAF_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
-    taf = TAF(config=TAFConfig.from_env())
+    #   - TWILIO_TAC_LOG_LEVEL (defaults to INFO)
+    #   - TWILIO_TAC_MEMORY_STORE_ID, TWILIO_TAC_MEMORY_API_KEY, TWILIO_TAC_MEMORY_API_TOKEN (for Twilio Memory)
+    #   - TWILIO_TAC_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
+    tac = TAC(config=TACConfig.from_env())
 
     # Register callback for message ready
-    taf.on_message_ready(handle_message_ready)
+    tac.on_message_ready(handle_message_ready)
 
     # Initialize channel
-    sms_channel = SMSChannel(taf)
+    sms_channel = SMSChannel(tac)
 
     # Create FastAPI app
-    app = FastAPI(title="TAF SMS Server")
+    app = FastAPI(title="TAC SMS Server")
 
     @app.post("/sms")
     async def sms_webhook(request: Request) -> JSONResponse:
@@ -173,6 +173,6 @@ if __name__ == "__main__":
             return JSONResponse(content={"status": "error", "message": str(e)}, status_code=400)
 
     # Start the server
-    logger.info("Starting TAF SMS Server on 0.0.0.0:8000")
+    logger.info("Starting TAC SMS Server on 0.0.0.0:8000")
 
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

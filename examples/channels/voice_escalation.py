@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Voice Channel with Flex Escalation Example for Twilio Agentic Framework
+Voice Channel with Flex Escalation Example for Twilio Agent Connect
 
 This example demonstrates VoiceChannel integration with Twilio Flex escalation capabilities,
 allowing the AI agent to hand off conversations to human agents when needed. For a simpler
@@ -33,19 +33,19 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 
-from taf.tools.flex_escalation import create_flex_escalation_tool
-from taf.util.flex import handle_flex_handoff_logic
+from tac.tools.flex_escalation import create_flex_escalation_tool
+from tac.util.flex import handle_flex_handoff_logic
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Add parent directory to path to import taf
+# Add parent directory to path to import tac
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from taf import TAF, TAFConfig, get_logger
-from taf.channels.voice import VoiceChannel
-from taf.models.memory import MemoryRetrievalResponse
-from taf.models.session import ConversationSession
+from tac import TAC, TACConfig, get_logger
+from tac.channels.voice import VoiceChannel
+from tac.models.memory import MemoryRetrievalResponse
+from tac.models.session import ConversationSession
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -71,7 +71,7 @@ async def flex_handoff_handler(request_data: FormData) -> Response:
     It processes the handoff logic and returns the appropriate response.
     """
     return handle_flex_handoff_logic(
-        request_data, flex_workflow_sid=os.environ.get("TWILIO_TAF_VOICE_HANDOFF_FLEX_WORKFLOW_SID")
+        request_data, flex_workflow_sid=os.environ.get("TWILIO_TAC_VOICE_HANDOFF_FLEX_WORKFLOW_SID")
     )
 
 
@@ -152,7 +152,7 @@ async def handle_message_ready(
     tools = [flex_escalation_tool]
     tool_map = {tool.name: tool for tool in tools}
 
-    client = openai.AsyncOpenAI(api_key=os.environ.get("TWILIO_TAF_OPENAI_API_KEY"))
+    client = openai.AsyncOpenAI(api_key=os.environ.get("TWILIO_TAC_OPENAI_API_KEY"))
     completion = await client.chat.completions.create(
         model="gpt-4o",
         messages=conversation_messages[conv_id],
@@ -192,35 +192,35 @@ async def handle_message_ready(
 
 
 if __name__ == "__main__":
-    # Initialize TAF - automatically loads all configuration from environment variables
+    # Initialize TAC - automatically loads all configuration from environment variables
     # Required env vars:
-    #   - TWILIO_TAF_ENVIRONMENT (dev, stage, or prod)
-    #   - TWILIO_TAF_CONVERSATION_SERVICE_SID
-    #   - TWILIO_TAF_ACCOUNT_SID
-    #   - TWILIO_TAF_AUTH_TOKEN
-    #   - TWILIO_TAF_PHONE_NUMBER
+    #   - TWILIO_TAC_ENVIRONMENT (dev, stage, or prod)
+    #   - TWILIO_TAC_CONVERSATION_SERVICE_SID
+    #   - TWILIO_TAC_ACCOUNT_SID
+    #   - TWILIO_TAC_AUTH_TOKEN
+    #   - TWILIO_TAC_PHONE_NUMBER
     # Optional env vars:
-    #   - TWILIO_TAF_LOG_LEVEL (defaults to INFO)
-    #   - TWILIO_TAF_MEMORY_STORE_ID, TWILIO_TAF_MEMORY_API_KEY, TWILIO_TAF_MEMORY_API_TOKEN (for Twilio Memory)
-    #   - TWILIO_TAF_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
-    taf = TAF(config=TAFConfig.from_env())
+    #   - TWILIO_TAC_LOG_LEVEL (defaults to INFO)
+    #   - TWILIO_TAC_MEMORY_STORE_ID, TWILIO_TAC_MEMORY_API_KEY, TWILIO_TAC_MEMORY_API_TOKEN (for Twilio Memory)
+    #   - TWILIO_TAC_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
+    tac = TAC(config=TACConfig.from_env())
 
     # Register callback for message ready
-    taf.on_message_ready(handle_message_ready)
+    tac.on_message_ready(handle_message_ready)
 
     # Initialize channel
-    voice_channel = VoiceChannel(taf=taf)
+    voice_channel = VoiceChannel(tac=tac)
 
     # Register Flex handoff handler
-    taf.on_handoff(flex_handoff_handler)
+    tac.on_handoff(flex_handoff_handler)
 
     # Create FastAPI app
-    app = FastAPI(title="TAF Voice Server")
+    app = FastAPI(title="TAC Voice Server")
 
     @app.post("/twiml")
     async def post_twiml(From: str = Form(...), To: str = Form(...)) -> Response:
         """Generate TwiML for incoming voice calls."""
-        public_domain = os.environ.get("TWILIO_TAF_VOICE_PUBLIC_DOMAIN")
+        public_domain = os.environ.get("TWILIO_TAC_VOICE_PUBLIC_DOMAIN")
         websocket_url = f"wss://{public_domain}/ws"
         handoff_url = f"https://{public_domain}/handoff"
 
@@ -243,6 +243,6 @@ if __name__ == "__main__":
         return await voice_channel.handle_handoff(request)
 
     # Start the server
-    logger.info("Starting TAF Voice Server on 0.0.0.0:8000")
+    logger.info("Starting TAC Voice Server on 0.0.0.0:8000")
 
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

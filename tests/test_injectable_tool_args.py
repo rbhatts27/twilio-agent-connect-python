@@ -4,7 +4,7 @@ from typing import Annotated
 
 import pytest
 
-from taf.tools import InjectedToolArg, function_tool
+from tac.tools import InjectedToolArg, function_tool
 
 
 class MockClient:

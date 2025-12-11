@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 import pytest
 
-from taf.context.conversation import ConversationClient
-from taf.models.conversation import (
+from tac.context.conversation import ConversationClient
+from tac.models.conversation import (
     Communication,
     CommunicationContent,
     CommunicationParticipant,

@@ -6,10 +6,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from taf import TAF
-from taf.channels.sms import SMSChannel
-from taf.models.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
-from taf.models.session import ConversationSession
+from tac import TAC
+from tac.channels.sms import SMSChannel
+from tac.models.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
+from tac.models.session import ConversationSession
 
 
 def get_test_config(with_memory: bool = True) -> dict[str, Any]:
@@ -35,16 +35,16 @@ class TestSMSChannel:
 
     def test_initialization(self) -> None:
         """Test SMS channel initialization."""
-        taf = TAF(get_test_config())
-        channel = SMSChannel(taf)
+        tac = TAC(get_test_config())
+        channel = SMSChannel(tac)
 
-        assert channel.taf == taf
+        assert channel.tac == tac
 
     @pytest.mark.asyncio
     async def test_process_conversation_started(self) -> None:
         """Test processing conversation.created and participant.added events."""
-        taf = TAF(get_test_config())
-        channel = SMSChannel(taf)
+        tac = TAC(get_test_config())
+        channel = SMSChannel(tac)
 
         # Process conversation.created
         conversation_webhook = {
@@ -74,8 +74,8 @@ class TestSMSChannel:
     @pytest.mark.asyncio
     async def test_process_message_auto_initialize(self) -> None:
         """Test processing message auto-initializes conversation if not started."""
-        taf = TAF(get_test_config())
-        channel = SMSChannel(taf)
+        tac = TAC(get_test_config())
+        channel = SMSChannel(tac)
 
         # Callback to capture context
         captured_context = None
@@ -90,7 +90,7 @@ class TestSMSChannel:
             captured_context = context
             captured_memories = memory_response
 
-        taf.on_message_ready(message_callback)
+        tac.on_message_ready(message_callback)
 
         webhook_data = {
             "EventType": "communication.created",
@@ -108,7 +108,7 @@ class TestSMSChannel:
             summaries=[],
             meta=MemoryRetrievalMeta(queryTime=0),
         )
-        taf.memora_client.retrieve_memory = AsyncMock(return_value=empty_response)
+        tac.memora_client.retrieve_memory = AsyncMock(return_value=empty_response)
 
         await channel.process_webhook(webhook_data)
 
@@ -122,8 +122,8 @@ class TestSMSChannel:
     @pytest.mark.asyncio
     async def test_process_message_with_existing_conversation(self) -> None:
         """Test processing message with pre-existing conversation."""
-        taf = TAF(get_test_config())
-        channel = SMSChannel(taf)
+        tac = TAC(get_test_config())
+        channel = SMSChannel(tac)
 
         # Start conversation first
         conversation_webhook = {
@@ -162,18 +162,18 @@ class TestSMSChannel:
             summaries=[],
             meta=MemoryRetrievalMeta(queryTime=0),
         )
-        taf.memora_client.retrieve_memory = AsyncMock(return_value=empty_response)
+        tac.memora_client.retrieve_memory = AsyncMock(return_value=empty_response)
 
         await channel.process_webhook(message_webhook)
 
         # Verify memory retrieval was called
-        taf.memora_client.retrieve_memory.assert_called_once()
+        tac.memora_client.retrieve_memory.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_process_empty_message_ignored(self) -> None:
         """Test that empty messages are ignored."""
-        taf = TAF(get_test_config())
-        channel = SMSChannel(taf)
+        tac = TAC(get_test_config())
+        channel = SMSChannel(tac)
 
         webhook_data = {
             "EventType": "communication.created",
@@ -186,18 +186,18 @@ class TestSMSChannel:
             "Timestamp": "2025-11-18T00:00:00.000Z",
         }
 
-        taf.memora_client.retrieve_memory = AsyncMock()
+        tac.memora_client.retrieve_memory = AsyncMock()
 
         await channel.process_webhook(webhook_data)
 
         # Verify memory retrieval was NOT called
-        taf.memora_client.retrieve_memory.assert_not_called()
+        tac.memora_client.retrieve_memory.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_process_conversation_ended(self) -> None:
         """Test processing onConversationRemoved event."""
-        taf = TAF(get_test_config())
-        channel = SMSChannel(taf)
+        tac = TAC(get_test_config())
+        channel = SMSChannel(tac)
 
         # Start conversation
         start_webhook = {
@@ -222,11 +222,11 @@ class TestSMSChannel:
     @pytest.mark.asyncio
     async def test_send_response_with_active_conversation(self) -> None:
         """Test sending response to active conversation."""
-        taf = TAF(get_test_config())
-        channel = SMSChannel(taf)
+        tac = TAC(get_test_config())
+        channel = SMSChannel(tac)
 
         # Mock list_participants to return customer participant with matching profile_id
-        from taf.models.conversation import ParticipantResponse
+        from tac.models.conversation import ParticipantResponse
 
         mock_customer_participant = ParticipantResponse(
             **{  # type: ignore[arg-type]
@@ -264,7 +264,7 @@ class TestSMSChannel:
 
         with (
             patch.object(
-                taf.maestro_client,
+                tac.maestro_client,
                 "list_participants",
                 return_value=[mock_customer_participant],
             ),
@@ -276,14 +276,14 @@ class TestSMSChannel:
             # Verify Twilio message was sent to the correct recipient
             mock_twilio_send.assert_called_once_with(
                 to="+12345678901",
-                from_=taf.config.twilio_phone_number,
+                from_=tac.config.twilio_phone_number,
                 body="Test response",
             )
 
     def test_send_response_to_unknown_conversation(self) -> None:
         """Test sending response to non-existent conversation logs error."""
-        taf = TAF(get_test_config())
-        channel = SMSChannel(taf)
+        tac = TAC(get_test_config())
+        channel = SMSChannel(tac)
 
         # Should log error but not raise
         asyncio.run(channel.send_response("CH_UNKNOWN", "Test response"))
@@ -291,8 +291,8 @@ class TestSMSChannel:
     @pytest.mark.asyncio
     async def test_multiple_concurrent_conversations(self) -> None:
         """Test handling multiple concurrent conversations."""
-        taf = TAF(get_test_config())
-        channel = SMSChannel(taf)
+        tac = TAC(get_test_config())
+        channel = SMSChannel(tac)
 
         # Start first conversation
         await channel.process_webhook(
@@ -335,8 +335,8 @@ class TestSMSChannel:
     @pytest.mark.asyncio
     async def test_ignores_unsupported_event_types(self) -> None:
         """Test that unsupported event types are ignored."""
-        taf = TAF(get_test_config())
-        channel = SMSChannel(taf)
+        tac = TAC(get_test_config())
+        channel = SMSChannel(tac)
 
         webhook_data = {
             "EventType": "some.unsupported.event",

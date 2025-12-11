@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple Voice Channel Example for Twilio Agentic Framework
+Simple Voice Channel Example for Twilio Agent Connect
 
 This example demonstrates basic VoiceChannel integration with FastAPI for handling
 voice calls without escalation features. For an example with Flex escalation support,
@@ -32,13 +32,13 @@ from openai.types.chat import (
 # Load environment variables from .env file
 load_dotenv()
 
-# Add parent directory to path to import taf
+# Add parent directory to path to import tac
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from taf import TAF, TAFConfig, get_logger
-from taf.channels.voice import VoiceChannel
-from taf.models.memory import MemoryRetrievalResponse
-from taf.models.session import ConversationSession
+from tac import TAC, TACConfig, get_logger
+from tac.channels.voice import VoiceChannel
+from tac.models.memory import MemoryRetrievalResponse
+from tac.models.session import ConversationSession
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -124,7 +124,7 @@ async def handle_message_ready(
     conversation_messages[conv_id].append(user_msg)
 
     # Generate response with OpenAI
-    client = openai.AsyncOpenAI(api_key=os.environ.get("TWILIO_TAF_OPENAI_API_KEY"))
+    client = openai.AsyncOpenAI(api_key=os.environ.get("TWILIO_TAC_OPENAI_API_KEY"))
     completion = await client.chat.completions.create(
         model="gpt-4o",
         messages=conversation_messages[conv_id],
@@ -146,34 +146,34 @@ async def handle_message_ready(
 
 
 if __name__ == "__main__":
-    # Initialize TAF - automatically loads all configuration from environment variables
+    # Initialize TAC - automatically loads all configuration from environment variables
     # Required env vars:
-    #   - TWILIO_TAF_ENVIRONMENT (dev, stage, or prod)
-    #   - TWILIO_TAF_CONVERSATION_SERVICE_SID
-    #   - TWILIO_TAF_ACCOUNT_SID
-    #   - TWILIO_TAF_AUTH_TOKEN
-    #   - TWILIO_TAF_PHONE_NUMBER
+    #   - TWILIO_TAC_ENVIRONMENT (dev, stage, or prod)
+    #   - TWILIO_TAC_CONVERSATION_SERVICE_SID
+    #   - TWILIO_TAC_ACCOUNT_SID
+    #   - TWILIO_TAC_AUTH_TOKEN
+    #   - TWILIO_TAC_PHONE_NUMBER
     # Optional env vars:
-    #   - TWILIO_TAF_LOG_LEVEL (defaults to INFO)
-    #   - TWILIO_TAF_MEMORY_STORE_ID, TWILIO_TAF_MEMORY_API_KEY, TWILIO_TAF_MEMORY_API_TOKEN (for Twilio Memory)
-    #   - TWILIO_TAF_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
-    taf = TAF(config=TAFConfig.from_env())
+    #   - TWILIO_TAC_LOG_LEVEL (defaults to INFO)
+    #   - TWILIO_TAC_MEMORY_STORE_ID, TWILIO_TAC_MEMORY_API_KEY, TWILIO_TAC_MEMORY_API_TOKEN (for Twilio Memory)
+    #   - TWILIO_TAC_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
+    tac = TAC(config=TACConfig.from_env())
 
     # Register callback for message ready
-    taf.on_message_ready(handle_message_ready)
+    tac.on_message_ready(handle_message_ready)
 
     # Initialize channel
-    voice_channel = VoiceChannel(taf=taf)
+    voice_channel = VoiceChannel(tac=tac)
 
     # Create FastAPI app
-    app = FastAPI(title="TAF Voice Server")
+    app = FastAPI(title="TAC Voice Server")
 
     @app.post("/twiml")
     async def post_twiml(
         From: str = Form(...), To: str = Form(...), CallSid: str = Form(...)
     ) -> Response:
         """Generate TwiML for incoming voice calls."""
-        public_domain = os.environ.get("TWILIO_TAF_VOICE_PUBLIC_DOMAIN")
+        public_domain = os.environ.get("TWILIO_TAC_VOICE_PUBLIC_DOMAIN")
         websocket_url = f"wss://{public_domain}/ws"
         callback_url = f"https://{public_domain}/conversation-relay-callback"
 
@@ -198,6 +198,6 @@ if __name__ == "__main__":
         return await voice_channel.handle_conversation_relay_callback(request)
 
     # Start the server
-    logger.info("Starting TAF Voice Server on 0.0.0.0:8000")
+    logger.info("Starting TAC Voice Server on 0.0.0.0:8000")
 
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

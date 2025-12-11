@@ -8,10 +8,10 @@ from typing import Annotated, Any, Optional
 from agents import function_tool as agents_function_tool
 from business_data import COMPANY_INFO, INTERNET_PLANS
 
-from taf import TAF
-from taf.models.handoff_data import HandoffData
-from taf.models.session import ConversationSession
-from taf.tools.base import InjectedToolArg, function_tool
+from tac import TAC
+from tac.models.handoff_data import HandoffData
+from tac.models.session import ConversationSession
+from tac.tools.base import InjectedToolArg, function_tool
 
 logger = logging.getLogger(__name__)
 
@@ -173,15 +173,15 @@ async def look_up_discounts(customer_type: str, current_plan_price: float = 59.9
     return message
 
 
-def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> Any:
+def create_confirm_order_tool(tac: TAC, context: ConversationSession) -> Any:
     """
-    Create confirm_order tool with injected TAF context for dynamic phone lookup.
+    Create confirm_order tool with injected TAC context for dynamic phone lookup.
 
-    Uses TAF's function_tool with dependency injection to send SMS via Twilio client,
+    Uses TAC's function_tool with dependency injection to send SMS via Twilio client,
     deriving the phone number from Maestro participants so the LLM doesn't need to provide it.
 
     Args:
-        taf: TAF instance with maestro_client for participant lookup and Twilio client
+        tac: TAC instance with maestro_client for participant lookup and Twilio client
         context: ConversationSession with conversation_id
 
     Returns:
@@ -190,7 +190,7 @@ def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> Any:
 
     async def send_sms_via_twilio(
         order_details: str,
-        taf_instance: Annotated[TAF, InjectedToolArg],
+        tac_instance: Annotated[TAC, InjectedToolArg],
         conversation_id: Annotated[str, InjectedToolArg],
     ) -> str:
         """Send order confirmation via SMS to the customer.
@@ -205,7 +205,7 @@ def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> Any:
 
         # Derive phone number dynamically from Maestro participants
         try:
-            participants = await taf_instance.maestro_client.list_participants(conversation_id)
+            participants = await tac_instance.maestro_client.list_participants(conversation_id)
 
             # Find customer participant with SMS address
             customer_phone = None
@@ -230,11 +230,11 @@ def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> Any:
             from twilio.rest import Client
 
             client = Client(
-                taf_instance.config.twilio_account_sid, taf_instance.config.twilio_auth_token
+                tac_instance.config.twilio_account_sid, tac_instance.config.twilio_auth_token
             )
             message = client.messages.create(
                 body=order_details,
-                from_=taf_instance.config.twilio_phone_number,
+                from_=tac_instance.config.twilio_phone_number,
                 to=customer_phone,
             )
 
@@ -248,11 +248,11 @@ def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> Any:
             logger.error(f"[TOOL:CONFIRM] Failed to send SMS: {e}", exc_info=True)
             return f"Failed to send order confirmation via SMS: {str(e)}"
 
-    # Create TAF tool with dependency injection
-    taf_tool = function_tool()(send_sms_via_twilio)
-    taf_tool.configure_injection(taf_instance=taf, conversation_id=context.conversation_id)
+    # Create TAC tool with dependency injection
+    tac_tool = function_tool()(send_sms_via_twilio)
+    tac_tool.configure_injection(tac_instance=tac, conversation_id=context.conversation_id)
 
-    # Wrap the TAF tool's implementation for OpenAI Agents SDK compatibility
+    # Wrap the TAC tool's implementation for OpenAI Agents SDK compatibility
     # The implementation property returns an async callable with clean signature
     @agents_function_tool
     async def confirm_order(order_details: str = "") -> str:
@@ -264,8 +264,8 @@ def create_confirm_order_tool(taf: TAF, context: ConversationSession) -> Any:
         Returns:
             Confirmation of message sent
         """
-        # Call the TAF tool implementation
-        return await taf_tool.implementation(order_details=order_details)
+        # Call the TAC tool implementation
+        return await tac_tool.implementation(order_details=order_details)
 
     return confirm_order
 
@@ -280,7 +280,7 @@ def create_flex_escalation_tool(
         websocket: Active WebSocket connection (if any)
         session: Conversation session for storing escalation metadata
     Returns:
-        TAFTool instance for escalation
+        TACTool instance for escalation
     """
 
     @agents_function_tool(

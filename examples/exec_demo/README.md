@@ -1,6 +1,6 @@
-# TAF Multi-Channel Demo
+# TAC Multi-Channel Demo
 
-A complete, production-ready example demonstrating how to build an AI-powered customer service agent using TAF with both SMS and Voice channels.
+A complete, production-ready example demonstrating how to build an AI-powered customer service agent using TAC with both SMS and Voice channels.
 
 > **Prerequisites:** Complete the [Quick Start setup](../README.md#quick-start) in the main examples README before running this demo.
 
@@ -8,7 +8,7 @@ A complete, production-ready example demonstrating how to build an AI-powered cu
 
 This demo simulates **Owl Internet**, a fictional ISP's customer service agent that can:
 - Handle customer inquiries via SMS and Voice
-- Retrieve customer context and conversation history using TAF memory
+- Retrieve customer context and conversation history using TAC memory
 - Look up internet plan pricing and process orders
 - Provide personalized responses based on customer profile
 
@@ -34,7 +34,7 @@ This demo simulates **Owl Internet**, a fictional ISP's customer service agent t
                           │
                           ▼
                  ┌─────────────────┐
-                 │   TAF Core      │
+                 │   TAC Core      │
                  │  Memory/Context │
                  └─────────────────┘
                           │
@@ -62,14 +62,14 @@ This demo simulates **Owl Internet**, a fictional ISP's customer service agent t
 
 ## Additional Environment Variables
 
-In addition to the standard TAF configuration, this demo requires:
+In addition to the standard TAC configuration, this demo requires:
 
 ```bash
 # Voice-specific (required for voice calls)
-TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
+TWILIO_TAC_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
 
 # OpenAI (required for LLM integration)
-TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...
+TWILIO_TAC_OPENAI_API_KEY=sk-xxxxx...
 ```
 
 ## Running the Demo
@@ -113,7 +113,7 @@ The server will start on `http://0.0.0.0:8000` with:
 
 2. Update `.env` with ngrok domain:
    ```bash
-   TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
+   TWILIO_TAC_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
    ```
 
 3. Configure Twilio phone number webhook to: `https://{your-ngrok-domain}/twiml`
@@ -136,7 +136,7 @@ elif context.channel == "voice":
 
 ### 2. Memory Integration
 
-TAF automatically retrieves customer context:
+TAC automatically retrieves customer context:
 
 ```python
 async def handle_memory_ready(
@@ -195,7 +195,7 @@ conversation_messages[conv_id].append(assistant_msg)
 
 1. **Webhook received** → `/sms` endpoint
 2. **SMS channel processes** → Extracts message, conversation ID, profile ID
-3. **TAF retrieves memory** → Gets customer's current plan, preferences, history
+3. **TAC retrieves memory** → Gets customer's current plan, preferences, history
 4. **Memory ready callback** → Triggers with context and memories
 5. **LLM processes** → Agent uses customer context + business tools
 6. **Tool execution** → Calls `look_up_order_price("1000 Mbps")`

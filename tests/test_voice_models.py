@@ -1,6 +1,6 @@
 """Tests for Voice WebSocket message models."""
 
-from taf.models.voice import (
+from tac.models.voice import (
     CustomParameters,
     InterruptMessage,
     PromptMessage,

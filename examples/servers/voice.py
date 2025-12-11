@@ -22,17 +22,17 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Add parent directory to path to import taf
+# Add parent directory to path to import tac
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from llm_service import LLMService  # type: ignore[import-not-found]
 
-from taf import TAF, TAFConfig, VoiceServerConfig, get_logger
-from taf.channels.session_manager import ThreadSafeSessionManager
-from taf.channels.voice import VoiceChannel
-from taf.models.memory import MemoryRetrievalResponse
-from taf.models.session import ConversationSession
-from taf.tools.knowledge import KnowledgeBase, KnowledgeToolConfig, create_knowledge_tool
+from tac import TAC, TACConfig, VoiceServerConfig, get_logger
+from tac.channels.session_manager import ThreadSafeSessionManager
+from tac.channels.voice import VoiceChannel
+from tac.models.memory import MemoryRetrievalResponse
+from tac.models.session import ConversationSession
+from tac.tools.knowledge import KnowledgeBase, KnowledgeToolConfig, create_knowledge_tool
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -41,7 +41,7 @@ logger = get_logger(__name__)
 system_prompt = "You're a helpful assistant that helps users over the phone."
 
 # These will be initialized in __main__
-taf: Optional[TAF] = None
+tac: Optional[TAC] = None
 voice_channel: Optional[VoiceChannel] = None
 llm_service: Optional[LLMService] = None
 
@@ -66,7 +66,7 @@ async def stream_generator(prompt: str, conv_id: str) -> AsyncGenerator[str, Non
     if not context:
         logger.warning(f"No session found for conversation {conv_id}")
         # Create minimal context
-        from taf.models.session import ConversationSession
+        from tac.models.session import ConversationSession
 
         context = ConversationSession(
             conversation_id=conv_id,
@@ -104,26 +104,26 @@ async def handle_message_ready(
 
 
 if __name__ == "__main__":
-    # Initialize TAF - automatically loads all configuration from environment variables
+    # Initialize TAC - automatically loads all configuration from environment variables
     # Required env vars:
-    #   - TWILIO_TAF_ENVIRONMENT (dev, stage, or prod)
-    #   - TWILIO_TAF_CONVERSATION_SERVICE_SID
-    #   - TWILIO_TAF_ACCOUNT_SID
-    #   - TWILIO_TAF_AUTH_TOKEN
-    #   - TWILIO_TAF_PHONE_NUMBER
+    #   - TWILIO_TAC_ENVIRONMENT (dev, stage, or prod)
+    #   - TWILIO_TAC_CONVERSATION_SERVICE_SID
+    #   - TWILIO_TAC_ACCOUNT_SID
+    #   - TWILIO_TAC_AUTH_TOKEN
+    #   - TWILIO_TAC_PHONE_NUMBER
     # Optional env vars:
-    #   - TWILIO_TAF_LOG_LEVEL (defaults to INFO)
-    #   - TWILIO_TAF_MEMORY_STORE_ID, TWILIO_TAF_MEMORY_API_KEY, TWILIO_TAF_MEMORY_API_TOKEN (for Twilio Memory)
-    #   - TWILIO_TAF_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
-    #   - TWILIO_TAF_VOICE_PUBLIC_DOMAIN (required for voice server)
-    #   - TWILIO_TAF_OPENAI_API_KEY (required for OpenAI)
-    #   - TWILIO_TAF_KNOWLEDGE_BASE_ID (optional, for knowledge base search)
-    taf = TAF(config=TAFConfig.from_env())
+    #   - TWILIO_TAC_LOG_LEVEL (defaults to INFO)
+    #   - TWILIO_TAC_MEMORY_STORE_ID, TWILIO_TAC_MEMORY_API_KEY, TWILIO_TAC_MEMORY_API_TOKEN (for Twilio Memory)
+    #   - TWILIO_TAC_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
+    #   - TWILIO_TAC_VOICE_PUBLIC_DOMAIN (required for voice server)
+    #   - TWILIO_TAC_OPENAI_API_KEY (required for OpenAI)
+    #   - TWILIO_TAC_KNOWLEDGE_BASE_ID (optional, for knowledge base search)
+    tac = TAC(config=TACConfig.from_env())
 
     # Create knowledge tool if knowledge base ID is provided
     tools = []
-    knowledge_id = os.environ.get("TWILIO_TAF_KNOWLEDGE_BASE_ID")
-    if knowledge_id and taf.memora_client:
+    knowledge_id = os.environ.get("TWILIO_TAC_KNOWLEDGE_BASE_ID")
+    if knowledge_id and tac.memora_client:
         knowledge_base = KnowledgeBase(
             id=knowledge_id,
             name="Knowledge Base",
@@ -131,17 +131,17 @@ if __name__ == "__main__":
         )
 
         knowledge_tool = create_knowledge_tool(
-            memory_client=taf.memora_client,
+            memory_client=tac.memora_client,
             knowledge_base=knowledge_base,
             tool_config=KnowledgeToolConfig(top_k=3),
         )
         tools.append(knowledge_tool)
         logger.info(f"[SETUP] Knowledge tool created: {knowledge_tool.name}")
-    elif knowledge_id and not taf.memora_client:
+    elif knowledge_id and not tac.memora_client:
         logger.warning("[SETUP] Knowledge ID provided but Memora client is not initialized")
 
     # Initialize LLM service with tools
-    llm_service = LLMService(taf=taf, system_prompt=system_prompt, tools=tools)
+    llm_service = LLMService(tac=tac, system_prompt=system_prompt, tools=tools)
     logger.info(f"[SETUP] LLM service initialized with {len(tools)} tool(s)")
 
     # Create SessionManager for interrupt handling and streaming
@@ -149,14 +149,14 @@ if __name__ == "__main__":
     logger.info("[SETUP] SessionManager created with streaming support")
 
     # Register callback for message ready (not used with SessionManager for voice)
-    taf.on_message_ready(handle_message_ready)
+    tac.on_message_ready(handle_message_ready)
 
     # Initialize channel with server configuration and session manager
     voice_channel = VoiceChannel(
-        taf=taf,
+        tac=tac,
         session_manager=session_manager,
         server_config=VoiceServerConfig(
-            public_domain=os.environ["TWILIO_TAF_VOICE_PUBLIC_DOMAIN"],
+            public_domain=os.environ["TWILIO_TAC_VOICE_PUBLIC_DOMAIN"],
             host="0.0.0.0",
             port=8000,
         ),

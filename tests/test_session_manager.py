@@ -6,8 +6,8 @@ from collections.abc import AsyncGenerator
 
 import pytest
 
-from taf.channels.session import SessionState
-from taf.channels.session_manager import SessionManager, ThreadSafeSessionManager
+from tac.channels.session import SessionState
+from tac.channels.session_manager import SessionManager, ThreadSafeSessionManager
 
 
 class TestSessionManagerProtocol:

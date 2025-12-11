@@ -1,4 +1,4 @@
-"""Tests for TAF tools."""
+"""Tests for TAC tools."""
 
 import json
 from typing import Optional
@@ -6,34 +6,34 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from taf.context.memory import MemoryClient
-from taf.models.knowledge import KnowledgeBase
-from taf.models.session import ConversationSession
-from taf.tools.base import (
-    TAFTool,
+from tac.context.memory import MemoryClient
+from tac.models.knowledge import KnowledgeBase
+from tac.models.session import ConversationSession
+from tac.tools.base import (
+    TACTool,
     _extract_schema_from_function,
     _is_optional,
     _type_to_json_schema,
     create_tool,
     function_tool,
 )
-from taf.tools.knowledge import (
+from tac.tools.knowledge import (
     KnowledgeToolConfig,
     create_knowledge_tool,
 )
-from taf.tools.memory import create_memory_tool
+from tac.tools.memory import create_memory_tool
 
 
-class TestTAFTool:
-    """Test TAFTool class."""
+class TestTACTool:
+    """Test TACTool class."""
 
-    def test_taf_tool_creation(self):
-        """Test TAFTool can be created with required fields."""
+    def test_tac_tool_creation(self):
+        """Test TACTool can be created with required fields."""
 
         def dummy_func(x: str) -> str:
             return x
 
-        tool = TAFTool(
+        tool = TACTool(
             name="test_tool",
             description="A test tool",
             params_json_schema={
@@ -55,7 +55,7 @@ class TestTAFTool:
         def dummy_func(x: str) -> str:
             return x
 
-        tool = TAFTool(
+        tool = TACTool(
             name="test_tool",
             description="A test tool",
             params_json_schema={
@@ -80,7 +80,7 @@ class TestTAFTool:
         def dummy_func(x: str) -> str:
             return x
 
-        tool = TAFTool(
+        tool = TACTool(
             name="test_tool",
             description="A test tool",
             params_json_schema={
@@ -104,7 +104,7 @@ class TestTAFTool:
         def dummy_func(x: str) -> str:
             return x
 
-        tool = TAFTool(
+        tool = TACTool(
             name="test_tool",
             description="A test tool",
             params_json_schema={
@@ -133,7 +133,7 @@ class TestFunctionTool:
             """Send a simple message."""
             return f"Sent: {message}"
 
-        assert isinstance(simple_tool, TAFTool)
+        assert isinstance(simple_tool, TACTool)
         assert simple_tool.name == "simple_tool"
         assert simple_tool.description == "Send a simple message."
         assert simple_tool.params_json_schema["type"] == "object"
@@ -295,7 +295,7 @@ class TestCreateTool:
             implementation=custom_impl,
         )
 
-        assert isinstance(tool, TAFTool)
+        assert isinstance(tool, TACTool)
         assert tool.name == "manual_tool"
         assert tool.description == "Manually created tool"
         # implementation property returns an async callable
@@ -446,7 +446,7 @@ class TestMemoryTools:
     """Test create_memory_tool function."""
 
     def test_create_memory_tool_returns_tool(self):
-        """Test that create_memory_tool returns a TAFTool."""
+        """Test that create_memory_tool returns a TACTool."""
         # Create mock MemoryClient
         mock_memory_client = MagicMock(spec=MemoryClient)
 
@@ -456,7 +456,7 @@ class TestMemoryTools:
 
         tool = create_memory_tool(mock_memory_client, session)
 
-        assert isinstance(tool, TAFTool)
+        assert isinstance(tool, TACTool)
 
     def test_memory_tool_has_correct_schema(self):
         """Test that memory tool has correct schema."""
@@ -480,7 +480,7 @@ class TestMemoryTools:
         mock_memory_client = MagicMock(spec=MemoryClient)
 
         async def mock_retrieve(*args, **kwargs):
-            from taf.models.memory import MemoryRetrievalResponse
+            from tac.models.memory import MemoryRetrievalResponse
 
             return MemoryRetrievalResponse()
 
@@ -534,7 +534,7 @@ class TestMemoryTools:
         mock_memory_client = MagicMock(spec=MemoryClient)
 
         async def mock_retrieve(*args, **kwargs):
-            from taf.models.memory import MemoryRetrievalResponse
+            from tac.models.memory import MemoryRetrievalResponse
 
             return MemoryRetrievalResponse()
 
@@ -559,7 +559,7 @@ class TestMemoryTools:
         """Test that configure_injection validates types correctly."""
         from typing import Annotated
 
-        from taf.tools.base import InjectedToolArg, function_tool
+        from tac.tools.base import InjectedToolArg, function_tool
 
         # Create a tool with typed injected parameters
         async def test_tool(
@@ -588,7 +588,7 @@ class TestMemoryTools:
         """Test that configure_injection validates generic types correctly."""
         from typing import Annotated, Any
 
-        from taf.tools.base import InjectedToolArg, function_tool
+        from tac.tools.base import InjectedToolArg, function_tool
 
         # Create a tool with generic type annotations
         async def test_tool(
@@ -622,7 +622,7 @@ class TestMemoryTools:
 
         from pydantic import BaseModel
 
-        from taf.tools.base import InjectedToolArg, function_tool
+        from tac.tools.base import InjectedToolArg, function_tool
 
         class TestConfig(BaseModel):
             name: str
@@ -661,7 +661,7 @@ class TestMemoryTools:
         """Test that configure_injection validates Optional generic types correctly."""
         from typing import Annotated
 
-        from taf.tools.base import InjectedToolArg, function_tool
+        from tac.tools.base import InjectedToolArg, function_tool
 
         # Create a tool with Optional generic type annotations
         async def test_tool(
@@ -687,8 +687,8 @@ class TestMemoryTools:
 class TestKnowledgeTools:
     """Test create_knowledge_tool function."""
 
-    def test_create_knowledge_tool_returns_taf_tool(self):
-        """Test that create_knowledge_tool returns a TAFTool."""
+    def test_create_knowledge_tool_returns_tac_tool(self):
+        """Test that create_knowledge_tool returns a TACTool."""
         # Create mock MemoryClient
         mock_memory_client = MagicMock(spec=MemoryClient)
 
@@ -700,7 +700,7 @@ class TestKnowledgeTools:
 
         tool = create_knowledge_tool(mock_memory_client, knowledge_base)
 
-        assert isinstance(tool, TAFTool)
+        assert isinstance(tool, TACTool)
 
     def test_knowledge_tool_default_name_and_description(self):
         """Test that knowledge tool has correct default name and description."""
@@ -754,7 +754,7 @@ class TestKnowledgeTools:
 
         # We can't directly access tool_config.top_k from outside,
         # but we can verify it's used in the API call via mocking
-        assert isinstance(tool, TAFTool)
+        assert isinstance(tool, TACTool)
 
     def test_knowledge_tool_has_correct_schema(self):
         """Test that knowledge tool has correct parameter schema."""
@@ -867,7 +867,7 @@ class TestKnowledgeTools:
                 description=f"Knowledge of type {knowledge_type}",
             )
             tool = create_knowledge_tool(mock_memory_client, knowledge_base)
-            assert isinstance(tool, TAFTool)
+            assert isinstance(tool, TACTool)
 
     @pytest.mark.asyncio
     async def test_knowledge_tool_injected_params_not_in_schema(self):

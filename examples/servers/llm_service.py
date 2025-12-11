@@ -19,10 +19,10 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 
-from taf import get_logger
-from taf.core.taf import TAF
-from taf.models.session import ConversationSession
-from taf.tools.base import TAFTool
+from tac import get_logger
+from tac.core.tac import TAC
+from tac.models.session import ConversationSession
+from tac.tools.base import TACTool
 
 logger = get_logger(__name__)
 
@@ -30,18 +30,18 @@ logger = get_logger(__name__)
 class LLMService:
     """Service for streaming LLM responses with memory context and tool support."""
 
-    def __init__(self, taf: TAF, system_prompt: str, tools: Optional[list[TAFTool]] = None):
+    def __init__(self, tac: TAC, system_prompt: str, tools: Optional[list[TACTool]] = None):
         """
         Initialize LLM service.
 
         Args:
-            taf: TAF instance for memory operations
+            tac: TAC instance for memory operations
             system_prompt: Base system prompt for the assistant
-            tools: Optional list of TAFTools to make available to the LLM
+            tools: Optional list of TACTools to make available to the LLM
         """
-        self.taf = taf
+        self.tac = tac
         self.system_prompt = system_prompt
-        self.openai_client = openai.AsyncOpenAI(api_key=os.environ.get("TWILIO_TAF_OPENAI_API_KEY"))
+        self.openai_client = openai.AsyncOpenAI(api_key=os.environ.get("TWILIO_TAC_OPENAI_API_KEY"))
         self.tools = tools or []
         # Conversation history per conversation_id
         self.conversation_messages: dict[str, list[ChatCompletionMessageParam]] = {}
@@ -85,9 +85,9 @@ class LLMService:
 
             # Retrieve memory if enabled
             memory_response = None
-            if self.taf.is_twilio_memory_enabled():
+            if self.tac.is_twilio_memory_enabled():
                 try:
-                    memory_response = await self.taf.retrieve_memory(context, query=prompt)
+                    memory_response = await self.tac.retrieve_memory(context, query=prompt)
                     if memory_response:
                         obs_count = (
                             len(memory_response.observations) if memory_response.observations else 0

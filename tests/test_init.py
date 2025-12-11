@@ -1,4 +1,4 @@
-from taf import TAF, TAFConfig, TwilioWebhookEvent, WebhookEventType, __version__
+from tac import TAC, TACConfig, TwilioWebhookEvent, WebhookEventType, __version__
 
 
 def test_version():
@@ -9,14 +9,14 @@ def test_version():
 
 def test_imports():
     """Test that all main classes can be imported."""
-    assert TAF is not None
-    assert TAFConfig is not None
+    assert TAC is not None
+    assert TACConfig is not None
     assert TwilioWebhookEvent is not None
     assert WebhookEventType is not None
 
 
-def test_basic_taf_functionality():
-    """Test basic TAF functionality works."""
+def test_basic_tac_functionality():
+    """Test basic TAC functionality works."""
     config = {
         "twilio_auth_token": "test_token_123",
         "environment": "prod",
@@ -24,5 +24,5 @@ def test_basic_taf_functionality():
         "conversation_service_sid": "IS123test",
         "twilio_phone_number": "+15551234567",
     }
-    taf = TAF(config)
-    assert taf.config.twilio_auth_token == "test_token_123"
+    tac = TAC(config)
+    assert tac.config.twilio_auth_token == "test_token_123"

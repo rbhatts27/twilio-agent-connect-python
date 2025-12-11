@@ -1,12 +1,12 @@
-# TAF Server Examples
+# TAC Server Examples
 
-Simplified server implementations using TAF's built-in server configuration.
+Simplified server implementations using TAC's built-in server configuration.
 
 > **Prerequisites:** Complete the [Quick Start setup](../README.md#quick-start) in the main examples README before running these servers.
 
 ## Overview
 
-The servers in this directory demonstrate the simplified approach to building TAF applications using built-in server configuration. Instead of manually creating FastAPI apps and routes, you can use TAF's server configuration objects to automatically handle endpoint setup.
+The servers in this directory demonstrate the simplified approach to building TAC applications using built-in server configuration. Instead of manually creating FastAPI apps and routes, you can use TAC's server configuration objects to automatically handle endpoint setup.
 
 **When to Use:**
 - You want a quick way to get started with minimal boilerplate
@@ -16,7 +16,7 @@ The servers in this directory demonstrate the simplified approach to building TA
 **When to Use Manual Approach (see `examples/channels/`):**
 - You need full control over FastAPI configuration
 - You want custom middleware, authentication, or rate limiting
-- You're integrating TAF into an existing FastAPI application
+- You're integrating TAC into an existing FastAPI application
 
 ---
 
@@ -26,8 +26,8 @@ Voice server using built-in `VoiceServerConfig` for automatic FastAPI app and en
 
 **Additional Environment Variables:**
 ```bash
-TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
-TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
+TWILIO_TAC_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
+TWILIO_TAC_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 ```
 
 **Features:**
@@ -41,13 +41,13 @@ TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 
 **Usage:**
 ```bash
-# 1. Add TWILIO_TAF_VOICE_PUBLIC_DOMAIN to your .env file
-TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
+# 1. Add TWILIO_TAC_VOICE_PUBLIC_DOMAIN to your .env file
+TWILIO_TAC_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
 
 # 2. Start ngrok tunnel (in separate terminal)
 ngrok http 8000 --domain={your-ngrok-domain}
 
-# 3. Verify TWILIO_TAF_VOICE_PUBLIC_DOMAIN in .env matches your ngrok domain
+# 3. Verify TWILIO_TAC_VOICE_PUBLIC_DOMAIN in .env matches your ngrok domain
 
 # 4. Run simplified voice server
 uv run python examples/servers/voice.py
@@ -61,18 +61,18 @@ uv run python examples/servers/voice.py
 2. Twilio phone call arrives, webhook requests TwiML from `/twiml`
 3. Server creates conversation and participant, generates TwiML with WebSocket URL
 4. Voice channel establishes WebSocket connection via `/ws`
-5. TAF retrieves memories (observations, summaries, sessions)
+5. TAC retrieves memories (observations, summaries, sessions)
 6. `handle_memory_ready` callback invoked with context and memories
 7. OpenAI generates response using conversation history
 8. Response sent back via voice channel
 
 **Key Code Pattern:**
 ```python
-from taf import TAF, TAFConfig, VoiceServerConfig
-from taf.channels.voice import VoiceChannel
+from tac import TAC, TACConfig, VoiceServerConfig
+from tac.channels.voice import VoiceChannel
 
-# Initialize TAF
-taf = TAF(config=TAFConfig(...))
+# Initialize TAC
+tac = TAC(config=TACConfig(...))
 
 # Register callback
 async def handle_memory_ready(context, memory_response, user_message):
@@ -80,13 +80,13 @@ async def handle_memory_ready(context, memory_response, user_message):
     response = await openai_client.chat.completions.create(...)
     await voice_channel.send_response(context.conversation_id, response)
 
-taf.on_memory_ready(handle_memory_ready)
+tac.on_memory_ready(handle_memory_ready)
 
 # Initialize channel with server configuration
 voice_channel = VoiceChannel(
-    taf=taf,
+    tac=tac,
     server_config=VoiceServerConfig(
-        public_domain=os.environ["TWILIO_TAF_VOICE_PUBLIC_DOMAIN"],
+        public_domain=os.environ["TWILIO_TAC_VOICE_PUBLIC_DOMAIN"],
         host="0.0.0.0",
         port=8000,
         welcome_greeting="Hello! How can I assist you today?",

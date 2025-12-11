@@ -1,6 +1,6 @@
-# TAF Channel Examples
+# TAC Channel Examples
 
-Production-ready channel implementation examples for Twilio Agentic Framework (TAF).
+Production-ready channel implementation examples for Twilio Agent Connect (TAC).
 
 > **Prerequisites:** Complete the [Quick Start setup](../README.md#quick-start) in the main examples README before running these servers.
 
@@ -58,11 +58,11 @@ async def handle_message_ready(user_message, context, memory_response=None):
 
 ## `sms.py` - SMS Webhook Server
 
-FastAPI server to receive and process Twilio SMS webhooks with TAF, featuring complete OpenAI LLM integration.
+FastAPI server to receive and process Twilio SMS webhooks with TAC, featuring complete OpenAI LLM integration.
 
 **Additional Environment Variables:**
 ```bash
-TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
+TWILIO_TAC_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 ```
 
 **Features:**
@@ -71,7 +71,7 @@ TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 - ✅ OpenAI integration for intelligent responses
 - ✅ Conversation history management
 - ✅ Parses JSON payloads using ConversationEvent model
-- ✅ Processes with TAF and triggers memory callbacks
+- ✅ Processes with TAC and triggers memory callbacks
 - ✅ SMS channel integration with conversation lifecycle
 
 **Usage:**
@@ -99,7 +99,7 @@ uv run python examples/channels/sms.py
 **How It Works:**
 1. Twilio sends SMS webhook to `/sms` endpoint
 2. SMS channel processes webhook and validates message
-3. TAF retrieves memories (observations, summaries, sessions)
+3. TAC retrieves memories (observations, summaries, sessions)
 4. `handle_message_ready` callback invoked with user message, context, and optional memory_response
 5. OpenAI generates response using conversation history and optional memories
 6. Response sent back via SMS channel
@@ -107,11 +107,11 @@ uv run python examples/channels/sms.py
 **Key Code Pattern:**
 ```python
 from fastapi import FastAPI, Request
-from taf.channels.sms import SMSChannel
+from tac.channels.sms import SMSChannel
 
-# Initialize TAF and channel
-taf = TAF(config)
-sms_channel = SMSChannel(taf)
+# Initialize TAC and channel
+tac = TAC(config)
+sms_channel = SMSChannel(tac)
 
 # Register callback
 async def handle_message_ready(user_message, context, memory_response=None):
@@ -119,10 +119,10 @@ async def handle_message_ready(user_message, context, memory_response=None):
     response = await openai_client.chat.completions.create(...)
     await sms_channel.send_response(context.conversation_id, response)
 
-taf.on_message_ready(handle_message_ready)
+tac.on_message_ready(handle_message_ready)
 
 # Create FastAPI app
-app = FastAPI(title="TAF SMS Server")
+app = FastAPI(title="TAC SMS Server")
 
 @app.post("/sms")
 async def sms_webhook(request: Request):
@@ -142,8 +142,8 @@ Basic voice server with FastAPI, TwiML generation, and WebSocket handling for Tw
 
 **Additional Environment Variables:**
 ```bash
-TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
-TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
+TWILIO_TAC_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
+TWILIO_TAC_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 ```
 
 **Features:**
@@ -156,13 +156,13 @@ TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 
 **Usage:**
 ```bash
-# 1. Add TWILIO_TAF_VOICE_PUBLIC_DOMAIN to your .env file
-TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
+# 1. Add TWILIO_TAC_VOICE_PUBLIC_DOMAIN to your .env file
+TWILIO_TAC_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
 
 # 2. Start ngrok tunnel (in separate terminal)
 ngrok http 8000 --domain={your-ngrok-domain}
 
-# 3. Verify TWILIO_TAF_VOICE_PUBLIC_DOMAIN in .env matches your ngrok domain
+# 3. Verify TWILIO_TAC_VOICE_PUBLIC_DOMAIN in .env matches your ngrok domain
 
 # 4. Run voice server
 uv run python examples/channels/voice.py
@@ -175,7 +175,7 @@ uv run python examples/channels/voice.py
 1. Twilio phone call arrives, webhook requests TwiML
 2. `/twiml` endpoint generates TwiML with WebSocket URL
 3. Voice channel establishes WebSocket connection via `/ws`
-4. TAF retrieves memories (observations, summaries, sessions)
+4. TAC retrieves memories (observations, summaries, sessions)
 5. `handle_message_ready` callback invoked with user message, context, and optional memory_response
 6. OpenAI generates response using conversation history and optional memories
 7. Response sent back via voice channel
@@ -183,11 +183,11 @@ uv run python examples/channels/voice.py
 **Key Code Pattern:**
 ```python
 from fastapi import FastAPI, Form, WebSocket
-from taf.channels.voice import VoiceChannel
+from tac.channels.voice import VoiceChannel
 
-# Initialize TAF and channel
-taf = TAF(config)
-voice_channel = VoiceChannel(taf)
+# Initialize TAC and channel
+tac = TAC(config)
+voice_channel = VoiceChannel(tac)
 
 # Register callback
 async def handle_message_ready(user_message, context, memory_response=None):
@@ -195,10 +195,10 @@ async def handle_message_ready(user_message, context, memory_response=None):
     response = await openai_client.chat.completions.create(...)
     await voice_channel.send_response(context.conversation_id, response)
 
-taf.on_message_ready(handle_message_ready)
+tac.on_message_ready(handle_message_ready)
 
 # Create FastAPI app
-app = FastAPI(title="TAF Voice Server")
+app = FastAPI(title="TAC Voice Server")
 
 @app.post("/twiml")
 async def post_twiml(From: str = Form(...)):
@@ -226,8 +226,8 @@ Advanced voice server demonstrating agent handoff to Twilio Flex for human escal
 
 **Additional Environment Variables:**
 ```bash
-TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
-TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
+TWILIO_TAC_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
+TWILIO_TAC_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 # Additional Flex configuration may be required
 ```
 
@@ -237,7 +237,7 @@ TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For OpenAI LLM integration
 - ✅ OpenAI tool calling for intelligent escalation decisions
 - ✅ `/handoff` endpoint for processing transfer requests
 - ✅ Automatic detection of escalation requests (e.g., "speak to a human")
-- ✅ Handoff handler registration with `taf.on_handoff()`
+- ✅ Handoff handler registration with `tac.on_handoff()`
 
 **Usage:**
 ```bash
@@ -260,8 +260,8 @@ uv run python examples/channels/voice_escalation.py
 
 **Key Code Pattern:**
 ```python
-from taf.tools.flex_escalation import create_flex_escalation_tool
-from taf.util.flex import handle_flex_handoff_logic
+from tac.tools.flex_escalation import create_flex_escalation_tool
+from tac.util.flex import handle_flex_handoff_logic
 
 # Create escalation tool
 # Get the active websocket for this conversation
@@ -274,7 +274,7 @@ flex_escalation_tool = create_flex_escalation_tool(
 def flex_handoff_handler(request_data):
     return handle_flex_handoff_logic(request_data)
 
-taf.on_handoff(flex_handoff_handler)
+tac.on_handoff(flex_handoff_handler)
 
 # Use tool with OpenAI
 completion = await client.chat.completions.create(
@@ -300,13 +300,13 @@ async def handoff(request: Request):
 
 ## `voice_interrupts.py` - Voice Channel with Custom Streaming Agent
 
-Advanced voice server demonstrating custom agent streaming with session management for handling interrupts and canceling in-flight LLM requests. This example shows how to integrate **any AI agent framework** with TAF's voice channel using a platform-agnostic streaming pattern.
+Advanced voice server demonstrating custom agent streaming with session management for handling interrupts and canceling in-flight LLM requests. This example shows how to integrate **any AI agent framework** with TAC's voice channel using a platform-agnostic streaming pattern.
 
 **Additional Environment Variables:**
 ```bash
-TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
+TWILIO_TAC_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}  # Your ngrok or public domain
 WEBSOCKET_PORT=8080  # Port for WebSocket server
-TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For this example (can be any LLM)
+TWILIO_TAC_OPENAI_API_KEY=sk-xxxxx...  # For this example (can be any LLM)
 ```
 
 **Features:**
@@ -320,7 +320,7 @@ TWILIO_TAF_OPENAI_API_KEY=sk-xxxxx...  # For this example (can be any LLM)
 **Usage:**
 ```bash
 # 1. Add configuration to .env
-TWILIO_TAF_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
+TWILIO_TAC_VOICE_PUBLIC_DOMAIN={your-ngrok-domain}
 WEBSOCKET_PORT=8080
 
 # 2. Start ngrok tunnel
@@ -363,7 +363,7 @@ async def stream_openai_response(prompt: str, session_id: str) -> AsyncGenerator
         stream=True,
     )
     
-    # 3. Yield chunks - TAF handles WebSocket delivery and cancellation
+    # 3. Yield chunks - TAC handles WebSocket delivery and cancellation
     full_response = ""
     async for chunk in stream:
         if chunk.choices[0].delta.content:
@@ -380,14 +380,14 @@ async def stream_openai_response(prompt: str, session_id: str) -> AsyncGenerator
 The `ThreadSafeSessionManager` wraps your streaming function and handles task lifecycle:
 
 ```python
-from taf.channels.session_manager import ThreadSafeSessionManager
-from taf.channels.voice import VoiceChannel
+from tac.channels.session_manager import ThreadSafeSessionManager
+from tac.channels.voice import VoiceChannel
 
 # Initialize with your custom streaming function
 session_manager = ThreadSafeSessionManager(stream_generator=stream_openai_response)
 
 # Pass to VoiceChannel - enables interrupt handling
-voice_channel = VoiceChannel(taf=taf, session_manager=session_manager)
+voice_channel = VoiceChannel(tac=tac, session_manager=session_manager)
 ```
 
 **What Happens During Interrupts:**

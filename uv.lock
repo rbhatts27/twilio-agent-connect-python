@@ -2272,7 +2272,7 @@ wheels = [
 ]
 
 [[package]]
-name = "taf"
+name = "tac"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
