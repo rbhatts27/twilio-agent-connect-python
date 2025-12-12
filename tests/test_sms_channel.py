@@ -12,6 +12,103 @@ from tac.models.memory import MemoryRetrievalMeta, MemoryRetrievalResponse
 from tac.models.session import ConversationSession
 
 
+def create_conversation_created_webhook(conversation_id: str, timestamp: str) -> dict[str, Any]:
+    """Create a CONVERSATION_CREATED webhook event."""
+    return {
+        "eventType": "CONVERSATION_CREATED",
+        "timestamp": timestamp,
+        "data": {
+            "id": conversation_id,
+            "accountId": "ACtest123",
+            "serviceId": "IStest123",
+            "status": "ACTIVE",
+            "name": "Test Conversation",
+            "createdAt": timestamp,
+            "updatedAt": timestamp,
+            "configuration": {"intelligenceServiceIds": []},
+        },
+    }
+
+
+def create_participant_added_webhook(
+    conversation_id: str, participant_id: str, profile_id: str, timestamp: str
+) -> dict[str, Any]:
+    """Create a PARTICIPANT_ADDED webhook event."""
+    return {
+        "eventType": "PARTICIPANT_ADDED",
+        "timestamp": timestamp,
+        "data": {
+            "id": participant_id,
+            "conversationId": conversation_id,
+            "accountId": "ACtest123",
+            "serviceId": "IStest123",
+            "name": "+12345678901",
+            "type": "CUSTOMER",
+            "profileId": profile_id,
+            "addresses": [{"channel": "SMS", "address": "+12345678901", "channelId": None}],
+            "createdAt": timestamp,
+            "updatedAt": timestamp,
+        },
+    }
+
+
+def create_communication_created_webhook(
+    conversation_id: str,
+    participant_id: str,
+    message_text: str,
+    timestamp: str,
+    author_address: str = "+12345678901",
+) -> dict[str, Any]:
+    """Create a COMMUNICATION_CREATED webhook event."""
+    return {
+        "eventType": "COMMUNICATION_CREATED",
+        "timestamp": timestamp,
+        "data": {
+            "id": "comms_communication_test123",
+            "conversationId": conversation_id,
+            "accountId": "ACtest123",
+            "serviceId": "IStest123",
+            "author": {
+                "address": author_address,
+                "channel": "SMS",
+                "participantId": participant_id,
+            },
+            "content": {"type": "TEXT", "text": message_text},
+            "channelId": None,
+            "recipients": [
+                {
+                    "address": "+15551234567",
+                    "channel": "SMS",
+                    "participantId": "comms_participant_agent",
+                    "deliveryStatus": "DELIVERED",
+                }
+            ],
+            "createdAt": timestamp,
+            "updatedAt": timestamp,
+        },
+    }
+
+
+def create_conversation_updated_webhook(
+    conversation_id: str, status: str, timestamp: str
+) -> dict[str, Any]:
+    """Create a CONVERSATION_UPDATED webhook event."""
+    return {
+        "eventType": "CONVERSATION_UPDATED",
+        "timestamp": timestamp,
+        "data": {
+            "id": conversation_id,
+            "accountId": "ACtest123",
+            "serviceId": "IStest123",
+            "status": status,
+            "name": "Test Conversation",
+            "createdAt": "2025-11-18T00:00:00.000Z",
+            "updatedAt": timestamp,
+            "configuration": {"intelligenceServiceIds": []},
+        },
+    }
+
+
 def get_test_config(with_memory: bool = True) -> dict[str, Any]:
     """Get a valid test configuration."""
     config: dict[str, Any] = {
@@ -47,24 +144,15 @@ class TestSMSChannel:
         channel = SMSChannel(tac)
 
         # Process conversation.created
-        conversation_webhook = {
-            "EventType": "conversation.created",
-            "ConversationId": "CH123456",
-            "ConversationStatus": "ACTIVE",
-            "Timestamp": "2025-11-18T00:00:00.000Z",
-        }
+        conversation_webhook = create_conversation_created_webhook(
+            "CH123456", "2025-11-18T00:00:00.000Z"
+        )
         await channel.process_webhook(conversation_webhook)
 
         # Process participant.added
-        participant_webhook = {
-            "EventType": "participant.added",
-            "ConversationId": "CH123456",
-            "ParticipantId": "MB123",
-            "ParticipantType": "CUSTOMER",
-            "ProfileId": "profile_test_123",
-            "ParticipantName": "+12345678901",
-            "Timestamp": "2025-11-18T00:00:01.000Z",
-        }
+        participant_webhook = create_participant_added_webhook(
+            "CH123456", "MB123", "profile_test_123", "2025-11-18T00:00:01.000Z"
+        )
         await channel.process_webhook(participant_webhook)
 
         # Verify conversation was started with profile
@@ -92,16 +180,9 @@ class TestSMSChannel:
 
         tac.on_message_ready(message_callback)
 
-        webhook_data = {
-            "EventType": "communication.created",
-            "ConversationId": "CH123456",
-            "CommunicationId": "IM123",
-            "AuthorParticipantId": "MB123",
-            "AuthorAddress": "+12345678901",
-            "AuthorChannel": "SMS",
-            "Body": '{"type":"TEXT","text":"Hello, I need help"}',
-            "Timestamp": "2025-11-18T00:00:00.000Z",
-        }
+        webhook_data = create_communication_created_webhook(
+            "CH123456", "MB123", "Hello, I need help", "2025-11-18T00:00:00.000Z"
+        )
 
         empty_response = MemoryRetrievalResponse(
             observations=[],
@@ -126,36 +207,20 @@ class TestSMSChannel:
         channel = SMSChannel(tac)
 
         # Start conversation first
-        conversation_webhook = {
-            "EventType": "conversation.created",
-            "ConversationId": "CH123456",
-            "ConversationStatus": "ACTIVE",
-            "Timestamp": "2025-11-18T00:00:00.000Z",
-        }
+        conversation_webhook = create_conversation_created_webhook(
+            "CH123456", "2025-11-18T00:00:00.000Z"
+        )
         await channel.process_webhook(conversation_webhook)
 
-        participant_webhook = {
-            "EventType": "participant.added",
-            "ConversationId": "CH123456",
-            "ParticipantId": "MB123",
-            "ParticipantType": "CUSTOMER",
-            "ProfileId": "profile_test_123",
-            "ParticipantName": "+12345678901",
-            "Timestamp": "2025-11-18T00:00:01.000Z",
-        }
+        participant_webhook = create_participant_added_webhook(
+            "CH123456", "MB123", "profile_test_123", "2025-11-18T00:00:01.000Z"
+        )
         await channel.process_webhook(participant_webhook)
 
         # Now process message
-        message_webhook = {
-            "EventType": "communication.created",
-            "ConversationId": "CH123456",
-            "CommunicationId": "IM123",
-            "AuthorParticipantId": "MB123",
-            "AuthorAddress": "+12345678901",
-            "AuthorChannel": "SMS",
-            "Body": '{"type":"TEXT","text":"Test message"}',
-            "Timestamp": "2025-11-18T00:00:02.000Z",
-        }
+        message_webhook = create_communication_created_webhook(
+            "CH123456", "MB123", "Test message", "2025-11-18T00:00:02.000Z"
+        )
 
         empty_response = MemoryRetrievalResponse(
             observations=[],
@@ -175,16 +240,9 @@ class TestSMSChannel:
         tac = TAC(get_test_config())
         channel = SMSChannel(tac)
 
-        webhook_data = {
-            "EventType": "communication.created",
-            "ConversationId": "CH123456",
-            "CommunicationId": "IM123",
-            "AuthorParticipantId": "MB123",
-            "AuthorAddress": "+12345678901",
-            "AuthorChannel": "SMS",
-            "Body": '{"type":"TEXT","text":""}',
-            "Timestamp": "2025-11-18T00:00:00.000Z",
-        }
+        webhook_data = create_communication_created_webhook(
+            "CH123456", "MB123", "", "2025-11-18T00:00:00.000Z"
+        )
 
         tac.memora_client.retrieve_memory = AsyncMock()
 
@@ -200,21 +258,13 @@ class TestSMSChannel:
         channel = SMSChannel(tac)
 
         # Start conversation
-        start_webhook = {
-            "EventType": "conversation.created",
-            "ConversationId": "CH123456",
-            "ConversationStatus": "ACTIVE",
-            "Timestamp": "2025-11-18T00:00:00.000Z",
-        }
+        start_webhook = create_conversation_created_webhook("CH123456", "2025-11-18T00:00:00.000Z")
         await channel.process_webhook(start_webhook)
 
         # End conversation (status changed to CLOSED)
-        end_webhook = {
-            "EventType": "conversation.updated",
-            "ConversationId": "CH123456",
-            "ConversationStatus": "CLOSED",
-            "Timestamp": "2025-11-18T00:10:00.000Z",
-        }
+        end_webhook = create_conversation_updated_webhook(
+            "CH123456", "CLOSED", "2025-11-18T00:10:00.000Z"
+        )
 
         # Should not raise
         await channel.process_webhook(end_webhook)
@@ -242,24 +292,13 @@ class TestSMSChannel:
         )
 
         # Start conversation with profile_id
-        start_webhook = {
-            "EventType": "conversation.created",
-            "ConversationId": "CH123456",
-            "ConversationStatus": "ACTIVE",
-            "Timestamp": "2025-11-18T00:00:00.000Z",
-        }
+        start_webhook = create_conversation_created_webhook("CH123456", "2025-11-18T00:00:00.000Z")
         await channel.process_webhook(start_webhook)
 
         # Add participant to set profile_id
-        participant_webhook = {
-            "EventType": "participant.added",
-            "ConversationId": "CH123456",
-            "ParticipantId": "PA_CUSTOMER",
-            "ParticipantType": "CUSTOMER",
-            "ProfileId": "profile_test_123",
-            "ParticipantName": "+12345678901",
-            "Timestamp": "2025-11-18T00:00:01.000Z",
-        }
+        participant_webhook = create_participant_added_webhook(
+            "CH123456", "PA_CUSTOMER", "profile_test_123", "2025-11-18T00:00:01.000Z"
+        )
         await channel.process_webhook(participant_webhook)
 
         with (
@@ -296,22 +335,12 @@ class TestSMSChannel:
 
         # Start first conversation
         await channel.process_webhook(
-            {
-                "EventType": "conversation.created",
-                "ConversationId": "CH111",
-                "ConversationStatus": "ACTIVE",
-                "Timestamp": "2025-11-18T00:00:00.000Z",
-            }
+            create_conversation_created_webhook("CH111", "2025-11-18T00:00:00.000Z")
         )
 
         # Start second conversation
         await channel.process_webhook(
-            {
-                "EventType": "conversation.created",
-                "ConversationId": "CH222",
-                "ConversationStatus": "ACTIVE",
-                "Timestamp": "2025-11-18T00:00:01.000Z",
-            }
+            create_conversation_created_webhook("CH222", "2025-11-18T00:00:01.000Z")
         )
 
         # Verify both conversations started successfully
@@ -320,12 +349,7 @@ class TestSMSChannel:
 
         # End first conversation (should not raise)
         await channel.process_webhook(
-            {
-                "EventType": "conversation.updated",
-                "ConversationId": "CH111",
-                "ConversationStatus": "CLOSED",
-                "Timestamp": "2025-11-18T00:10:00.000Z",
-            }
+            create_conversation_updated_webhook("CH111", "CLOSED", "2025-11-18T00:10:00.000Z")
         )
 
         # Verify first conversation was removed
@@ -339,9 +363,9 @@ class TestSMSChannel:
         channel = SMSChannel(tac)
 
         webhook_data = {
-            "EventType": "some.unsupported.event",
-            "ConversationId": "CH123456",
-            "Timestamp": "2025-11-18T00:00:00.000Z",
+            "eventType": "SOME_UNSUPPORTED_EVENT",
+            "timestamp": "2025-11-18T00:00:00.000Z",
+            "data": {"id": "CH123456"},
         }
 
         # Should not raise, just log debug message

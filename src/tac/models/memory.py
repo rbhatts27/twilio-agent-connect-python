@@ -14,6 +14,12 @@ class MemoryRetrievalRequest(BaseModel):
         description="A unique identifier for the conversation using Twilio Type ID (TTID) format",
         json_schema_extra={"example": "comms_conversation_00000000000000000000000000"},
     )
+    conversation_service_id: Optional[str] = Field(
+        default=None,
+        alias="conversationServiceId",
+        description="Conversation Service ID",
+        json_schema_extra={"example": "comms_service_00000000000000000000000000"},
+    )
     query: Optional[str] = Field(
         default=None,
         min_length=1,

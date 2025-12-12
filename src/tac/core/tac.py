@@ -153,6 +153,7 @@ class TAC:
                 memory_response = await self.memora_client.retrieve_memory(
                     profile_id=conversation_context.profile_id,
                     conversation_id=conversation_context.conversation_id,
+                    conversation_service_id=self.config.conversation_service_sid,
                     query=query,
                 )
                 return memory_response

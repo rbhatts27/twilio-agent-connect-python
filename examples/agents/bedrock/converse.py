@@ -101,7 +101,7 @@ if __name__ == "__main__":
         system_prompt="You are a helpful AI assistant. Be concise and friendly.",
     )
 
-    print("✅ Bedrock Converse Agent initialized! Type 'quit' to exit.\n")
+    print("Bedrock Converse Agent initialized! Type 'quit' to exit.\n")
 
     # Simple chat loop
     while True:

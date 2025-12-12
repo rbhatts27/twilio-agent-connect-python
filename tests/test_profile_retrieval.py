@@ -1,6 +1,6 @@
 """Tests for profile retrieval functionality."""
 
-from typing import Optional
+from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -10,6 +10,65 @@ from tac.channels.sms import SMSChannel
 from tac.core.config import TwilioMemoryConfig
 from tac.models.memory import MemoryRetrievalMeta, MemoryRetrievalResponse, ProfileResponse
 from tac.models.session import ConversationSession
+
+
+def create_participant_added_webhook(
+    conversation_id: str, participant_id: str, profile_id: str, timestamp: str
+) -> dict[str, Any]:
+    """Create a PARTICIPANT_ADDED webhook event."""
+    return {
+        "eventType": "PARTICIPANT_ADDED",
+        "timestamp": timestamp,
+        "data": {
+            "id": participant_id,
+            "conversationId": conversation_id,
+            "accountId": "ACtest123",
+            "serviceId": "IStest123",
+            "name": "+12345678901",
+            "type": "CUSTOMER",
+            "profileId": profile_id,
+            "addresses": [{"channel": "SMS", "address": "+12345678901", "channelId": None}],
+            "createdAt": timestamp,
+            "updatedAt": timestamp,
+        },
+    }
+
+
+def create_communication_created_webhook(
+    conversation_id: str,
+    participant_id: str,
+    message_text: str,
+    timestamp: str,
+    author_address: str = "+12345678901",
+) -> dict[str, Any]:
+    """Create a COMMUNICATION_CREATED webhook event."""
+    return {
+        "eventType": "COMMUNICATION_CREATED",
+        "timestamp": timestamp,
+        "data": {
+            "id": "comms_communication_test123",
+            "conversationId": conversation_id,
+            "accountId": "ACtest123",
+            "serviceId": "IStest123",
+            "author": {
+                "address": author_address,
+                "channel": "SMS",
+                "participantId": participant_id,
+            },
+            "content": {"type": "TEXT", "text": message_text},
+            "channelId": None,
+            "recipients": [
+                {
+                    "address": "+15551234567",
+                    "channel": "SMS",
+                    "participantId": "comms_participant_agent",
+                    "deliveryStatus": "DELIVERED",
+                }
+            ],
+            "createdAt": timestamp,
+            "updatedAt": timestamp,
+        },
+    }
 
 
 def get_test_config_with_trait_groups(trait_groups: Optional[list[str]] = None) -> TACConfig:
@@ -176,27 +235,14 @@ class TestProfileInSMSChannel:
             mock_profile = get_mock_profile_response()
 
             # Simulate participant.added webhook with profile
-            participant_webhook = {
-                "EventType": "participant.added",
-                "ConversationId": "CH123456",
-                "ParticipantId": "MB123",
-                "ParticipantType": "CUSTOMER",
-                "ProfileId": "profile_test_123",
-                "ParticipantName": "+12345678901",
-                "Timestamp": "2025-11-18T00:00:00.000Z",
-            }
+            participant_webhook = create_participant_added_webhook(
+                "CH123456", "MB123", "profile_test_123", "2025-11-18T00:00:00.000Z"
+            )
 
             # Simulate message webhook
-            message_webhook = {
-                "EventType": "communication.created",
-                "ConversationId": "CH123456",
-                "CommunicationId": "IM123",
-                "AuthorParticipantId": "MB123",
-                "AuthorAddress": "+12345678901",
-                "AuthorChannel": "SMS",
-                "Body": '{"type":"TEXT","text":"Hello!"}',
-                "Timestamp": "2025-11-18T00:00:01.000Z",
-            }
+            message_webhook = create_communication_created_webhook(
+                "CH123456", "MB123", "Hello!", "2025-11-18T00:00:01.000Z"
+            )
 
             tac.memora_client.get_profile = AsyncMock(return_value=mock_profile)
             empty_memory = MemoryRetrievalResponse(
@@ -244,15 +290,9 @@ class TestProfileInSMSChannel:
             mock_profile = get_mock_profile_response()
 
             # Simulate participant.added webhook (this is when profile is fetched)
-            participant_added = {
-                "EventType": "participant.added",
-                "ConversationId": "CH123456",
-                "ParticipantId": "MB123",
-                "ParticipantType": "CUSTOMER",
-                "ProfileId": "profile_test_123",
-                "ParticipantName": "+12345678901",
-                "Timestamp": "2025-11-18T00:00:00.000Z",
-            }
+            participant_added = create_participant_added_webhook(
+                "CH123456", "MB123", "profile_test_123", "2025-11-18T00:00:00.000Z"
+            )
 
             tac.memora_client.get_profile = AsyncMock(return_value=mock_profile)
             await channel.process_webhook(participant_added)
@@ -280,27 +320,14 @@ class TestProfileInSMSChannel:
             mock_profile = get_mock_profile_response()
 
             # Simulate participant.added first
-            participant_webhook = {
-                "EventType": "participant.added",
-                "ConversationId": "CH123456",
-                "ParticipantId": "MB123",
-                "ParticipantType": "CUSTOMER",
-                "ProfileId": "profile_test_123",
-                "ParticipantName": "+12345678901",
-                "Timestamp": "2025-11-18T00:00:00.000Z",
-            }
+            participant_webhook = create_participant_added_webhook(
+                "CH123456", "MB123", "profile_test_123", "2025-11-18T00:00:00.000Z"
+            )
 
             # Simulate first message
-            message_webhook_1 = {
-                "EventType": "communication.created",
-                "ConversationId": "CH123456",
-                "CommunicationId": "IM123",
-                "AuthorParticipantId": "MB123",
-                "AuthorAddress": "+12345678901",
-                "AuthorChannel": "SMS",
-                "Body": '{"type":"TEXT","text":"First message"}',
-                "Timestamp": "2025-11-18T00:00:01.000Z",
-            }
+            message_webhook_1 = create_communication_created_webhook(
+                "CH123456", "MB123", "First message", "2025-11-18T00:00:01.000Z"
+            )
 
             tac.memora_client.get_profile = AsyncMock(return_value=mock_profile)
             empty_memory = MemoryRetrievalResponse(
@@ -320,16 +347,9 @@ class TestProfileInSMSChannel:
             second_call_count = tac.memora_client.get_profile.call_count
 
             # Simulate second message
-            message_webhook_2 = {
-                "EventType": "communication.created",
-                "ConversationId": "CH123456",
-                "CommunicationId": "IM124",
-                "AuthorParticipantId": "MB123",
-                "AuthorAddress": "+12345678901",
-                "AuthorChannel": "SMS",
-                "Body": '{"type":"TEXT","text":"Second message"}',
-                "Timestamp": "2025-11-18T00:00:02.000Z",
-            }
+            message_webhook_2 = create_communication_created_webhook(
+                "CH123456", "MB123", "Second message", "2025-11-18T00:00:02.000Z"
+            )
 
             # Process second message (third profile fetch)
             await channel.process_webhook(message_webhook_2)
@@ -361,27 +381,14 @@ class TestProfileInSMSChannel:
             )
 
             # Participant added event
-            participant_webhook = {
-                "EventType": "participant.added",
-                "ConversationId": "CH123456",
-                "ParticipantId": "MB123",
-                "ParticipantType": "CUSTOMER",
-                "ProfileId": "profile_test_123",
-                "ParticipantName": "+12345678901",
-                "Timestamp": "2025-11-18T00:00:00.000Z",
-            }
+            participant_webhook = create_participant_added_webhook(
+                "CH123456", "MB123", "profile_test_123", "2025-11-18T00:00:00.000Z"
+            )
 
             # First message
-            message_webhook = {
-                "EventType": "communication.created",
-                "ConversationId": "CH123456",
-                "CommunicationId": "IM123",
-                "AuthorParticipantId": "MB123",
-                "AuthorAddress": "+12345678901",
-                "AuthorChannel": "SMS",
-                "Body": '{"type":"TEXT","text":"Hello"}',
-                "Timestamp": "2025-11-18T00:00:01.000Z",
-            }
+            message_webhook = create_communication_created_webhook(
+                "CH123456", "MB123", "Hello", "2025-11-18T00:00:01.000Z"
+            )
 
             empty_memory = MemoryRetrievalResponse(
                 observations=[],

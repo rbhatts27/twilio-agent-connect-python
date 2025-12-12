@@ -47,6 +47,7 @@ class MemoryClient:
         self,
         profile_id: str,
         conversation_id: Optional[str] = None,
+        conversation_service_id: Optional[str] = None,
         query: Optional[str] = None,
     ) -> MemoryRetrievalResponse:
         """
@@ -57,6 +58,7 @@ class MemoryClient:
         Args:
             profile_id: Profile ID using Twilio Type ID (TTID) format
             conversation_id: Optional conversation ID using Twilio Type ID (TTID) format
+            conversation_service_id: Optional conversation service ID
             query: Optional semantic search query for finding relevant memories (1-1024 characters)
 
         Returns:
@@ -73,6 +75,8 @@ class MemoryClient:
 
         # Create the request payload with default values
         request_data = MemoryRetrievalRequest(
+            conversation_id=conversation_id,
+            conversation_service_id=conversation_service_id,
             query=query,
         )
         request_payload = request_data.model_dump(by_alias=True, exclude_none=True)

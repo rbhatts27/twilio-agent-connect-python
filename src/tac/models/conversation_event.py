@@ -1,8 +1,7 @@
 """Models for Twilio Conversation Events."""
 
-import json
 from enum import Enum
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -10,30 +9,77 @@ from pydantic import BaseModel, Field
 class ConversationEventType(str, Enum):
     """Enum for Maestro Conversation Event types."""
 
-    CONVERSATION_CREATED = "conversation.created"
-    CONVERSATION_UPDATED = "conversation.updated"
-    PARTICIPANT_ADDED = "participant.added"
-    COMMUNICATION_CREATED = "communication.created"
+    CONVERSATION_CREATED = "CONVERSATION_CREATED"
+    CONVERSATION_UPDATED = "CONVERSATION_UPDATED"
+    PARTICIPANT_ADDED = "PARTICIPANT_ADDED"
+    COMMUNICATION_CREATED = "COMMUNICATION_CREATED"
 
 
-class TranscriptionWord(BaseModel):
-    """Represents a single word in a transcription."""
+class ParticipantAddress(BaseModel):
+    """Represents a participant's address."""
 
-    text: Optional[str] = None
-    start_time: Optional[str] = Field(None, alias="startTime")
-    end_time: Optional[str] = Field(None, alias="endTime")
-    alternates: Optional[list[str]] = None
+    channel: Optional[str] = None
+    address: Optional[str] = None
+    channel_id: Optional[str] = Field(None, alias="channelId")
 
     model_config = {"populate_by_name": True}
 
 
-class TranscriptionMetadata(BaseModel):
-    """Metadata for conversation transcription."""
+class ConversationConfiguration(BaseModel):
+    """Configuration for a conversation."""
 
-    channel: Optional[int] = None
-    confidence: Optional[float] = None
-    end_time: Optional[str] = Field(None, alias="endTime")
-    words: Optional[list[TranscriptionWord]] = None
+    intelligence_service_ids: Optional[list[str]] = Field(None, alias="intelligenceServiceIds")
+
+    model_config = {"populate_by_name": True}
+
+
+class ConversationData(BaseModel):
+    """Data for CONVERSATION_CREATED and CONVERSATION_UPDATED events."""
+
+    id: str
+    account_id: str = Field(..., alias="accountId")
+    service_id: str = Field(..., alias="serviceId")
+    status: str
+    name: Optional[str] = None
+    created_at: Optional[str] = Field(None, alias="createdAt")
+    updated_at: Optional[str] = Field(None, alias="updatedAt")
+    configuration: Optional[ConversationConfiguration] = None
+
+    model_config = {"populate_by_name": True}
+
+
+class ParticipantData(BaseModel):
+    """Data for PARTICIPANT_ADDED events."""
+
+    id: str
+    conversation_id: str = Field(..., alias="conversationId")
+    account_id: str = Field(..., alias="accountId")
+    service_id: str = Field(..., alias="serviceId")
+    name: Optional[str] = None
+    type: Optional[Literal["HUMAN_AGENT", "CUSTOMER", "AI_AGENT", "UNKNOWN"]] = None
+    profile_id: Optional[str] = Field(None, alias="profileId")
+    addresses: Optional[list[ParticipantAddress]] = None
+    created_at: Optional[str] = Field(None, alias="createdAt")
+    updated_at: Optional[str] = Field(None, alias="updatedAt")
+
+    model_config = {"populate_by_name": True}
+
+
+class CommunicationAuthor(BaseModel):
+    """Author information for a communication."""
+
+    address: str
+    channel: str
+    participant_id: str = Field(..., alias="participantId")
+
+    model_config = {"populate_by_name": True}
+
+
+class CommunicationContent(BaseModel):
+    """Content of a communication."""
+
+    type: str
+    text: Optional[str] = None
 
     model_config = {"populate_by_name": True}
 
@@ -41,9 +87,27 @@ class TranscriptionMetadata(BaseModel):
 class CommunicationRecipient(BaseModel):
     """Represents a recipient of a communication."""
 
-    participant_id: Optional[str] = Field(None, alias="participantId")
-    channel: Optional[str] = None
-    status: Optional[str] = None
+    address: str
+    channel: str
+    participant_id: str = Field(..., alias="participantId")
+    delivery_status: Optional[str] = Field(None, alias="deliveryStatus")
+
+    model_config = {"populate_by_name": True}
+
+
+class CommunicationData(BaseModel):
+    """Data for COMMUNICATION_CREATED events."""
+
+    id: str
+    conversation_id: str = Field(..., alias="conversationId")
+    account_id: str = Field(..., alias="accountId")
+    service_id: str = Field(..., alias="serviceId")
+    author: CommunicationAuthor
+    content: CommunicationContent
+    channel_id: Optional[str] = Field(None, alias="channelId")
+    recipients: Optional[list[CommunicationRecipient]] = None
+    created_at: Optional[str] = Field(None, alias="createdAt")
+    updated_at: Optional[str] = Field(None, alias="updatedAt")
 
     model_config = {"populate_by_name": True}
 
@@ -51,47 +115,52 @@ class CommunicationRecipient(BaseModel):
 class ConversationEvent(BaseModel):
     """Represents a Twilio Conversation Event."""
 
-    event_type: Optional[str] = Field(None, alias="EventType")
-    timestamp: Optional[str] = Field(None, alias="Timestamp")
-    account_id: Optional[str] = Field(None, alias="AccountId")
-    configuration_id: Optional[str] = Field(None, alias="ConfigurationId")
-    language: Optional[str] = Field(None, alias="Language")
-
-    # Conversation fields
-    conversation_id: Optional[str] = Field(None, alias="ConversationId")
-    conversation_name: Optional[str] = Field(None, alias="ConversationName")
-    conversation_status: Optional[str] = Field(None, alias="ConversationStatus")
-
-    # Participant fields
-    participant_id: Optional[str] = Field(None, alias="ParticipantId")
-    participant_name: Optional[str] = Field(None, alias="ParticipantName")
-    participant_type: Optional[Literal["HUMAN_AGENT", "CUSTOMER", "AI_AGENT", "UNKNOWN"]] = Field(
-        None, alias="ParticipantType"
-    )
-    profile_id: Optional[str] = Field(None, alias="ProfileId")
-
-    # Communication fields
-    communication_id: Optional[str] = Field(None, alias="CommunicationId")
-    author_participant_id: Optional[str] = Field(None, alias="AuthorParticipantId")
-    author_address: Optional[str] = Field(None, alias="AuthorAddress")
-    author_channel: Optional[str] = Field(None, alias="AuthorChannel")
-    body: Optional[str] = Field(None, alias="Body")
+    event_type: str = Field(..., alias="eventType")
+    timestamp: str
+    data: dict[str, Any]  # Generic dict to handle all event types
 
     model_config = {"populate_by_name": True}
 
+    def get_conversation_data(self) -> Optional[ConversationData]:
+        """Parse data as ConversationData for CONVERSATION_CREATED/UPDATED events."""
+        if self.event_type in [
+            ConversationEventType.CONVERSATION_CREATED,
+            ConversationEventType.CONVERSATION_UPDATED,
+        ]:
+            return ConversationData.model_validate(self.data)
+        return None
+
+    def get_participant_data(self) -> Optional[ParticipantData]:
+        """Parse data as ParticipantData for PARTICIPANT_ADDED events."""
+        if self.event_type == ConversationEventType.PARTICIPANT_ADDED:
+            return ParticipantData.model_validate(self.data)
+        return None
+
+    def get_communication_data(self) -> Optional[CommunicationData]:
+        """Parse data as CommunicationData for COMMUNICATION_CREATED events."""
+        if self.event_type == ConversationEventType.COMMUNICATION_CREATED:
+            return CommunicationData.model_validate(self.data)
+        return None
+
     def get_message_text(self) -> Optional[str]:
-        """Extract text from the Body field (which may be JSON)."""
-        if not self.body:
-            return None
+        """Extract text from COMMUNICATION_CREATED event."""
+        communication_data = self.get_communication_data()
+        if communication_data and communication_data.content:
+            return communication_data.content.text
+        return None
 
-        # Try to parse as JSON
-        try:
-            body_data = json.loads(self.body)
-            if isinstance(body_data, dict) and "text" in body_data:
-                text_value = body_data["text"]
-                return str(text_value) if text_value is not None else None
-        except (json.JSONDecodeError, ValueError):
-            pass
+    def get_conversation_id(self) -> Optional[str]:
+        """Extract conversation ID from any event type."""
+        if self.event_type in [
+            ConversationEventType.CONVERSATION_CREATED,
+            ConversationEventType.CONVERSATION_UPDATED,
+        ]:
+            return self.data.get("id")
+        return self.data.get("conversationId")
 
-        # If not JSON or parsing fails, return as-is
-        return self.body
+    def get_profile_id(self) -> Optional[str]:
+        """Extract profile ID from PARTICIPANT_ADDED events."""
+        participant_data = self.get_participant_data()
+        if participant_data:
+            return participant_data.profile_id
+        return None

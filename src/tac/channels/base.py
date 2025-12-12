@@ -109,7 +109,7 @@ class BaseChannel(ABC):
         )
 
         self.logger.info(
-            f"🎯 CONVERSATION | Started {self.get_channel_name().upper()} conversation",
+            f"CONVERSATION | Started {self.get_channel_name().upper()} conversation",
             conversation_id=conv_id,
             profile_id=profile_id,
         )

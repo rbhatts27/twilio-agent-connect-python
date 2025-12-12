@@ -108,36 +108,31 @@ async def handle_message_ready(
 
         # Log incoming message with clear separator
         logger.info(
-            f"\n{'=' * 80}\n📨 USER MESSAGE | Channel: {context.channel.upper()}",
+            f"\n{'=' * 80}\nUSER MESSAGE | Channel: {context.channel.upper()}",
             conversation_id=conv_id,
         )
         logger.info(
-            f'💬 "{user_message}"',
+            f'"{user_message}"',
             conversation_id=conv_id,
             profile_id=context.profile_id,
         )
 
-        # Retrieve memory only if Twilio Memory is enabled
-        memory_response = None
-        if tac.is_twilio_memory_enabled():
-            try:
-                memory_response = await tac.retrieve_memory(context, query=user_message)
-                if memory_response:
-                    obs_count = (
-                        len(memory_response.observations) if memory_response.observations else 0
-                    )
-                    sum_count = len(memory_response.summaries) if memory_response.summaries else 0
-                    logger.info(
-                        f"🧠 MEMORY | Retrieved: {obs_count} observations, {sum_count} summaries",
+        # Voice channel does not retrieve memory, so we need to retrieve it here
+        # SMS channel already retrieves memory before calling this callback
+        if not memory_response and context.channel == "voice" and tac.is_twilio_memory_enabled():
+            if context.profile_id:
+                try:
+                    memory_response = await tac.retrieve_memory(context, query=user_message)
+                except Exception as e:
+                    logger.error(
+                        "Failed to retrieve memory for voice channel",
                         conversation_id=conv_id,
+                        error=str(e),
+                        exc_info=True,
                     )
-            except Exception as e:
-                logger.error(
-                    "❌ Failed to retrieve memory",
-                    conversation_id=conv_id,
-                    error=str(e),
-                    exc_info=True,
-                )
+
+        if memory_response:
+            logger.info("MEMORY | Retrieved")
 
         # Get the active websocket for this conversation if it's a voice channel
         active_websocket = (
@@ -145,7 +140,7 @@ async def handle_message_ready(
         )
 
         # Process message with LLM
-        logger.info("🤖 AI AGENT | Processing message...", conversation_id=conv_id)
+        logger.info("AI AGENT | Processing message...", conversation_id=conv_id)
         llm_response = await llm_service.process_message(
             user_message=user_message,
             memory_response=memory_response,
@@ -166,18 +161,18 @@ async def handle_message_ready(
                 )
             else:
                 logger.error(
-                    "❌ Unknown channel",
+                    "Unknown channel",
                     conversation_id=conv_id,
                     channel=context.channel,
                 )
                 return
 
             logger.info(
-                "✅ AI RESPONSE | Sent successfully",
+                "AI RESPONSE | Sent successfully",
                 conversation_id=conv_id,
             )
             logger.info(
-                f'💬 "{llm_response}"',
+                f'"{llm_response}"',
                 conversation_id=conv_id,
             )
 
@@ -189,7 +184,7 @@ async def handle_message_ready(
                 if context.channel == "voice" and handoff_data_json:
                     try:
                         logger.info(
-                            f"\n{'=' * 80}\n🔄 HANDOFF | Transferring to human agent...",
+                            f"\n{'=' * 80}\nHANDOFF | Transferring to human agent...",
                             conversation_id=conv_id,
                         )
                         await active_websocket.send_text(
@@ -199,7 +194,7 @@ async def handle_message_ready(
                         del context.metadata["pending_handoff"]
                     except Exception as e:
                         logger.error(
-                            "❌ Handoff failed",
+                            "Handoff failed",
                             conversation_id=conv_id,
                             error=str(e),
                             exc_info=True,
@@ -213,7 +208,7 @@ async def handle_message_ready(
             conversation_messages[conv_id].append(assistant_msg)
     except Exception as e:
         logger.error(
-            "❌ Error processing message",
+            "Error processing message",
             conversation_id=conv_id,
             error=str(e),
             exc_info=True,
@@ -225,9 +220,9 @@ tac.on_message_ready(handle_message_ready)
 tac.on_handoff(flex_handoff_handler)
 
 
-@app.post("/sms")
-async def sms_webhook(request: Request) -> JSONResponse:
-    """Handle incoming SMS webhooks from Twilio."""
+@app.post("/webhook")
+async def webhook_handler(request: Request) -> JSONResponse:
+    """Handle incoming webhooks from Twilio (all conversation events)."""
     try:
         form_data = await request.json()
         webhook_data = dict(form_data)
@@ -237,7 +232,7 @@ async def sms_webhook(request: Request) -> JSONResponse:
         return JSONResponse(content={"status": "ok"}, status_code=200)
 
     except Exception as e:
-        logger.error("❌ SMS webhook error", error=str(e), exc_info=True)
+        logger.error("SMS webhook error", error=str(e), exc_info=True)
         return JSONResponse(content={"status": "error", "message": str(e)}, status_code=400)
 
 
@@ -249,7 +244,7 @@ async def post_twiml(
 ) -> Response:
     """Generate TwiML for Twilio voice calls."""
     logger.info(
-        f"\n{'=' * 80}\n📞 INCOMING CALL | {from_number} → {to_number}",
+        f"\n{'=' * 80}\nINCOMING CALL | {from_number} → {to_number}",
         call_sid=call_sid,
     )
 
@@ -268,16 +263,16 @@ async def post_twiml(
         action_url=callback_url,
     )
 
-    logger.info("✅ CALL SETUP | TwiML generated, connecting WebSocket...", call_sid=call_sid)
+    logger.info("CALL SETUP | TwiML generated, connecting WebSocket...", call_sid=call_sid)
     return Response(content=twiml, media_type="application/xml")
 
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """Handle voice streaming WebSocket connection."""
-    logger.info("🔌 WEBSOCKET | Connected - streaming ready")
+    logger.info("WEBSOCKET | Connected - streaming ready")
     await voice_channel.handle_websocket(websocket)
-    logger.info("🔌 WEBSOCKET | Disconnected")
+    logger.info("WEBSOCKET | Disconnected")
 
 
 @app.post("/conversation-relay-callback")

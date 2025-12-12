@@ -6,8 +6,6 @@ from twilio.rest import Client
 
 from tac import TAC
 from tac.channels.base import BaseChannel
-
-# TODO: Use Vnext Conversation Event when it is ready
 from tac.models.conversation import (
     CommunicationContent,
     CommunicationParticipant,
@@ -54,20 +52,21 @@ class SMSChannel(BaseChannel):
             self.logger.error("Failed to parse webhook event", error=str(e), exc_info=True)
             return
 
-        conv_id = event.conversation_id
+        conv_id = event.get_conversation_id()
         if not conv_id:
             self.logger.error("No conversation_id in webhook event")
             return
 
-        if event.author_channel and event.author_channel != "SMS":
-            self.logger.debug(
-                "Ignoring non-SMS event",
-                conversation_id=conv_id,
-                channel=event.author_channel,
-            )
-            return
+        if event.event_type == ConversationEventType.COMMUNICATION_CREATED:
+            communication_data = event.get_communication_data()
+            if communication_data and communication_data.author.channel != "SMS":
+                self.logger.debug(
+                    "Ignoring non-SMS communication", channel=communication_data.author.channel
+                )
+                return
 
         # Handle conversation lifecycle events
+        # TODO: need to filter out voice events
         if event.event_type == ConversationEventType.CONVERSATION_CREATED:
             await self._handle_conversation_created(conv_id, event)
         elif event.event_type == ConversationEventType.PARTICIPANT_ADDED:
@@ -175,33 +174,38 @@ class SMSChannel(BaseChannel):
             conv_id: Conversation ID
             event: Parsed conversation event
         """
+        participant_data = event.get_participant_data()
+        if not participant_data:
+            self.logger.error("Failed to parse participant data")
+            return
+
         # Only track CUSTOMER participants with profile_id
-        if event.participant_type == "CUSTOMER" and event.profile_id:
+        if participant_data.type == "CUSTOMER" and participant_data.profile_id:
             self.logger.debug(
                 "Customer participant added",
                 conversation_id=conv_id,
-                profile_id=event.profile_id,
+                profile_id=participant_data.profile_id,
             )
 
             # Auto-initialize conversation if not already started
             if conv_id not in self._conversations:
-                await self._start_conversation(conv_id, event.profile_id)
+                await self._start_conversation(conv_id, participant_data.profile_id)
             else:
                 # Update existing conversation with profile_id
                 session = self._conversations[conv_id]
-                session.profile_id = event.profile_id
+                session.profile_id = participant_data.profile_id
 
                 # Fetch profile immediately
                 if self.tac.is_twilio_memory_enabled():
-                    profile = await self.tac.fetch_profile(event.profile_id)
+                    profile = await self.tac.fetch_profile(participant_data.profile_id)
                     if profile:
                         session.profile = profile
         else:
             self.logger.debug(
                 "Participant added",
                 conversation_id=conv_id,
-                participant_type=event.participant_type,
-                profile_id=event.profile_id,
+                participant_type=participant_data.type,
+                profile_id=participant_data.profile_id,
             )
 
     async def _handle_communication_created(self, conv_id: str, event: ConversationEvent) -> None:
@@ -212,8 +216,13 @@ class SMSChannel(BaseChannel):
             conv_id: Conversation ID
             event: Parsed conversation event
         """
+        communication_data = event.get_communication_data()
+        if not communication_data:
+            self.logger.error("Failed to parse communication data")
+            return
+
         # TODO: Figure out a way to filter out messages from non-CUSTOMER participants
-        if event.author_address == self.tac.config.twilio_phone_number:
+        if communication_data.author.address == self.tac.config.twilio_phone_number:
             self.logger.debug(
                 "Ignoring message from AI agent",
                 conversation_id=conv_id,
@@ -240,11 +249,10 @@ class SMSChannel(BaseChannel):
         session = self._conversations[conv_id]
 
         # Update session with author info from the communication event
-        if event.author_address and event.author_participant_id:
-            session.author_info = AuthorInfo(
-                address=event.author_address,
-                participant_id=event.author_participant_id,
-            )
+        session.author_info = AuthorInfo(
+            address=communication_data.author.address,
+            participant_id=communication_data.author.participant_id,
+        )
 
         # Fetch profile for each message if profile_id is available
         if session.profile_id and self.tac.is_twilio_memory_enabled():
@@ -295,8 +303,12 @@ class SMSChannel(BaseChannel):
             conv_id: Conversation ID
             event: Parsed conversation event
         """
+        conversation_data = event.get_conversation_data()
+        if not conversation_data:
+            self.logger.error("Failed to parse conversation data")
+            return
         # Check if conversation is closed
-        if event.conversation_status == "CLOSED":
+        if conversation_data.status == "CLOSED":
             self.logger.debug(
                 "Conversation closed, cleaning up",
                 conversation_id=conv_id,
@@ -306,7 +318,7 @@ class SMSChannel(BaseChannel):
             self.logger.debug(
                 "Conversation updated",
                 conversation_id=conv_id,
-                status=event.conversation_status,
+                status=conversation_data.status,
             )
 
     async def _send_response_via_maestro(self, conversation_id: str, response: str) -> None:

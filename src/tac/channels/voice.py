@@ -224,7 +224,7 @@ class VoiceChannel(BaseChannel):
                         )
                     except Exception as e:
                         self.logger.error(
-                            f"❌ Failed to close conversation {conversation.id}: {e}",
+                            f"Failed to close conversation {conversation.id}: {e}",
                             exc_info=True,
                         )
 
@@ -726,7 +726,7 @@ class VoiceChannel(BaseChannel):
             message: Parsed InterruptMessage with interruption details
         """
         self.logger.info(
-            f"⏸️  INTERRUPT | User interrupted (after {message.duration_until_interrupt_ms}ms)",
+            f"INTERRUPT | User interrupted (after {message.duration_until_interrupt_ms}ms)",
             conversation_id=conv_id,
         )
 

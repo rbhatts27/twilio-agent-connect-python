@@ -64,6 +64,7 @@ class TestMemoryFallback:
         tac.memora_client.retrieve_memory.assert_called_once_with(
             profile_id="profile_123",
             conversation_id="CH123",
+            conversation_service_id="IS123test",
             query="test query",
         )
         assert isinstance(result, MemoryRetrievalResponse)
