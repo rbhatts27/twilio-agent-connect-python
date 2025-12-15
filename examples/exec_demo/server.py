@@ -14,13 +14,18 @@ This demo demonstrates TAC's channel-agnostic architecture with both SMS and Voi
 
 import json
 import os
+from pathlib import Path
 from typing import Optional
 
 import uvicorn
+
+# Dashboard imports
+from dashboard.event_handler import get_event_queue, setup_dashboard_logging
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request, WebSocket
 from fastapi.datastructures import FormData
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from llm_service import LLMService
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
@@ -37,6 +42,9 @@ from tac.models.session import ConversationSession
 from tac.util.flex import handle_flex_handoff_logic
 
 load_dotenv()
+
+# Get the directory where this script is located
+BASE_DIR = Path(__file__).resolve().parent
 
 # Configure structured logging using TAC's logging utilities
 setup_logging(log_level="INFO", log_format="console")
@@ -61,6 +69,11 @@ app = FastAPI(
 #   - TWILIO_TAC_MEMORY_STORE_ID, TWILIO_TAC_MEMORY_API_KEY, TWILIO_TAC_MEMORY_API_TOKEN (for Twilio Memory)
 #   - TWILIO_TAC_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
 tac = TAC(config=TACConfig.from_env())
+
+# IMPORTANT: Setup dashboard logging AFTER TAC initialization
+# (TAC calls setup_logging() which clears handlers)
+setup_dashboard_logging()
+
 voice_channel = VoiceChannel(tac)
 sms_channel = SMSChannel(tac)
 
@@ -108,12 +121,9 @@ async def handle_message_ready(
 
         # Log incoming message with clear separator
         logger.info(
-            f"\n{'=' * 80}\nUSER MESSAGE | Channel: {context.channel.upper()}",
+            f"\n{'=' * 80}\nUSER MESSAGE | {user_message[:50]}{'...' if len(user_message) > 50 else ''}",
             conversation_id=conv_id,
-        )
-        logger.info(
-            f'"{user_message}"',
-            conversation_id=conv_id,
+            channel=context.channel,
             profile_id=context.profile_id,
         )
 
@@ -132,7 +142,18 @@ async def handle_message_ready(
                     )
 
         if memory_response:
-            logger.info("MEMORY | Retrieved")
+            # Build memory summary
+            memory_items = []
+            if memory_response.observations:
+                memory_items.append(f"{len(memory_response.observations)} observations")
+            if memory_response.summaries:
+                memory_items.append(f"{len(memory_response.summaries)} summaries")
+            memory_summary = ", ".join(memory_items) if memory_items else "context"
+            logger.info(
+                f"MEMORY | Retrieved {memory_summary}",
+                conversation_id=conv_id,
+                channel=context.channel,
+            )
 
         # Get the active websocket for this conversation if it's a voice channel
         active_websocket = (
@@ -140,7 +161,11 @@ async def handle_message_ready(
         )
 
         # Process message with LLM
-        logger.info("AI AGENT | Processing message...", conversation_id=conv_id)
+        logger.info(
+            "AI AGENT | Processing message...",
+            conversation_id=conv_id,
+            channel=context.channel,
+        )
         llm_response = await llm_service.process_message(
             user_message=user_message,
             memory_response=memory_response,
@@ -167,13 +192,15 @@ async def handle_message_ready(
                 )
                 return
 
-            logger.info(
-                "AI RESPONSE | Sent successfully",
-                conversation_id=conv_id,
+            # Log response with preview
+            response_preview = (
+                llm_response[:100] + "..." if len(llm_response) > 100 else llm_response
             )
             logger.info(
-                f'"{llm_response}"',
+                f"AI RESPONSE | {response_preview}",
                 conversation_id=conv_id,
+                channel=context.channel,
+                profile_id=context.profile_id,
             )
 
             # Check if there's a pending handoff in session metadata
@@ -281,6 +308,51 @@ async def conversation_relay_callback(request: Request) -> Response:
     return await voice_channel.handle_conversation_relay_callback(request)
 
 
+# Dashboard routes
+# Mount static files for dashboard JavaScript
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "dashboard" / "static")), name="static")
+
+
+@app.get("/dashboard")
+async def dashboard_page() -> FileResponse:
+    """Serve the dashboard HTML page."""
+    return FileResponse(
+        BASE_DIR / "dashboard" / "templates" / "dashboard.html", media_type="text/html"
+    )
+
+
+@app.get("/events")
+async def event_stream(request: Request) -> StreamingResponse:
+    """SSE endpoint for streaming dashboard events."""
+
+    async def event_generator():
+        import asyncio
+
+        queue = get_event_queue()
+        try:
+            while True:
+                if queue:
+                    event = queue.popleft()
+                    yield f"data: {event.model_dump_json()}\n\n"
+                else:
+                    # Send keepalive comment every 15 seconds
+                    yield ": keepalive\n\n"
+                await asyncio.sleep(0.5)
+        except asyncio.CancelledError:
+            logger.info("Dashboard client disconnected")
+            raise
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 if __name__ == "__main__":
     # Configure uvicorn logging to reduce noise
     uvicorn_log_config = uvicorn.config.LOGGING_CONFIG
@@ -293,7 +365,7 @@ if __name__ == "__main__":
         "server:app",
         host="0.0.0.0",
         port=8000,
-        log_level="warning",  # Only show warnings and errors from uvicorn
-        access_log=False,  # Disable access logs
+        log_level="warning",
+        access_log=False,
         log_config=uvicorn_log_config,
     )

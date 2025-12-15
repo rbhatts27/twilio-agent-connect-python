@@ -234,3 +234,15 @@ self.agent = Agent(
     instructions="..."
 )
 ```
+
+## Dashboard
+
+This demo includes a real-time web dashboard to visualize how TAC works.
+
+**To view the dashboard:**
+1. Start the server (see "Running the Demo" section above)
+2. Open your browser and navigate to `http://localhost:8000/dashboard`
+3. You'll see real-time updates as conversations happen:
+   - User messages and AI responses
+   - Memory retrieval operations
+   - Multi-channel activity (SMS/Voice)
