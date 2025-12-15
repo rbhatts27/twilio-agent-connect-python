@@ -1,4 +1,4 @@
-from tac import TAC, TACConfig, TwilioWebhookEvent, WebhookEventType, __version__
+from tac import TAC, TACConfig, __version__
 
 
 def test_version():
@@ -11,8 +11,6 @@ def test_imports():
     """Test that all main classes can be imported."""
     assert TAC is not None
     assert TACConfig is not None
-    assert TwilioWebhookEvent is not None
-    assert WebhookEventType is not None
 
 
 def test_basic_tac_functionality():

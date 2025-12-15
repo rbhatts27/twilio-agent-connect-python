@@ -15,7 +15,7 @@ class TwilioMemoryConfig(BaseModel):
     """
 
     memory_store_id: str = Field(
-        description="Memora Memory Store ID (starts with MG)",
+        description="Memora Memory Store ID (starts with mem_service_)",
     )
     api_key: str = Field(
         description="API Key for Memora authentication",
@@ -32,7 +32,7 @@ class TwilioMemoryConfig(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "memory_store_id": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "memory_store_id": "mem_service_xxxxxxxxxxxxxxxxxx",
                 "trait_groups": ["Contact", "Preferences"],
                 "api_key": "your_api_key_here",
                 "api_token": "your_api_token_here",
@@ -46,7 +46,7 @@ class TwilioMemoryConfig(BaseModel):
         Create TwilioMemoryConfig from environment variables.
 
         Loads configuration from the following environment variables:
-        - TWILIO_TAC_MEMORY_STORE_ID: Memora Memory Store ID (starts with MG)
+        - TWILIO_TAC_MEMORY_STORE_ID: Memora Memory Store ID (starts with mem_service_)
         - TWILIO_TAC_MEMORY_API_KEY: API Key for Memora authentication
         - TWILIO_TAC_MEMORY_API_TOKEN: API Token for Memora authentication
         - TWILIO_TAC_TRAIT_GROUPS: Comma-separated list of trait groups (optional)
@@ -60,7 +60,7 @@ class TwilioMemoryConfig(BaseModel):
 
             >>> # Or manually construct with custom trait_groups
             >>> config = TwilioMemoryConfig(
-            >>>     memory_store_id="MG123",
+            >>>     memory_store_id="mem_service_123",
             >>>     api_key="key",
             >>>     api_token="token",
             >>>     trait_groups=["Contact", "Preferences"],
@@ -159,12 +159,12 @@ class TACConfig(BaseModel):
         json_schema_extra={
             "example": {
                 "environment": "prod",
-                "conversation_service_sid": "ISxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "conversation_service_sid": "comms_service_xxxxxxxxxxxxxxxxxx",
                 "twilio_account_sid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "twilio_auth_token": "your_auth_token_here",
                 "twilio_phone_number": "your_phone_number_here",
                 "twilio_memory_config": {
-                    "memory_store_id": "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "memory_store_id": "mem_service_xxxxxxxxxxxxxxxxxx",
                     "api_key": "your_api_key_here",
                     "api_token": "your_api_token_here",
                     "trait_groups": ["Contact", "Preferences"],

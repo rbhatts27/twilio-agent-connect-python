@@ -80,9 +80,8 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
   - `memory.py` - Memory API models: `MemoryRetrievalRequest`, `MemoryRetrievalResponse`, `ObservationInfo`, `SummaryInfo`, `SessionInfo`, `SessionMessage`, `ProfileResponse`
   - `conversation.py` - Conversation API models: `ConversationRequest`, `ConversationResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`
   - `voice.py` - Voice WebSocket message models: `SetupMessage`, `PromptMessage`, `InterruptMessage`, `CustomParameters`, `VoiceServerConfig`, `ConversationRelayCallbackPayload`
-  - `webhook.py` - `TwilioWebhookEvent` model for parsing Twilio webhook events
+  - `conversation_event.py` - `ConversationEvent` model for parsing Twilio webhook events with comprehensive event fields
   - `knowledge.py` - `Knowledge` model for knowledge tool integration
-  - `conversation_event.py` - `ConversationEvent` model with comprehensive event fields
 
 - **`src/tac/channels/`** - Channel-specific orchestration and conversation lifecycle management
   - `base.py` - `BaseChannel` abstract class with conversation session management (`_start_conversation`, `_end_conversation`); `send_response()` with optional `role` parameter
@@ -101,7 +100,7 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
 
 **Channel-Based Architecture** (Recommended):
 
-1. **Channel processes webhook**: Twilio sends webhook → `channel.process_webhook(webhook_data)` → channel parses event via `TwilioWebhookEvent` → validates message content
+1. **Channel processes webhook**: Twilio sends webhook → `channel.process_webhook(webhook_data)` → channel parses event via `ConversationEvent` → validates message content
 
 2. **Conversation Management**: Channel handles conversation lifecycle:
    - `onConversationAdded`: Channel extracts `profile_id` from webhook → calls `_start_conversation(conv_id, profile_id)` → stores conversation session
@@ -188,7 +187,7 @@ Tests are located in `tests/` directory:
 - `test_voice_channel.py` - Voice channel tests
 - `test_voice_models.py` - Voice WebSocket message model tests
 - `test_conversation.py` - Conversation client tests
-- `test_webhook.py` - Webhook event parsing tests
+- `test_conversation_event.py` - ConversationEvent model tests
 - `test_tools.py` - Tools module tests (function_tool decorator, TACTool format conversions)
 - `test_profile_retrieval.py` - Profile retrieval tests (trait_groups, fetch_profile, context.profile)
 - `test_memory_fallback.py` - Memory retrieval fallback tests (Memora to Maestro fallback)
@@ -206,9 +205,9 @@ When initializing TAC, developers must provide:
 - `twilio_account_sid` - From Twilio Console
 - `twilio_auth_token` - From Twilio Console
 - `twilio_phone_number` - Twilio Phone Number to use for sending messages (required for messaging tools)
-- `conversation_service_sid` - Twilio Conversation Service SID (starts with `IS`)
+- `conversation_service_sid` - Twilio Conversation Service SID (starts with `comms_service_`)
 - `twilio_memory_config` - Optional TwilioMemoryConfig object with:
-  - `memory_store_id` field (starts with `MG`) - Required for Twilio Memory functionality
+  - `memory_store_id` field (starts with `mem_service_`) - Required for Twilio Memory functionality
   - `trait_groups` field (list of strings) - Optional, specifies which trait groups to include in profile retrieval
   - When provided, memory is automatically retrieved for SMS conversations and profile is fetched (once for Voice, per message for SMS)
 - `log_level` - Optional, defaults to "INFO"
@@ -228,9 +227,9 @@ config = TACConfig(
     twilio_account_sid="AC...",
     twilio_auth_token="...",
     twilio_phone_number="+1234567890",
-    conversation_service_sid="IS...",
+    conversation_service_sid="comms_service_...",
     twilio_memory_config=TwilioMemoryConfig(
-        memory_store_id="MG...",
+        memory_store_id="mem_service_...",
         trait_groups=["Contact", "Preferences"]  # Optional: specify trait groups
     )  # Optional - only if using Twilio Memory
 )
@@ -298,9 +297,9 @@ config = TACConfig(
     twilio_account_sid="AC...",
     twilio_auth_token="...",
     twilio_phone_number="+1234567890",
-    conversation_service_sid="IS...",
+    conversation_service_sid="comms_service_...",
     twilio_memory_config=TwilioMemoryConfig(
-        memory_store_id="MG...",
+        memory_store_id="mem_service_...",
         trait_groups=["Contact", "Preferences"]  # Optional: specify trait groups
     )  # Optional - only if using Twilio Memory
 )
@@ -348,9 +347,9 @@ config = TACConfig(
     twilio_account_sid="AC...",
     twilio_auth_token="...",
     twilio_phone_number="+1234567890",
-    conversation_service_sid="IS...",
+    conversation_service_sid="comms_service_...",
     twilio_memory_config=TwilioMemoryConfig(
-        memory_store_id="MG...",
+        memory_store_id="mem_service_...",
         trait_groups=["Contact", "Preferences"]  # Optional: specify trait groups
     )  # Optional - only if using Twilio Memory
 )

@@ -26,7 +26,7 @@ class MemoryClient:
 
         Args:
             base_url: Base URL for the Memora data plane API.
-            store_id: Memory store ID (starts with MG).
+            store_id: Memory store ID (starts with mem_service_).
             api_key: API Key for Memora authentication.
             api_token: API Token for Memora authentication.
         """

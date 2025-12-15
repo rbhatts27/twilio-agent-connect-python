@@ -20,12 +20,12 @@ This directory contains examples demonstrating how to use the Twilio Agent Conne
    TWILIO_TAC_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    TWILIO_TAC_AUTH_TOKEN=your_auth_token_here
    TWILIO_TAC_PHONE_NUMBER=+1234567890
-   TWILIO_TAC_CONVERSATION_SERVICE_SID=ISxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_TAC_CONVERSATION_SERVICE_SID=comms_service_xxxxxxxxxxxxxxxxxx
    ```
 
    **Optional (for Twilio Memory):**
    ```bash
-   TWILIO_TAC_MEMORY_STORE_ID=MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_TAC_MEMORY_STORE_ID=mem_service_xxxxxxxxxxxxxxxxxx
    TWILIO_TAC_MEMORY_API_KEY=your_api_key_here
    TWILIO_TAC_MEMORY_API_TOKEN=your_api_token_here
    TWILIO_TAC_TRAIT_GROUPS=Contact,Preferences

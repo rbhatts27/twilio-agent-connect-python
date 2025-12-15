@@ -23,7 +23,6 @@ from tac.models.memory import (
 from tac.models.pagination import PaginationMeta
 from tac.models.session import AuthorInfo, ConversationSession
 from tac.models.voice import VoiceServerConfig
-from tac.models.webhook import TwilioWebhookEvent, WebhookEventType
 
 __all__ = [
     "AuthorInfo",
@@ -46,7 +45,5 @@ __all__ = [
     "ParticipantResponse",
     "ProfileResponse",
     "SummaryInfo",
-    "TwilioWebhookEvent",
     "VoiceServerConfig",
-    "WebhookEventType",
 ]
