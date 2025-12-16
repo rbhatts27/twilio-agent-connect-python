@@ -15,6 +15,7 @@ from tac.core.config import TACConfig
 from tac.core.logging import get_logger, setup_logging
 from tac.models.memory import (
     MemoryRetrievalResponse,
+    ProfileLookupResponse,
     ProfileResponse,
 )
 from tac.models.session import ConversationSession
@@ -141,13 +142,49 @@ class TAC:
         """
         # Check if Memora is configured
         if self.memora_client and self.config.twilio_memory_config:
-            # Original Memora path - requires profile_id
+            # If profile_id is missing, try to lookup profile using phone number
             if not conversation_context.profile_id:
-                raise ValueError(
-                    "profile_id is required for memory retrieval but was not found in "
-                    "conversation context. Ensure profile_id is provided when creating "
-                    "the ConversationSession."
+                self.logger.debug(
+                    "profile_id not found, attempting to lookup profile using phone number"
                 )
+
+                # Check if author_info and address are available
+                if (
+                    not conversation_context.author_info
+                    or not conversation_context.author_info.address
+                ):
+                    raise ValueError(
+                        "profile_id is required for memory retrieval but was not found in "
+                        "conversation context. Additionally, author_info.address is not available "
+                        "for profile lookup. Ensure either profile_id or author_info.address is "
+                        "provided when creating the ConversationSession."
+                    )
+
+                try:
+                    # Lookup profile using phone number
+                    lookup_response: ProfileLookupResponse = (
+                        await self.memora_client.lookup_profile(
+                            id_type="phone",
+                            value=conversation_context.author_info.address,
+                        )
+                    )
+
+                    # Check if any profiles were found
+                    if not lookup_response.profiles or len(lookup_response.profiles) == 0:
+                        phone_number = conversation_context.author_info.address
+                        raise ValueError(
+                            f"No profile found for phone number {phone_number}. "
+                            "Profile lookup returned no results. Ensure the phone number "
+                            "is registered in the identity resolution system."
+                        )
+
+                    # Use the first profile ID
+                    conversation_context.profile_id = lookup_response.profiles[0]
+
+                except Exception as e:
+                    phone_number = conversation_context.author_info.address
+                    self.logger.error(f"Failed to lookup profile for {phone_number}: {e}")
+                    raise
 
             try:
                 memory_response = await self.memora_client.retrieve_memory(

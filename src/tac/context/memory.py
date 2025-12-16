@@ -7,6 +7,8 @@ from tac.models.knowledge import KnowledgeBase
 from tac.models.memory import (
     MemoryRetrievalRequest,
     MemoryRetrievalResponse,
+    ProfileLookupRequest,
+    ProfileLookupResponse,
     ProfileResponse,
 )
 
@@ -170,6 +172,70 @@ class MemoryClient:
             raise
         except Exception as e:
             self.logger.error(f"Failed to generate Memora profile response: {e}")
+            raise
+
+    async def lookup_profile(
+        self,
+        id_type: str,
+        value: str,
+    ) -> ProfileLookupResponse:
+        """
+        Find profiles that contain a specific identifier value.
+
+        Submit an identifier object specifying the idType and value.
+        The value is normalized using the configured identity resolution settings
+        (such as phone number formatting) prior to matching. Multiple matches are
+        returned if more than one profile is associated with the identifier.
+        Returns canonical profile IDs (the earliest ID if profiles have been merged)
+        along with the normalized value actually searched.
+
+        Args:
+            id_type: Identifier type as configured in the service's Identity Resolution Settings
+                    (e.g., "phone", "email"). Must be 2-30 characters.
+            value: Raw value captured for the identifier (e.g., "+13175556789").
+                  The service normalizes this value according to the configured rules.
+
+        Returns:
+            ProfileLookupResponse containing normalized value and list of matching profile IDs
+
+        Raises:
+            httpx.HTTPError: If the API request fails
+            ValueError: If the response cannot be parsed
+        """
+        endpoint = f"/v1/Services/{self.store_id}/Profiles/Lookup"
+        url = f"{self.base_url}{endpoint}"
+
+        request_data = ProfileLookupRequest(id_type=id_type, value=value)
+        request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
+
+        self.logger.debug(
+            f"Looking up profile with {id_type}={value} from {url} with payload: {request_payload}"
+        )
+
+        try:
+            async with self._get_client() as client:
+                response = await client.post(url, json=request_payload)
+                response.raise_for_status()
+
+                data = response.json()
+                lookup_response = ProfileLookupResponse(**data)
+
+                return lookup_response
+        except httpx.HTTPError as e:
+            response_text = (
+                getattr(e.response, "text", "No response body")
+                if hasattr(e, "response")
+                else "No response"
+            )
+            self.logger.error(
+                f"Failed to lookup profile from Memora: {e}\n"
+                f"URL: {url}\n"
+                f"Request body: {request_payload}\n"
+                f"Response: {response_text}"
+            )
+            raise
+        except Exception as e:
+            self.logger.error(f"Failed to parse Memora lookup response: {e}")
             raise
 
     async def get_knowledge_base(self, knowledge_base_id: str) -> KnowledgeBase:

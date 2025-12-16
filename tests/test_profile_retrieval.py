@@ -8,7 +8,12 @@ import pytest
 from tac import TAC, TACConfig
 from tac.channels.sms import SMSChannel
 from tac.core.config import TwilioMemoryConfig
-from tac.models.memory import MemoryRetrievalMeta, MemoryRetrievalResponse, ProfileResponse
+from tac.models.memory import (
+    MemoryRetrievalMeta,
+    MemoryRetrievalResponse,
+    ProfileLookupResponse,
+    ProfileResponse,
+)
 from tac.models.session import ConversationSession
 
 
@@ -452,3 +457,105 @@ class TestProfileInConversationSession:
         )
 
         assert session.profile is None
+
+
+class TestProfileLookup:
+    """Tests for profile lookup functionality."""
+
+    @pytest.mark.asyncio
+    async def test_profile_lookup_by_phone(self) -> None:
+        """Test profile lookup by phone number."""
+        config = get_test_config_with_trait_groups()
+        tac = TAC(config)
+
+        mock_lookup_response = ProfileLookupResponse(
+            normalizedValue="+13175556789",
+            profiles=["mem_profile_00000000000000000000000001"],
+        )
+
+        tac.memora_client.lookup_profile = AsyncMock(return_value=mock_lookup_response)
+        response = await tac.memora_client.lookup_profile(
+            id_type="phone", value="+1 (317) 555-6789"
+        )
+
+        # Verify response
+        assert response.normalized_value == "+13175556789"
+        assert len(response.profiles) == 1
+        assert response.profiles[0] == "mem_profile_00000000000000000000000001"
+
+        # Verify lookup_profile was called with correct parameters
+        tac.memora_client.lookup_profile.assert_called_once_with(
+            id_type="phone", value="+1 (317) 555-6789"
+        )
+
+    @pytest.mark.asyncio
+    async def test_profile_lookup_by_email(self) -> None:
+        """Test profile lookup by email address."""
+        config = get_test_config_with_trait_groups()
+        tac = TAC(config)
+
+        mock_lookup_response = ProfileLookupResponse(
+            normalizedValue="test@example.com",
+            profiles=["mem_profile_00000000000000000000000002"],
+        )
+
+        tac.memora_client.lookup_profile = AsyncMock(return_value=mock_lookup_response)
+        response = await tac.memora_client.lookup_profile(id_type="email", value="test@example.com")
+
+        # Verify response
+        assert response.normalized_value == "test@example.com"
+        assert len(response.profiles) == 1
+        assert response.profiles[0] == "mem_profile_00000000000000000000000002"
+
+    @pytest.mark.asyncio
+    async def test_profile_lookup_multiple_matches(self) -> None:
+        """Test profile lookup with multiple matching profiles."""
+        config = get_test_config_with_trait_groups()
+        tac = TAC(config)
+
+        mock_lookup_response = ProfileLookupResponse(
+            normalizedValue="+13175556789",
+            profiles=[
+                "mem_profile_00000000000000000000000001",
+                "mem_profile_00000000000000000000000002",
+            ],
+        )
+
+        tac.memora_client.lookup_profile = AsyncMock(return_value=mock_lookup_response)
+        response = await tac.memora_client.lookup_profile(id_type="phone", value="+13175556789")
+
+        # Verify multiple profiles returned
+        assert len(response.profiles) == 2
+        assert "mem_profile_00000000000000000000000001" in response.profiles
+        assert "mem_profile_00000000000000000000000002" in response.profiles
+
+    @pytest.mark.asyncio
+    async def test_profile_lookup_no_matches(self) -> None:
+        """Test profile lookup with no matching profiles."""
+        config = get_test_config_with_trait_groups()
+        tac = TAC(config)
+
+        mock_lookup_response = ProfileLookupResponse(
+            normalizedValue="+13175556789",
+            profiles=[],
+        )
+
+        tac.memora_client.lookup_profile = AsyncMock(return_value=mock_lookup_response)
+        response = await tac.memora_client.lookup_profile(id_type="phone", value="+13175556789")
+
+        # Verify empty profiles list
+        assert len(response.profiles) == 0
+
+    @pytest.mark.asyncio
+    async def test_profile_lookup_error_handling(self) -> None:
+        """Test profile lookup error handling."""
+        config = get_test_config_with_trait_groups()
+        tac = TAC(config)
+
+        # Simulate API error
+        tac.memora_client.lookup_profile = AsyncMock(
+            side_effect=Exception("Profile lookup API error")
+        )
+
+        with pytest.raises(Exception, match="Profile lookup API error"):
+            await tac.memora_client.lookup_profile(id_type="phone", value="+13175556789")

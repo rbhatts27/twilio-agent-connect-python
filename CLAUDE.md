@@ -68,17 +68,17 @@ make ngrok
 The codebase follows a modular design matching the architecture diagram in TAC.md:
 
 - **`src/tac/core/`** - Core TAC class, configuration, and context models
-  - `tac.py` - Main `TAC` class with `retrieve_memory()`, `fetch_profile()`, and `on_message_ready()` hook
+  - `tac.py` - Main `TAC` class with `retrieve_memory()` (with automatic profile lookup), `fetch_profile()`, and `on_message_ready()` hook
   - `config.py` - `TACConfig` Pydantic model for SDK configuration; `TwilioMemoryConfig` with optional `trait_groups`
-  - `context.py` - `SessionIdentity`, `Profile`, `Memory`, `ConversationSession` models (Note: `ConversationSession` does not store message history but includes optional `profile` field)
 
 - **`src/tac/context/`** - Integration with Twilio Sierra primitives
-  - `memory.py` - `MemoryClient` for memory retrieval (traits, observations, sessions) and profile retrieval with `get_profile()`
+  - `memory.py` - `MemoryClient` for memory retrieval (traits, observations, sessions), profile retrieval with `get_profile()`, and profile lookup with `lookup_profile()`
   - `conversation.py` - `ConversationClient` for conversation/participant management
 
 - **`src/tac/models/`** - Data models
-  - `memory.py` - Memory API models: `MemoryRetrievalRequest`, `MemoryRetrievalResponse`, `ObservationInfo`, `SummaryInfo`, `SessionInfo`, `SessionMessage`, `ProfileResponse`
+  - `memory.py` - Memory API models: `MemoryRetrievalRequest`, `MemoryRetrievalResponse`, `ObservationInfo`, `SummaryInfo`, `SessionInfo`, `SessionMessage`, `ProfileResponse`, `ProfileLookupRequest`, `ProfileLookupResponse`
   - `conversation.py` - Conversation API models: `ConversationRequest`, `ConversationResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`
+  - `session.py` - Session models: `ConversationSession` (with optional `profile` and `author_info` fields), `AuthorInfo`
   - `voice.py` - Voice WebSocket message models: `SetupMessage`, `PromptMessage`, `InterruptMessage`, `CustomParameters`, `VoiceServerConfig`, `ConversationRelayCallbackPayload`
   - `conversation_event.py` - `ConversationEvent` model for parsing Twilio webhook events with comprehensive event fields
   - `knowledge.py` - `Knowledge` model for knowledge tool integration
@@ -108,7 +108,10 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
    - `onConversationRemoved`: Channel calls `_end_conversation(conv_id)` → cleans up session
 
 3. **Message Processing**: `TAC.retrieve_memory(conversation_context, query)` → retrieves memories using one of two paths:
-   - **If Memora is configured** (`twilio_memory_config` provided): Retrieves full memory (observations, summaries, communications) from Memora using `conversation_context.profile_id` and `config.twilio_memory_config.memory_store_id`
+   - **If Memora is configured** (`twilio_memory_config` provided):
+     - If `profile_id` is available: Uses it directly to retrieve memory
+     - If `profile_id` is missing: Automatically calls `lookup_profile(id_type="phone", value=author_info.address)` to find profile, assigns first matching profile to `conversation_context.profile_id`, then retrieves memory
+     - Retrieves full memory (observations, summaries, communications) from Memora using `conversation_context.profile_id` and `config.twilio_memory_config.memory_store_id`
    - **If Memora is NOT configured**: Falls back to Maestro's `list_communications()` API to retrieve only communications (conversation history) - observations and summaries arrays will be empty
    - Both paths return `MemoryRetrievalResponse` → triggers `on_message_ready()` callback with memory response
 
@@ -126,6 +129,12 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
   - Endpoint: `GET /Services/{service_id}/Profiles/{profile_id}`
   - Query param: `traitGroups` (comma-separated list)
   - Returns: `ProfileResponse` with `id`, `createdAt`, `traits` fields
+- `lookup_profile()`: Find profiles by identifier value (e.g., phone number, email)
+  - Endpoint: `POST /Services/{service_id}/Profiles/Lookup`
+  - Request: `ProfileLookupRequest` with `id_type` (e.g., "phone", "email") and `value`
+  - Returns: `ProfileLookupResponse` with `normalized_value` and `profiles` (list of profile IDs)
+  - Normalizes identifier values according to identity resolution settings (e.g., E.164 for phone numbers)
+  - Returns canonical profile IDs (earliest ID if profiles have been merged)
 - Auth: Uses HTTP Basic Authentication (Account SID as username, Auth Token as password)
 - Models (from `src/tac/models/memory.py`):
   - `MemoryRetrievalRequest`: Request with `conversation_id`, `query`, optional date filters
@@ -135,6 +144,8 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
   - `SessionInfo`: Historical conversation sessions with messages
   - `SessionMessage`: Individual messages within sessions (includes `timestamp`, `direction`, `channel`, `from_address`, `to_address`, `content`)
   - `ProfileResponse`: Profile information with `id`, `createdAt`, `traits` (dict)
+  - `ProfileLookupRequest`: Request with `id_type` and `value` for profile lookup
+  - `ProfileLookupResponse`: Response with `normalized_value` and list of matching profile IDs
 
 **ConversationClient** (`src/tac/context/conversation.py`):
 - `create_conversation(name, layers, intelligence_agents)`: Creates new conversation, returns `ConversationResponse`
@@ -189,7 +200,8 @@ Tests are located in `tests/` directory:
 - `test_conversation.py` - Conversation client tests
 - `test_conversation_event.py` - ConversationEvent model tests
 - `test_tools.py` - Tools module tests (function_tool decorator, TACTool format conversions)
-- `test_profile_retrieval.py` - Profile retrieval tests (trait_groups, fetch_profile, context.profile)
+- `test_profile_retrieval.py` - Profile retrieval tests (trait_groups, fetch_profile, context.profile, lookup_profile)
+- `test_profile_lookup_in_memory.py` - Automatic profile lookup in retrieve_memory tests (lookup by phone, fallback behavior)
 - `test_memory_fallback.py` - Memory retrieval fallback tests (Memora to Maestro fallback)
 - `test_init.py` - Package initialization tests
 

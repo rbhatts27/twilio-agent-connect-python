@@ -278,3 +278,44 @@ class ProfileResponse(BaseModel):
     )
 
     model_config = {"populate_by_name": True}
+
+
+class ProfileLookupRequest(BaseModel):
+    """Request payload for looking up profiles by identifier."""
+
+    id_type: str = Field(
+        ...,
+        alias="idType",
+        min_length=2,
+        max_length=30,
+        description="Identifier type as configured in the service's Identity Resolution Settings",
+        json_schema_extra={"example": "phone"},
+    )
+    value: str = Field(
+        ...,
+        max_length=255,
+        description="Raw value captured for the identifier",
+        json_schema_extra={"example": "+13175556789"},
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class ProfileLookupResponse(BaseModel):
+    """Response from the profile lookup API."""
+
+    normalized_value: str = Field(
+        ...,
+        alias="normalizedValue",
+        max_length=255,
+        description="Identifier value after normalization that was used for the lookup",
+        json_schema_extra={"example": "+13175556789"},
+    )
+    profiles: list[str] = Field(
+        ...,
+        max_length=100,
+        description="Array of profile IDs matching the identifier",
+        json_schema_extra={"example": ["mem_profile_00000000000000000000000000"]},
+    )
+
+    model_config = {"populate_by_name": True}
