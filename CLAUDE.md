@@ -204,8 +204,10 @@ When initializing TAC, developers must provide:
 - `environment` - TAC environment ("dev", "stage", or "prod") - automatically sets Memora and Maestro base URLs
 - `twilio_account_sid` - From Twilio Console
 - `twilio_auth_token` - From Twilio Console
-- `twilio_phone_number` - Twilio Phone Number to use for sending messages (required for messaging tools)
 - `conversation_service_sid` - Twilio Conversation Service SID (starts with `comms_service_`)
+
+Optional configuration:
+- `twilio_phone_number` - Twilio Phone Number to use for sending messages - **Required for SMS channel, optional for Voice**
 - `twilio_memory_config` - Optional TwilioMemoryConfig object with:
   - `memory_store_id` field (starts with `mem_service_`) - Required for Twilio Memory functionality
   - `trait_groups` field (list of strings) - Optional, specifies which trait groups to include in profile retrieval

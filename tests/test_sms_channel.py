@@ -137,6 +137,18 @@ class TestSMSChannel:
 
         assert channel.tac == tac
 
+    def test_initialization_without_phone_number(self) -> None:
+        """Test SMS channel initialization fails without twilio_phone_number."""
+        config = get_test_config()
+        config["twilio_phone_number"] = None
+        tac = TAC(config)
+
+        with pytest.raises(
+            ValueError,
+            match="twilio_phone_number is required for SMS channel",
+        ):
+            SMSChannel(tac)
+
     @pytest.mark.asyncio
     async def test_process_conversation_started(self) -> None:
         """Test processing conversation.created and participant.added events."""

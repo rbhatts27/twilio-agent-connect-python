@@ -172,12 +172,12 @@ class TestTACConfigFromEnv:
             TACConfig.from_env()
 
     def test_from_env_missing_twilio_phone_number(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test from_env() raises KeyError when TWILIO_TAC_PHONE_NUMBER is missing."""
+        """Test from_env() succeeds when TWILIO_TAC_PHONE_NUMBER is missing (optional field)."""
         self._set_required_env_vars(monkeypatch)
         monkeypatch.delenv("TWILIO_TAC_PHONE_NUMBER", raising=False)
 
-        with pytest.raises(KeyError, match="TWILIO_TAC_PHONE_NUMBER"):
-            TACConfig.from_env()
+        config = TACConfig.from_env()
+        assert config.twilio_phone_number is None
 
     def test_from_env_missing_multiple_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test from_env() raises KeyError when environment variables are missing."""

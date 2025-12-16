@@ -29,8 +29,17 @@ class SMSChannel(BaseChannel):
 
         Args:
             tac: TAC instance for memory/context operations
+
+        Raises:
+            ValueError: If twilio_phone_number is not configured
         """
         super().__init__(tac)
+        if not tac.config.twilio_phone_number:
+            raise ValueError(
+                "twilio_phone_number is required for SMS channel. "
+                "Please set TWILIO_TAC_PHONE_NUMBER environment variable or "
+                "provide twilio_phone_number in TACConfig."
+            )
         self.twilio = Client(tac.config.twilio_account_sid, tac.config.twilio_auth_token)
 
     async def process_webhook(self, webhook_data: dict[str, Any]) -> None:

@@ -172,10 +172,10 @@ tac = TAC(config=TACConfig.from_env())
 - `TWILIO_TAC_ENVIRONMENT` - TAC environment: `"prod"`, `"stage"`, or `"dev"` (sets Memora and Maestro URLs)
 - `TWILIO_TAC_ACCOUNT_SID` - Your Twilio Account SID (e.g., `ACxxxxx...`)
 - `TWILIO_TAC_AUTH_TOKEN` - Your Twilio Auth Token
-- `TWILIO_TAC_PHONE_NUMBER` - Your Twilio Phone Number (e.g., `+1234567890`)
 - `TWILIO_TAC_CONVERSATION_SERVICE_SID` - Twilio Conversation Service SID (e.g., `comms_service_xxxxx...`)
 
 **Optional Environment Variables:**
+- `TWILIO_TAC_PHONE_NUMBER` - Your Twilio Phone Number (e.g., `+1234567890`) - **Required for SMS channel**
 - `TWILIO_TAC_LOG_LEVEL` - Logging level (default: `INFO`)
 - `TWILIO_TAC_MEMORY_STORE_ID` - Memora Memory Store ID (e.g., `mem_service_xxxxx...`)
 - `TWILIO_TAC_MEMORY_API_KEY` - API Key for Memora

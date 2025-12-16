@@ -113,7 +113,10 @@ class TACConfig(BaseModel):
     twilio_account_sid: str = Field(description="Twilio Account SID")
     twilio_auth_token: str = Field(description="Twilio Auth Token from Twilio Console")
 
-    twilio_phone_number: str = Field(description="Twilio Phone Number to use for sending messages")
+    twilio_phone_number: Optional[str] = Field(
+        default=None,
+        description="Twilio Phone Number to use for sending messages. Required for SMS channel.",
+    )
 
     knowledge_base_id: Optional[str] = Field(
         default=None,
@@ -183,7 +186,7 @@ class TACConfig(BaseModel):
         - TWILIO_TAC_CONVERSATION_SERVICE_SID: Twilio Conversation Service SID
         - TWILIO_TAC_ACCOUNT_SID: Twilio Account SID
         - TWILIO_TAC_AUTH_TOKEN: Twilio Auth Token
-        - TWILIO_TAC_PHONE_NUMBER: Twilio Phone Number
+        - TWILIO_TAC_PHONE_NUMBER: Twilio Phone Number (optional, required for SMS channel)
         - TWILIO_TAC_KNOWLEDGE_BASE_ID: Knowledge Base ID (optional)
         - TWILIO_TAC_LOG_LEVEL: Logging level (optional, defaults to INFO)
         - TWILIO_TAC_ENABLE_VOICE_ACTIVE_HYDRATION: Enable voice active hydration (optional,
@@ -228,7 +231,7 @@ class TACConfig(BaseModel):
             conversation_service_sid=os.environ["TWILIO_TAC_CONVERSATION_SERVICE_SID"],
             twilio_account_sid=os.environ["TWILIO_TAC_ACCOUNT_SID"],
             twilio_auth_token=os.environ["TWILIO_TAC_AUTH_TOKEN"],
-            twilio_phone_number=os.environ["TWILIO_TAC_PHONE_NUMBER"],
+            twilio_phone_number=os.environ.get("TWILIO_TAC_PHONE_NUMBER"),
             knowledge_base_id=os.environ.get("TWILIO_TAC_KNOWLEDGE_BASE_ID"),
             log_level=os.environ.get("TWILIO_TAC_LOG_LEVEL", "INFO"),
             enable_voice_active_hydration=enable_voice_active_hydration,
