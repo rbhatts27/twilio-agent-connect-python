@@ -123,10 +123,10 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
 
 **MemoryClient** (`src/tac/context/memory.py`):
 - `retrieve_memory()`: Retrieve conversation memories
-  - Endpoint: `POST /Services/{service_id}/Profiles/{profile_id}/Recall`
+  - Endpoint: `POST /v1/Stores/{store_id}/Profiles/{profile_id}/Recall`
   - Returns: `MemoryRetrievalResponse` with `observations`, `summaries`, `sessions` fields
 - `get_profile()`: Retrieve profile with traits
-  - Endpoint: `GET /Services/{service_id}/Profiles/{profile_id}`
+  - Endpoint: `GET /v1/Stores/{store_id}/Profiles/{profile_id}`
   - Query param: `traitGroups` (comma-separated list)
   - Returns: `ProfileResponse` with `id`, `createdAt`, `traits` fields
 - `lookup_profile()`: Find profiles by identifier value (e.g., phone number, email)

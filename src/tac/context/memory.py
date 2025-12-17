@@ -72,7 +72,7 @@ class MemoryClient:
         """
 
         # Use the correct endpoint from the API spec
-        endpoint = f"/v1/Services/{self.store_id}/Profiles/{profile_id}/Recall"
+        endpoint = f"/v1/Stores/{self.store_id}/Profiles/{profile_id}/Recall"
         url = f"{self.base_url}{endpoint}"
 
         # Create the request payload with default values
@@ -139,7 +139,7 @@ class MemoryClient:
             httpx.HTTPError: If the API request fails
             ValueError: If the response cannot be parsed
         """
-        endpoint = f"/v1/Services/{self.store_id}/Profiles/{profile_id}"
+        endpoint = f"/v1/Stores/{self.store_id}/Profiles/{profile_id}"
         url = f"{self.base_url}{endpoint}"
 
         params = {}
