@@ -72,7 +72,7 @@ class ConversationClient:
         Raises:
             httpx.HTTPError: If the API request fails
         """
-        url = f"{self.base_url}/v2/Services/{self.service_id}/Conversations"
+        url = f"{self.base_url}/v2/Conversations"
 
         # Build query parameters
         params: dict[str, Any] = {}
@@ -112,7 +112,6 @@ class ConversationClient:
         conversation_id: str,
         addresses: Optional[list[ParticipantAddress]] = None,
         participant_type: Literal["HUMAN_AGENT", "CUSTOMER", "AI_AGENT"] = "CUSTOMER",
-        profile_id: Optional[str] = None,
     ) -> ParticipantResponse:
         """
         Add a new participant to a conversation.
@@ -122,7 +121,6 @@ class ConversationClient:
             addresses: List of communication addresses for the participant (optional)
             participant_type: Type of participant (e.g., "CUSTOMER", "AGENT").
                 Defaults to "CUSTOMER"
-            profile_id: Optional profile ID to associate with the participant for memory retrieval
 
         Returns:
             ParticipantResponse object containing the created participant details
@@ -130,14 +128,9 @@ class ConversationClient:
         Raises:
             httpx.HTTPError: If the API request fails
         """
-        url = (
-            f"{self.base_url}/v2/Services/{self.service_id}/Conversations/"
-            f"{conversation_id}/Participants"
-        )
+        url = f"{self.base_url}/v2/Conversations/{conversation_id}/Participants"
 
         request_data = ParticipantRequest(addresses=addresses, type=participant_type)
-        if profile_id:
-            request_data.profile_id = profile_id
         request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
 
         try:
@@ -165,10 +158,7 @@ class ConversationClient:
             raise
 
     async def list_participants(self, conversation_id: str) -> list[ParticipantResponse]:
-        url = (
-            f"{self.base_url}/v2/Services/{self.service_id}/Conversations/"
-            f"{conversation_id}/Participants"
-        )
+        url = f"{self.base_url}/v2/Conversations/{conversation_id}/Participants"
 
         try:
             async with self._get_client() as client:
@@ -204,9 +194,9 @@ class ConversationClient:
         Raises:
             httpx.HTTPError: If the API request fails
         """
-        url = f"{self.base_url}/v2/Services/{self.service_id}/Conversations"
+        url = f"{self.base_url}/v2/Conversations"
 
-        request_data = ConversationRequest(name=name)
+        request_data = ConversationRequest(configuration_id=self.service_id, name=name)
         request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
 
         try:
@@ -236,19 +226,16 @@ class ConversationClient:
     async def update_conversation(
         self,
         conversation_id: str,
+        status: Literal["ACTIVE", "INACTIVE", "CLOSED"],
         name: Optional[str] = None,
-        status: Optional[Literal["ACTIVE", "INACTIVE", "CLOSED"]] = None,
-        configuration: Optional[Any] = None,
     ) -> ConversationResponse:
         """
         Update an existing conversation.
 
         Args:
             conversation_id: The conversation ID to update
+            status: Conversation status to update ("ACTIVE", "INACTIVE", "CLOSED") - required
             name: Optional conversation name to update
-            status: Optional conversation status to update ("ACTIVE", "INACTIVE", "CLOSED")
-            configuration: Optional conversation configuration settings
-                          (ConversationConfiguration object or dict)
 
         Returns:
             ConversationResponse object containing the updated conversation details
@@ -256,11 +243,9 @@ class ConversationClient:
         Raises:
             httpx.HTTPError: If the API request fails
         """
-        url = f"{self.base_url}/v2/Services/{self.service_id}/Conversations/{conversation_id}"
+        url = f"{self.base_url}/v2/Conversations/{conversation_id}"
 
-        request_data = UpdateConversationRequest(
-            name=name, status=status, configuration=configuration
-        )
+        request_data = UpdateConversationRequest(status=status, name=name)
         request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
 
         try:
@@ -287,16 +272,16 @@ class ConversationClient:
             )
             raise
 
-    async def add_communication(
+    async def create_communication(
         self,
         conversation_id: str,
         communication_request: CommunicationRequest,
     ) -> Communication:
         """
-        Add a new communication to a conversation.
+        Create a new communication for a conversation.
 
         Args:
-            conversation_id: The conversation ID to add communication to
+            conversation_id: The conversation ID to create communication for
             communication_request: CommunicationRequest object with author, content, and recipients
 
         Returns:
@@ -305,10 +290,7 @@ class ConversationClient:
         Raises:
             httpx.HTTPError: If the API request fails
         """
-        url = (
-            f"{self.base_url}/v2/Services/{self.service_id}/Conversations/"
-            f"{conversation_id}/Communications"
-        )
+        url = f"{self.base_url}/v2/Conversations/{conversation_id}/Communications"
 
         request_payload = communication_request.model_dump(by_alias=True, exclude_none=True)
 
@@ -358,10 +340,7 @@ class ConversationClient:
         Raises:
             httpx.HTTPError: If the API request fails
         """
-        url = (
-            f"{self.base_url}/v2/Services/{self.service_id}/Conversations/"
-            f"{conversation_id}/Communications"
-        )
+        url = f"{self.base_url}/v2/Conversations/{conversation_id}/Communications"
 
         # Build query parameters
         params: dict[str, Any] = {}

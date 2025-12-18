@@ -14,7 +14,7 @@ def get_test_config_with_memory() -> TACConfig:
     """Get test configuration with Twilio Memory."""
     return TACConfig(
         environment="prod",
-        conversation_service_sid="comms_service_test123",
+        conversation_service_sid="conv_configuration_test123",
         twilio_account_sid="ACtest123",
         twilio_auth_token="test_token_123",
         twilio_phone_number="+15551234567",
@@ -58,7 +58,7 @@ class TestProfileLookupInMemoryRetrieval:
         tac.memora_client.retrieve_memory.assert_called_once_with(
             profile_id="mem_profile_existing",
             conversation_id="conv_test_123",
-            conversation_service_id="comms_service_test123",
+            conversation_service_id="conv_configuration_test123",
             query="test query",
         )
 
@@ -110,7 +110,7 @@ class TestProfileLookupInMemoryRetrieval:
         tac.memora_client.retrieve_memory.assert_called_once_with(
             profile_id="mem_profile_00000000000000000000000001",
             conversation_id="conv_test_123",
-            conversation_service_id="comms_service_test123",
+            conversation_service_id="conv_configuration_test123",
             query="test query",
         )
 
@@ -153,7 +153,7 @@ class TestProfileLookupInMemoryRetrieval:
         tac.memora_client.retrieve_memory.assert_called_once_with(
             profile_id="mem_profile_00000000000000000000000001",
             conversation_id="conv_test_123",
-            conversation_service_id="comms_service_test123",
+            conversation_service_id="conv_configuration_test123",
             query=None,
         )
 

@@ -11,7 +11,6 @@ from tac.models.conversation import (
     CommunicationContent,
     CommunicationParticipant,
     CommunicationRequest,
-    ConversationConfiguration,
     ConversationRequest,
     ConversationResponse,
     ParticipantRequest,
@@ -27,37 +26,38 @@ class TestConversationModels:
         response_data = {
             "id": "CH123456",
             "account_id": "AC123456",
-            "service_id": "IS123456",
+            "configuration_id": "IS123456",
             "status": "active",
             "name": "Test Conversation",
             "created_at": "2025-01-01T00:00:00Z",
             "updated_at": "2025-01-01T01:00:00Z",
-            "configuration": {"intelligenceServiceIds": ["IS001", "IS002"]},
+            "configuration": {"intelligenceConfigurationIds": ["IS001", "IS002"]},
         }
 
         conversation = ConversationResponse(**response_data)
 
         assert conversation.id == "CH123456"
         assert conversation.account_id == "AC123456"
-        assert conversation.service_id == "IS123456"
+        assert conversation.configuration_id == "IS123456"
         assert conversation.status == "active"
         assert conversation.name == "Test Conversation"
         assert conversation.created_at == "2025-01-01T00:00:00Z"
         assert conversation.updated_at == "2025-01-01T01:00:00Z"
         assert conversation.configuration is not None
-        assert conversation.configuration.intelligence_service_ids == ["IS001", "IS002"]
+        assert conversation.configuration.intelligence_configuration_ids == ["IS001", "IS002"]
 
     def test_conversation_response_minimal_fields(self):
         """Test ConversationResponse with only required fields."""
         response_data = {
             "id": "CH123456",
+            "account_id": "AC123456",
         }
 
         conversation = ConversationResponse(**response_data)
 
         assert conversation.id == "CH123456"
-        assert conversation.account_id is None
-        assert conversation.service_id is None
+        assert conversation.account_id == "AC123456"
+        assert conversation.configuration_id is None
         assert conversation.status is None
         assert conversation.name is None
         assert conversation.created_at is None
@@ -67,31 +67,21 @@ class TestConversationModels:
     def test_conversation_request_model(self):
         """Test ConversationRequest model with all fields."""
         request_data = {
+            "configuration_id": "IS123456",
             "name": "Test Conversation",
-            "configuration": {"intelligenceServiceIds": ["IS001", "IS002"]},
         }
 
         request = ConversationRequest(**request_data)
 
+        assert request.configuration_id == "IS123456"
         assert request.name == "Test Conversation"
-        assert request.configuration is not None
-        assert request.configuration.intelligence_service_ids == ["IS001", "IS002"]
 
     def test_conversation_request_minimal(self):
-        """Test ConversationRequest with no fields (all optional)."""
-        request = ConversationRequest()
+        """Test ConversationRequest with only required fields."""
+        request = ConversationRequest(configuration_id="IS123456")
 
+        assert request.configuration_id == "IS123456"
         assert request.name is None
-        assert request.configuration is None
-
-    def test_conversation_request_model_dump(self):
-        """Test ConversationRequest model_dump excludes None values."""
-        config = ConversationConfiguration(intelligence_service_ids=["IS001"])
-        request = ConversationRequest(name="Test", configuration=config)
-
-        payload = request.model_dump(by_alias=True, exclude_none=True)
-
-        assert payload == {"name": "Test", "configuration": {"intelligenceServiceIds": ["IS001"]}}
 
     def test_participant_request_model(self):
         """Test ParticipantRequest model with all fields."""
@@ -136,7 +126,6 @@ class TestConversationModels:
             "id": "MB123456",
             "conversationId": "CH123456",
             "accountId": "AC123456",
-            "serviceId": "IS123456",
             "name": "John Doe",
             "type": "CUSTOMER",
             "profileId": "profile_123",
@@ -150,7 +139,6 @@ class TestConversationModels:
         assert participant.id == "MB123456"
         assert participant.conversation_id == "CH123456"
         assert participant.account_id == "AC123456"
-        assert participant.service_id == "IS123456"
         assert participant.name == "John Doe"
         assert participant.type == "CUSTOMER"
         assert participant.profile_id == "profile_123"
@@ -166,6 +154,7 @@ class TestConversationModels:
             "id": "MB123456",
             "conversationId": "CH123456",
             "accountId": "AC123456",
+            "name": "Participant",
         }
 
         participant = ParticipantResponse(**response_data)
@@ -173,8 +162,7 @@ class TestConversationModels:
         assert participant.id == "MB123456"
         assert participant.conversation_id == "CH123456"
         assert participant.account_id == "AC123456"
-        assert participant.service_id is None
-        assert participant.name is None
+        assert participant.name == "Participant"
         assert participant.type is None
         assert participant.profile_id is None
         assert participant.addresses == []
@@ -243,6 +231,8 @@ class TestConversationModels:
         """Test Communication model with all fields."""
         response_data = {
             "id": "comms_communication_01k1etk2y5f1y9fpe2epfdtvv2",
+            "conversationId": "CH123456",
+            "accountId": "AC123456",
             "author": {
                 "address": "+12025551234",
                 "channel": "SMS",
@@ -265,6 +255,8 @@ class TestConversationModels:
         response = Communication(**response_data)
 
         assert response.id == "comms_communication_01k1etk2y5f1y9fpe2epfdtvv2"
+        assert response.conversation_id == "CH123456"
+        assert response.account_id == "AC123456"
         assert response.author.address == "+12025551234"
         assert response.content.text == "Hello World!"
         assert response.channel_id == "SM123456"
@@ -297,8 +289,8 @@ class TestConversationClient:
         mock_response = Mock()
         mock_response.json.return_value = {
             "id": "CH123456",
-            "account_id": "AC123456",
-            "service_id": "IS123456",
+            "accountId": "AC123456",
+            "configurationId": "IS123456",
             "status": "active",
         }
         mock_response.raise_for_status = Mock()
@@ -318,8 +310,8 @@ class TestConversationClient:
 
         # Verify API call
         mock_client.post.assert_called_once_with(
-            "https://maestro.twilio.com/v2/Services/IS123456/Conversations",
-            json={},
+            "https://maestro.twilio.com/v2/Conversations",
+            json={"configurationId": "IS123456"},
         )
 
         # Verify response
@@ -334,8 +326,8 @@ class TestConversationClient:
         mock_response = Mock()
         mock_response.json.return_value = {
             "id": "CH123456",
-            "account_id": "AC123456",
-            "service_id": "IS123456",
+            "accountId": "AC123456",
+            "configurationId": "IS123456",
             "name": "Customer Support",
             "status": "active",
         }
@@ -356,8 +348,8 @@ class TestConversationClient:
 
         # Verify API call includes all parameters
         mock_client.post.assert_called_once_with(
-            "https://maestro.twilio.com/v2/Services/IS123456/Conversations",
-            json={"name": "Customer Support"},
+            "https://maestro.twilio.com/v2/Conversations",
+            json={"configurationId": "IS123456", "name": "Customer Support"},
         )
 
         # Verify response
@@ -390,15 +382,14 @@ class TestConversationClient:
         mock_response = Mock()
         mock_response.json.return_value = {
             "id": "MB123456",
-            "conversation_id": "CH123456",
-            "account_id": "AC123456",
-            "service_id": "IS123456",
+            "conversationId": "CH123456",
+            "accountId": "AC123456",
             "name": "John Doe",
-            "profile_id": "profile_123",
-            "status": "active",
+            "profileId": "profile_123",
+            "type": "CUSTOMER",
             "addresses": [],
-            "created_at": "2025-01-01T00:00:00Z",
-            "updated_at": "2025-01-01T01:00:00Z",
+            "createdAt": "2025-01-01T00:00:00Z",
+            "updatedAt": "2025-01-01T01:00:00Z",
         }
         mock_response.raise_for_status = Mock()
 
@@ -418,9 +409,7 @@ class TestConversationClient:
         )
 
         # Verify API call
-        expected_url = (
-            "https://maestro.twilio.com/v2/Services/IS123456/Conversations/CH123456/Participants"
-        )
+        expected_url = "https://maestro.twilio.com/v2/Conversations/CH123456/Participants"
         mock_client.post.assert_called_once_with(
             expected_url,
             json={"type": "CUSTOMER"},
@@ -439,14 +428,14 @@ class TestConversationClient:
         mock_response = Mock()
         mock_response.json.return_value = {
             "id": "MB123456",
-            "conversation_id": "CH123456",
-            "account_id": "AC123456",
+            "conversationId": "CH123456",
+            "accountId": "AC123456",
             "name": "System",
-            "profile_id": "profile_123",
-            "status": "active",
+            "profileId": "profile_123",
+            "type": "CUSTOMER",
             "addresses": [],
-            "created_at": "2025-01-01T00:00:00Z",
-            "updated_at": "2025-01-01T01:00:00Z",
+            "createdAt": "2025-01-01T00:00:00Z",
+            "updatedAt": "2025-01-01T01:00:00Z",
         }
         mock_response.raise_for_status = Mock()
 
@@ -531,41 +520,35 @@ class TestConversationClient:
 
         # Test create_conversation URL
         await client.create_conversation()
-        assert (
-            mock_client.post.call_args[0][0]
-            == "https://maestro.twilio.com/v2/Services/IS999999/Conversations"
-        )
+        assert mock_client.post.call_args[0][0] == "https://maestro.twilio.com/v2/Conversations"
 
         # Test add_participant URL
         mock_response.json.return_value = {
             "id": "MB123456",
-            "conversation_id": "CH123456",
-            "account_id": "AC123456",
+            "conversationId": "CH123456",
+            "accountId": "AC123456",
             "name": "Test",
-            "profile_id": "profile_123",
-            "status": "active",
+            "profileId": "profile_123",
+            "type": "CUSTOMER",
             "addresses": [],
-            "created_at": "2025-01-01T00:00:00Z",
-            "updated_at": "2025-01-01T01:00:00Z",
+            "createdAt": "2025-01-01T00:00:00Z",
+            "updatedAt": "2025-01-01T01:00:00Z",
         }
 
         await client.add_participant(conversation_id="CH123456")
 
-        expected_url = (
-            "https://maestro.twilio.com/v2/Services/IS999999/Conversations/CH123456/Participants"
-        )
+        expected_url = "https://maestro.twilio.com/v2/Conversations/CH123456/Participants"
         assert mock_client.post.call_args[0][0] == expected_url
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient")
-    async def test_add_communication_success(self, mock_async_client_class):
+    async def test_create_communication_success(self, mock_async_client_class):
         """Test successful communication addition."""
         mock_response = Mock()
         mock_response.json.return_value = {
             "id": "comms_communication_01k1etk2y5f1y9fpe2epfdtvv2",
             "conversationId": "CH123456",
             "accountId": "AC123456",
-            "serviceId": "IS123456",
             "author": {
                 "address": "+12025551234",
                 "channel": "SMS",
@@ -607,14 +590,12 @@ class TestConversationClient:
         )
         comm_request = CommunicationRequest(author=author, content=content, recipients=[recipient])
 
-        result = await client.add_communication(
+        result = await client.create_communication(
             conversation_id="CH123456", communication_request=comm_request
         )
 
         # Verify API call
-        expected_url = (
-            "https://maestro.twilio.com/v2/Services/IS123456/Conversations/CH123456/Communications"
-        )
+        expected_url = "https://maestro.twilio.com/v2/Conversations/CH123456/Communications"
         mock_client.post.assert_called_once()
         assert mock_client.post.call_args[0][0] == expected_url
 
@@ -632,8 +613,8 @@ class TestConversationClient:
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient")
-    async def test_add_communication_api_error(self, mock_async_client_class):
-        """Test add_communication handles API errors."""
+    async def test_create_communication_api_error(self, mock_async_client_class):
+        """Test create_communication handles API errors."""
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(side_effect=httpx.HTTPError("API Error"))
         mock_async_client_class.return_value.__aenter__.return_value = mock_client
@@ -656,7 +637,7 @@ class TestConversationClient:
         comm_request = CommunicationRequest(author=author, content=content, recipients=[recipient])
 
         with pytest.raises(httpx.HTTPError, match="API Error"):
-            await client.add_communication(
+            await client.create_communication(
                 conversation_id="CH123456", communication_request=comm_request
             )
 
@@ -733,9 +714,7 @@ class TestConversationClient:
         result = await client.list_communications(conversation_id="CH123456")
 
         # Verify API call
-        expected_url = (
-            "https://maestro.twilio.com/v2/Services/IS123456/Conversations/CH123456/Communications"
-        )
+        expected_url = "https://maestro.twilio.com/v2/Conversations/CH123456/Communications"
         mock_client.get.assert_called_once_with(expected_url, params={})
 
         # Verify response
@@ -780,9 +759,7 @@ class TestConversationClient:
         )
 
         # Verify API call includes query parameters
-        expected_url = (
-            "https://maestro.twilio.com/v2/Services/IS123456/Conversations/CH123456/Communications"
-        )
+        expected_url = "https://maestro.twilio.com/v2/Conversations/CH123456/Communications"
         expected_params = {
             "channelId": "SM123456",
             "pageSize": 50,

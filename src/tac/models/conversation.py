@@ -1,6 +1,6 @@
 """Pydantic models for Twilio Maestro Conversation API."""
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,12 +24,47 @@ class ParticipantAddress(BaseModel):
 
 
 class ConversationConfiguration(BaseModel):
-    """Configuration settings for a conversation."""
+    """Configuration settings for a conversation response."""
 
-    intelligence_service_ids: Optional[list[str]] = Field(
+    unique_name: Optional[str] = Field(
         None,
-        alias="intelligenceServiceIds",
-        description="List of Intelligence Service IDs associated with this Conversation",
+        alias="uniqueName",
+        description="A unique, URL-safe identifier for the Configuration",
+    )
+    friendly_name: Optional[str] = Field(
+        None,
+        alias="friendlyName",
+        description="Human-readable description for the configuration",
+    )
+    conversation_grouping_type: Optional[str] = Field(
+        None,
+        alias="conversationGroupingType",
+        description="Type of Conversation grouping strategy",
+    )
+    memory_store_id: Optional[str] = Field(
+        None,
+        alias="memoryStoreId",
+        description="Memory Store ID for Profile Resolution",
+    )
+    channel_settings: Optional[dict[str, Any]] = Field(
+        None,
+        alias="channelSettings",
+        description=(
+            "Channel-specific configuration settings including timeout settings and capture rules"
+        ),
+    )
+    status_callbacks: Optional[list[dict[str, Any]]] = Field(
+        None,
+        alias="statusCallbacks",
+        description=(
+            "List of default webhook configurations applied to "
+            "conversations under this configuration"
+        ),
+    )
+    intelligence_configuration_ids: Optional[list[str]] = Field(
+        None,
+        alias="intelligenceConfigurationIds",
+        description="List of Intelligence Configuration IDs for this configuration",
     )
 
     model_config = {"populate_by_name": True}
@@ -38,10 +73,12 @@ class ConversationConfiguration(BaseModel):
 class ConversationRequest(BaseModel):
     """Request payload for creating a conversation."""
 
-    name: Optional[str] = Field(default=None, description="Conversation name")
-    configuration: Optional[ConversationConfiguration] = Field(
-        default=None, description="Conversation configuration settings"
+    configuration_id: str = Field(
+        ...,
+        alias="configurationId",
+        description="Configuration ID settings to use for this conversation",
     )
+    name: Optional[str] = Field(default=None, description="Conversation name")
 
     model_config = {"populate_by_name": True}
 
@@ -49,13 +86,10 @@ class ConversationRequest(BaseModel):
 class UpdateConversationRequest(BaseModel):
     """Request payload for updating a conversation."""
 
+    status: Literal["ACTIVE", "INACTIVE", "CLOSED"] = Field(
+        ..., description="Conversation state (ACTIVE/INACTIVE/CLOSED)"
+    )
     name: Optional[str] = Field(default=None, description="Conversation name")
-    status: Optional[Literal["ACTIVE", "INACTIVE", "CLOSED"]] = Field(
-        default=None, description="Conversation state (ACTIVE/INACTIVE/CLOSED)"
-    )
-    configuration: Optional[ConversationConfiguration] = Field(
-        default=None, description="Conversation configuration settings"
-    )
 
     model_config = {"populate_by_name": True}
 
@@ -64,16 +98,18 @@ class ConversationResponse(BaseModel):
     """Response from creating a conversation."""
 
     id: str = Field(..., description="Conversation ID")
-    account_id: Optional[str] = Field(None, description="Twilio Account SID")
+    account_id: str = Field(..., alias="accountId", description="Twilio Account SID")
 
-    service_id: Optional[str] = Field(None, description="Conversation Service SID")
     status: Optional[str] = Field(None, description="Conversation status")
     name: Optional[str] = Field(None, description="Conversation name")
+    configuration_id: Optional[str] = Field(
+        None, alias="configurationId", description="Configuration used to create this conversation"
+    )
     configuration: Optional[ConversationConfiguration] = Field(
         None, description="Conversation configuration settings"
     )
-    created_at: Optional[str] = Field(None, description="Creation timestamp")
-    updated_at: Optional[str] = Field(None, description="Last update timestamp")
+    created_at: Optional[str] = Field(None, alias="createdAt", description="Creation timestamp")
+    updated_at: Optional[str] = Field(None, alias="updatedAt", description="Last update timestamp")
 
     model_config = {"populate_by_name": True}
 
@@ -101,10 +137,7 @@ class ParticipantResponse(BaseModel):
     id: str = Field(..., description="Participant ID")
     conversation_id: str = Field(..., alias="conversationId", description="Conversation ID")
     account_id: str = Field(..., alias="accountId", description="Account ID")
-    service_id: Optional[str] = Field(
-        None, alias="serviceId", description="Conversation Service ID"
-    )
-    name: Optional[str] = Field(None, description="Participant display name")
+    name: str = Field(..., description="Participant display name")
     type: Optional[Literal["HUMAN_AGENT", "CUSTOMER", "AI_AGENT"]] = Field(
         None, description="Type of Participant in the Conversation"
     )
@@ -137,8 +170,15 @@ class CommunicationParticipant(BaseModel):
     participant_id: Optional[str] = Field(
         default=None,
         alias="participantId",
-        description="Participant identifier",
+        description="Participant identifier (optional)",
         json_schema_extra={"example": "comms_participant_00000000000000000000000000"},
+    )
+    delivery_status: Optional[
+        Literal["INITIATED", "IN_PROGRESS", "DELIVERED", "COMPLETED", "FAILED"]
+    ] = Field(
+        default=None,
+        alias="deliveryStatus",
+        description="Delivery status of the Communication to this recipient",
     )
 
     model_config = {"populate_by_name": True}
@@ -154,6 +194,10 @@ class CommunicationContent(BaseModel):
         description="Primary text content (optional)",
         json_schema_extra={"example": "Hello, I need help with my account"},
     )
+    transcription: Optional[dict[str, Any]] = Field(
+        default=None,
+        description="Transcription metadata (for TRANSCRIPTION type)",
+    )
 
     model_config = {"populate_by_name": True}
 
@@ -166,6 +210,8 @@ class Communication(BaseModel):
         description="Unique communication identifier",
         json_schema_extra={"example": "comms_communication_00000000000000000000000000"},
     )
+    conversation_id: str = Field(..., alias="conversationId", description="Conversation ID")
+    account_id: str = Field(..., alias="accountId", description="Account ID")
     author: CommunicationParticipant = Field(..., description="Author of the communication")
     content: CommunicationContent = Field(..., description="Content of the communication")
     recipients: list[CommunicationParticipant] = Field(..., description="Communication recipients")
@@ -200,6 +246,11 @@ class CommunicationRequest(BaseModel):
     content: CommunicationContent = Field(..., description="Content of the communication")
     recipients: list[CommunicationParticipant] = Field(
         ..., description="List of recipients for the communication"
+    )
+    channel_id: Optional[str] = Field(
+        default=None,
+        alias="channelId",
+        description="Store Call ID/Record ID/etc. for channel reference",
     )
 
     model_config = {"populate_by_name": True}

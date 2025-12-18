@@ -93,7 +93,7 @@ class TestTACConfigFromEnv:
     def _set_required_env_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Helper to set all required TACConfig environment variables."""
         monkeypatch.setenv("TWILIO_TAC_ENVIRONMENT", "prod")
-        monkeypatch.setenv("TWILIO_TAC_CONVERSATION_SERVICE_SID", "comms_service_123")
+        monkeypatch.setenv("TWILIO_TAC_CONVERSATION_SERVICE_SID", "conv_configuration_123")
         monkeypatch.setenv("TWILIO_TAC_ACCOUNT_SID", "AC123")
         monkeypatch.setenv("TWILIO_TAC_AUTH_TOKEN", "test_auth_token")
         monkeypatch.setenv("TWILIO_TAC_PHONE_NUMBER", "+1234567890")
@@ -105,7 +105,7 @@ class TestTACConfigFromEnv:
         config = TACConfig.from_env()
 
         assert config.environment == "prod"
-        assert config.conversation_service_sid == "comms_service_123"
+        assert config.conversation_service_sid == "conv_configuration_123"
         assert config.twilio_account_sid == "AC123"
         assert config.twilio_auth_token == "test_auth_token"
         assert config.twilio_phone_number == "+1234567890"

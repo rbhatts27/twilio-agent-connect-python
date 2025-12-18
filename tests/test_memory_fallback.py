@@ -101,6 +101,8 @@ class TestMemoryFallback:
             return_value=[
                 Communication(
                     id="comm_123",
+                    conversationId="CH123",
+                    accountId="AC123456",
                     author=CommunicationParticipant(
                         address="+12025551234",
                         channel="SMS",
@@ -210,6 +212,8 @@ class TestMemoryFallback:
             return_value=[
                 Communication(
                     id=f"comm_{i}",
+                    conversationId="CH123",
+                    accountId="AC123456",
                     author=CommunicationParticipant(
                         address="+12025551234",
                         channel="SMS",

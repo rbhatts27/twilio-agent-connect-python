@@ -64,7 +64,7 @@ from tac.models.memory import MemoryRetrievalResponse
 #   TWILIO_TAC_ACCOUNT_SID=ACxxxxx...
 #   TWILIO_TAC_AUTH_TOKEN=your_auth_token
 #   TWILIO_TAC_PHONE_NUMBER=+1234567890
-#   TWILIO_TAC_CONVERSATION_SERVICE_SID=comms_service_xxxxx...
+#   TWILIO_TAC_CONVERSATION_SERVICE_SID=conv_configuration_xxxxx...
 #   TWILIO_TAC_MEMORY_STORE_ID=mem_service_xxxxx... (optional)
 #   TWILIO_TAC_MEMORY_API_KEY=your_api_key (optional)
 #   TWILIO_TAC_MEMORY_API_TOKEN=your_api_token (optional)
@@ -172,7 +172,7 @@ tac = TAC(config=TACConfig.from_env())
 - `TWILIO_TAC_ENVIRONMENT` - TAC environment: `"prod"`, `"stage"`, or `"dev"` (sets Memora and Maestro URLs)
 - `TWILIO_TAC_ACCOUNT_SID` - Your Twilio Account SID (e.g., `ACxxxxx...`)
 - `TWILIO_TAC_AUTH_TOKEN` - Your Twilio Auth Token
-- `TWILIO_TAC_CONVERSATION_SERVICE_SID` - Twilio Conversation Service SID (e.g., `comms_service_xxxxx...`)
+- `TWILIO_TAC_CONVERSATION_SERVICE_SID` - Twilio Conversation Service SID (e.g., `conv_configuration_xxxxx...`)
 
 **Optional Environment Variables:**
 - `TWILIO_TAC_PHONE_NUMBER` - Your Twilio Phone Number (e.g., `+1234567890`) - **Required for SMS channel**
@@ -195,7 +195,7 @@ config = TACConfig(
     twilio_account_sid="ACxxxxx...",
     twilio_auth_token="your_auth_token",
     twilio_phone_number="+1234567890",
-    conversation_service_sid="comms_service_xxxxx...",
+    conversation_service_sid="conv_configuration_xxxxx...",
     twilio_memory_config=TwilioMemoryConfig(  # Optional
         memory_store_id="mem_service_xxxxx...",
         api_key="your_api_key",

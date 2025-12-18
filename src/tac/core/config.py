@@ -131,7 +131,7 @@ class TACConfig(BaseModel):
     enable_voice_active_hydration: bool = Field(
         default=False,
         description="Enable active hydration for voice conversations. When enabled, "
-        "user messages and LLM responses are sent to Maestro via add_communication API "
+        "user messages and LLM responses are sent to Maestro via create_communication API "
         "to keep conversation history in sync.",
     )
 
@@ -162,7 +162,7 @@ class TACConfig(BaseModel):
         json_schema_extra={
             "example": {
                 "environment": "prod",
-                "conversation_service_sid": "comms_service_xxxxxxxxxxxxxxxxxx",
+                "conversation_service_sid": "conv_configuration_xxxxxxxxxxxxxxxxxx",
                 "twilio_account_sid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "twilio_auth_token": "your_auth_token_here",
                 "twilio_phone_number": "your_phone_number_here",

@@ -598,7 +598,7 @@ class VoiceChannel(BaseChannel):
 
                 if session.author_info and session.ai_agent_info:
                     # Agent is author, customer is recipient
-                    await self._add_communication(
+                    await self._create_communication(
                         conversation_id=conversation_id,
                         message_content=response,
                         author_address=session.ai_agent_info.address,
@@ -695,7 +695,7 @@ class VoiceChannel(BaseChannel):
             and session.ai_agent_info
         ):
             # Customer is author, agent is recipient
-            await self._add_communication(
+            await self._create_communication(
                 conversation_id=conv_id,
                 message_content=message_body,
                 author_address=session.author_info.address,
@@ -774,7 +774,7 @@ class VoiceChannel(BaseChannel):
             del self._conversations[conv_id]
             self.logger.debug("Ended conversation", conversation_id=conv_id)
 
-    async def _add_communication(
+    async def _create_communication(
         self,
         conversation_id: str,
         message_content: str,
@@ -809,7 +809,9 @@ class VoiceChannel(BaseChannel):
                 ],
             )
 
-            await self.tac.maestro_client.add_communication(conversation_id, communication_request)
+            await self.tac.maestro_client.create_communication(
+                conversation_id, communication_request
+            )
             self.logger.debug(
                 "[Active Hydration] Added communication to conversation",
                 conversation_id=conversation_id,

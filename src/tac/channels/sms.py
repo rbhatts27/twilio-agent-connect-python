@@ -374,7 +374,7 @@ class SMSChannel(BaseChannel):
                 "Sending communication via Maestro",
                 conversation_id=conversation_id,
             )
-            await self.tac.maestro_client.add_communication(conversation_id, comm_request)
+            await self.tac.maestro_client.create_communication(conversation_id, comm_request)
             self.logger.info(
                 "Sent response via Maestro",
                 conversation_id=conversation_id,

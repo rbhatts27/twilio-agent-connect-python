@@ -18,7 +18,7 @@ class MemoryRetrievalRequest(BaseModel):
         default=None,
         alias="conversationServiceId",
         description="Conversation Service ID",
-        json_schema_extra={"example": "comms_service_00000000000000000000000000"},
+        json_schema_extra={"example": "conv_configuration_00000000000000000000000000"},
     )
     query: Optional[str] = Field(
         default=None,

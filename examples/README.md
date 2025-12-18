@@ -20,7 +20,7 @@ This directory contains examples demonstrating how to use the Twilio Agent Conne
    TWILIO_TAC_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    TWILIO_TAC_AUTH_TOKEN=your_auth_token_here
    TWILIO_TAC_PHONE_NUMBER=+1234567890
-   TWILIO_TAC_CONVERSATION_SERVICE_SID=comms_service_xxxxxxxxxxxxxxxxxx
+   TWILIO_TAC_CONVERSATION_SERVICE_SID=conv_configuration_xxxxxxxxxxxxxxxxxx
    ```
 
    **Optional (for Twilio Memory):**

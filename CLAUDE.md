@@ -148,22 +148,28 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
   - `ProfileLookupResponse`: Response with `normalized_value` and list of matching profile IDs
 
 **ConversationClient** (`src/tac/context/conversation.py`):
-- `create_conversation(name, layers, intelligence_agents)`: Creates new conversation, returns `ConversationResponse`
-  - Endpoint: `POST /Services/{service_id}/Conversations`
+- `create_conversation(name, configuration)`: Creates new conversation, returns `ConversationResponse`
+  - Endpoint: `POST /v2/Conversations`
+  - Note: Does not take `configuration_id` parameter (uses client's service_id internally)
 - `list_conversations(status, channel_id, page_size, page_token)`: Lists conversations with optional filtering
-  - Endpoint: `GET /Services/{service_id}/Conversations`
+  - Endpoint: `GET /v2/Conversations`
   - Returns: List of `ConversationResponse` objects
 - `update_conversation(conversation_id, name, status, configuration)`: Updates an existing conversation
-  - Endpoint: `PUT /Services/{service_id}/Conversations/{conversation_id}`
+  - Endpoint: `PUT /v2/Conversations/{conversation_id}`
+  - Note: `status` parameter is required
   - Returns: `ConversationResponse`
-- `add_participant(conversation_id, addresses)`: Adds participant, returns `ParticipantResponse`
-  - Endpoint: `POST /Services/{service_id}/Conversations/{conversation_id}/Participants`
+- `add_participant(conversation_id, name, type, addresses)`: Adds participant, returns `ParticipantResponse`
+  - Endpoint: `POST /v2/Conversations/{conversation_id}/Participants`
+  - Note: Does not take `profile_id` parameter
 - `list_communications(conversation_id, channel_id, page_size, page_token)`: Lists communications for a conversation
-  - Endpoint: `GET /Services/{service_id}/Conversations/{conversation_id}/Communications`
+  - Endpoint: `GET /v2/Conversations/{conversation_id}/Communications`
   - Returns: List of `CommunicationResponse` objects
   - Used for memory fallback when Memora is not configured
+- `create_communication(conversation_id, communication_request)`: Creates a new communication in a conversation
+  - Endpoint: `POST /v2/Conversations/{conversation_id}/Communications`
+  - Returns: `Communication` object
 - Auth: Uses HTTP Basic Authentication (Account SID as username, Auth Token as password)
-- Models (from `src/tac/models/conversation.py`): `ConversationRequest`, `ConversationResponse`, `UpdateConversationRequest`, `ConversationsListResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`, `CommunicationResponse`, `CommunicationsListResponse`
+- Models (from `src/tac/models/conversation.py`): `ConversationRequest`, `ConversationResponse`, `UpdateConversationRequest`, `ConversationsListResponse`, `ParticipantRequest`, `ParticipantResponse`, `ParticipantAddress`, `CommunicationRequest`, `Communication`, `CommunicationsListResponse`
 - Pagination (from `src/tac/models/pagination.py`): `PaginationMeta` - Reusable pagination metadata for API list responses
 
 ## Type Checking and Code Style
@@ -216,7 +222,7 @@ When initializing TAC, developers must provide:
 - `environment` - TAC environment ("dev", "stage", or "prod") - automatically sets Memora and Maestro base URLs
 - `twilio_account_sid` - From Twilio Console
 - `twilio_auth_token` - From Twilio Console
-- `conversation_service_sid` - Twilio Conversation Service SID (starts with `comms_service_`)
+- `conversation_service_sid` - Twilio Conversation Service SID (starts with `conv_configuration_`)
 
 Optional configuration:
 - `twilio_phone_number` - Twilio Phone Number to use for sending messages - **Required for SMS channel, optional for Voice**
@@ -241,7 +247,7 @@ config = TACConfig(
     twilio_account_sid="AC...",
     twilio_auth_token="...",
     twilio_phone_number="+1234567890",
-    conversation_service_sid="comms_service_...",
+    conversation_service_sid="conv_configuration_...",
     twilio_memory_config=TwilioMemoryConfig(
         memory_store_id="mem_service_...",
         trait_groups=["Contact", "Preferences"]  # Optional: specify trait groups
@@ -311,7 +317,7 @@ config = TACConfig(
     twilio_account_sid="AC...",
     twilio_auth_token="...",
     twilio_phone_number="+1234567890",
-    conversation_service_sid="comms_service_...",
+    conversation_service_sid="conv_configuration_...",
     twilio_memory_config=TwilioMemoryConfig(
         memory_store_id="mem_service_...",
         trait_groups=["Contact", "Preferences"]  # Optional: specify trait groups
@@ -361,7 +367,7 @@ config = TACConfig(
     twilio_account_sid="AC...",
     twilio_auth_token="...",
     twilio_phone_number="+1234567890",
-    conversation_service_sid="comms_service_...",
+    conversation_service_sid="conv_configuration_...",
     twilio_memory_config=TwilioMemoryConfig(
         memory_store_id="mem_service_...",
         trait_groups=["Contact", "Preferences"]  # Optional: specify trait groups

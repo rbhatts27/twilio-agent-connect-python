@@ -644,19 +644,19 @@ class TestVoiceChannel:
         assert session.ai_agent_info is None
 
     @pytest.mark.asyncio
-    async def test_add_communication_with_optional_params(self) -> None:
-        """Test _add_communication with optional participant IDs."""
+    async def test_create_communication_with_optional_params(self) -> None:
+        """Test _create_communication with optional participant IDs."""
         config = get_test_config()
         config["enable_voice_active_hydration"] = True
         tac = TAC(config)
         channel = VoiceChannel(tac=tac)
 
-        # Mock the maestro client's add_communication method
+        # Mock the maestro client's create_communication method
         with patch.object(
-            tac.maestro_client, "add_communication", new_callable=AsyncMock
+            tac.maestro_client, "create_communication", new_callable=AsyncMock
         ) as mock_add_comm:
-            # Call _add_communication with optional parameters
-            await channel._add_communication(
+            # Call _create_communication with optional parameters
+            await channel._create_communication(
                 conversation_id="CONV123",
                 message_content="Hello world",
                 author_address="+15551234567",
@@ -665,7 +665,7 @@ class TestVoiceChannel:
                 recipient_participant_id="PART_RECIPIENT",
             )
 
-            # Verify add_communication was called
+            # Verify create_communication was called
             assert mock_add_comm.call_count == 1
 
             # Verify the request structure
@@ -680,26 +680,26 @@ class TestVoiceChannel:
             assert comm_request.recipients[0].participant_id == "PART_RECIPIENT"
 
     @pytest.mark.asyncio
-    async def test_add_communication_without_participant_ids(self) -> None:
-        """Test _add_communication without participant IDs (optional parameters)."""
+    async def test_create_communication_without_participant_ids(self) -> None:
+        """Test _create_communication without participant IDs (optional parameters)."""
         config = get_test_config()
         config["enable_voice_active_hydration"] = True
         tac = TAC(config)
         channel = VoiceChannel(tac=tac)
 
-        # Mock the maestro client's add_communication method
+        # Mock the maestro client's create_communication method
         with patch.object(
-            tac.maestro_client, "add_communication", new_callable=AsyncMock
+            tac.maestro_client, "create_communication", new_callable=AsyncMock
         ) as mock_add_comm:
-            # Call _add_communication without participant IDs
-            await channel._add_communication(
+            # Call _create_communication without participant IDs
+            await channel._create_communication(
                 conversation_id="CONV456",
                 message_content="Test message",
                 author_address="+15551111111",
                 recipient_address="+15552222222",
             )
 
-            # Verify add_communication was called
+            # Verify create_communication was called
             assert mock_add_comm.call_count == 1
 
             # Verify the request structure
@@ -715,7 +715,7 @@ class TestVoiceChannel:
 
     @pytest.mark.asyncio
     async def test_send_response_with_active_hydration(self) -> None:
-        """Test that send_response triggers _add_communication when active hydration is enabled."""
+        """Test send_response triggers _create_communication when active hydration is enabled."""
         config = get_test_config()
         config["enable_voice_active_hydration"] = True
         tac = TAC(config)
@@ -734,12 +734,12 @@ class TestVoiceChannel:
             address="+15559876543", participant_id="PART_AGENT"
         )
 
-        # Mock websocket and add_communication
+        # Mock websocket and create_communication
         mock_websocket = AsyncMock()
         channel._websocket_manager.add_websocket("CALL789", mock_websocket)
 
         with patch.object(
-            tac.maestro_client, "add_communication", new_callable=AsyncMock
+            tac.maestro_client, "create_communication", new_callable=AsyncMock
         ) as mock_add_comm:
             # Send response
             await channel.send_response("CALL789", "Agent response")
@@ -747,7 +747,7 @@ class TestVoiceChannel:
             # Verify websocket was called
             assert mock_websocket.send_text.call_count == 1
 
-            # Verify add_communication was called for active hydration
+            # Verify create_communication was called for active hydration
             assert mock_add_comm.call_count == 1
 
             # Verify the communication request
@@ -759,7 +759,7 @@ class TestVoiceChannel:
 
     @pytest.mark.asyncio
     async def test_handle_prompt_with_active_hydration(self) -> None:
-        """Test that _handle_prompt triggers _add_communication when active hydration is enabled."""
+        """Test _handle_prompt triggers _create_communication when active hydration is enabled."""
         config = get_test_config()
         config["enable_voice_active_hydration"] = True
         tac = TAC(config)
@@ -786,12 +786,12 @@ class TestVoiceChannel:
         )
 
         with patch.object(
-            tac.maestro_client, "add_communication", new_callable=AsyncMock
+            tac.maestro_client, "create_communication", new_callable=AsyncMock
         ) as mock_add_comm:
             # Handle prompt
             await channel._handle_prompt("CALL999", prompt_msg)
 
-            # Verify add_communication was called for active hydration
+            # Verify create_communication was called for active hydration
             assert mock_add_comm.call_count == 1
 
             # Verify the communication request
@@ -817,7 +817,7 @@ class TestVoiceChannel:
         channel._websocket_manager.add_websocket("CALL_NO_INFO", mock_websocket)
 
         with patch.object(
-            tac.maestro_client, "add_communication", new_callable=AsyncMock
+            tac.maestro_client, "create_communication", new_callable=AsyncMock
         ) as mock_add_comm:
             # Send response
             await channel.send_response("CALL_NO_INFO", "Response")
@@ -825,5 +825,5 @@ class TestVoiceChannel:
             # Verify websocket was called
             assert mock_websocket.send_text.call_count == 1
 
-            # Verify add_communication was NOT called (missing info)
+            # Verify create_communication was NOT called (missing info)
             assert mock_add_comm.call_count == 0
