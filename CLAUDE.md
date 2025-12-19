@@ -130,7 +130,7 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
   - Query param: `traitGroups` (comma-separated list)
   - Returns: `ProfileResponse` with `id`, `createdAt`, `traits` fields
 - `lookup_profile()`: Find profiles by identifier value (e.g., phone number, email)
-  - Endpoint: `POST /Services/{service_id}/Profiles/Lookup`
+  - Endpoint: `POST /Stores/{service_id}/Profiles/Lookup`
   - Request: `ProfileLookupRequest` with `id_type` (e.g., "phone", "email") and `value`
   - Returns: `ProfileLookupResponse` with `normalized_value` and `profiles` (list of profile IDs)
   - Normalizes identifier values according to identity resolution settings (e.g., E.164 for phone numbers)

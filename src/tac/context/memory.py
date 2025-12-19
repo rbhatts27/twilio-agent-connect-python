@@ -202,7 +202,7 @@ class MemoryClient:
             httpx.HTTPError: If the API request fails
             ValueError: If the response cannot be parsed
         """
-        endpoint = f"/v1/Services/{self.store_id}/Profiles/Lookup"
+        endpoint = f"/v1/Stores/{self.store_id}/Profiles/Lookup"
         url = f"{self.base_url}{endpoint}"
 
         request_data = ProfileLookupRequest(id_type=id_type, value=value)
