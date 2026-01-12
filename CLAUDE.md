@@ -82,6 +82,10 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
   - `voice.py` - Voice WebSocket message models: `SetupMessage`, `PromptMessage`, `InterruptMessage`, `CustomParameters`, `VoiceServerConfig`, `ConversationRelayCallbackPayload`
   - `conversation_event.py` - `ConversationEvent` model for parsing Twilio webhook events with comprehensive event fields
   - `knowledge.py` - `Knowledge` model for knowledge tool integration
+  - `intelligence.py` - Conversation Intelligence models: `OperatorResultEvent`, `IntelligenceConfiguration`, `Operator`, `Participant`, `ExecutionDetails`, `TriggerDetails`, `CommunicationsRange`
+
+- **`src/tac/intelligence/`** - Conversation Intelligence webhook processing
+  - `operator_result_processor.py` - `OperatorResultProcessor` class for processing CI webhook events; creates observations/summaries in Memora based on operator results
 
 - **`src/tac/channels/`** - Channel-specific orchestration and conversation lifecycle management
   - `base.py` - `BaseChannel` abstract class with conversation session management (`_start_conversation`, `_end_conversation`); `send_response()` with optional `role` parameter
@@ -135,6 +139,14 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
   - Returns: `ProfileLookupResponse` with `normalized_value` and `profiles` (list of profile IDs)
   - Normalizes identifier values according to identity resolution settings (e.g., E.164 for phone numbers)
   - Returns canonical profile IDs (earliest ID if profiles have been merged)
+- `create_observation()`: Create a new observation in Memora
+  - Endpoint: `POST /v1/Stores/{store_id}/Profiles/{profile_id}/Observations`
+  - Parameters: `profile_id`, `content`, `source` (default: "conversation-intelligence"), `conversation_ids`, `occurred_at`
+  - Returns: Dict with created observation details
+- `create_conversation_summaries()`: Create conversation summaries in Memora
+  - Endpoint: `POST /v1/Stores/{store_id}/Profiles/{profile_id}/ConversationSummaries`
+  - Parameters: `profile_id`, `summaries` (list of dicts with `content`, `conversationId`, `occurredAt`, `source`)
+  - Returns: Response dict with message field
 - Auth: Uses HTTP Basic Authentication (Account SID as username, Auth Token as password)
 - Models (from `src/tac/models/memory.py`):
   - `MemoryRetrievalRequest`: Request with `conversation_id`, `query`, optional date filters
@@ -210,6 +222,7 @@ Tests are located in `tests/` directory:
 - `test_profile_lookup_in_memory.py` - Automatic profile lookup in retrieve_memory tests (lookup by phone, fallback behavior)
 - `test_memory_fallback.py` - Memory retrieval fallback tests (Memora to Maestro fallback)
 - `test_init.py` - Package initialization tests
+- `test_intelligence.py` - Conversation Intelligence processor tests (models, filtering, validation, content parsing)
 
 Test requirements (pytest.ini_options in pyproject.toml):
 - Test files: `test_*.py` or `*_test.py`
@@ -425,6 +438,52 @@ TAC provides two architectural patterns:
 - **Application Layer** (User's FastAPI app): Provides TwiML endpoint and WebSocket endpoint
 - **Benefits**: Separation of concerns, no forced dependencies, full control over server configuration
 - **Use Case**: Custom middleware, authentication, integration with existing apps
+
+### Conversation Intelligence Webhook Processing
+
+The `OperatorResultProcessor` processes Conversation Intelligence webhook events and creates observations or summaries in Memora:
+
+```python
+from tac import TAC, TACConfig
+from tac.intelligence import OperatorResultProcessor
+
+# 1. Setup TAC with memory configuration
+tac = TAC(config=TACConfig.from_env())
+
+# 2. Initialize the processor (requires Twilio Memory to be enabled)
+if tac.is_twilio_memory_enabled():
+    processor = OperatorResultProcessor(tac.memory_client)
+
+# 3. Process CI webhook events
+@app.post("/ci-webhook")
+async def ci_webhook_handler(request: Request):
+    payload = await request.json()
+    result = await processor.process_event(payload)
+
+    if result.success:
+        if result.skipped:
+            # Event was filtered (non-MEMORA_, test event, etc.)
+            print(f"Skipped: {result.skip_reason}")
+        else:
+            # Observations or summaries created
+            print(f"Created {result.created_count} {result.event_type}(s)")
+    else:
+        print(f"Error: {result.error}")
+
+    return result.model_dump()
+```
+
+**Filtering Logic** (ported from Go transformer.go):
+- Only processes events where `intelligence_configuration.friendly_name` starts with `MEMORA_`
+- Filters out test events (patterns: `testserviceconfig`, `test_service`, `test-service`, `testservice`)
+- Validates required fields: `account_id`, `conversation_id`, `output_format`, `result`, `date_created`
+- Validates ID formats: `conv_conversation_[0-7][0-9a-z]{25}`, `mem_profile_[0-7][0-9a-z]{25}`, `mem_(store|service)_[0-7][0-9a-z]{25}`
+
+**Event Type Determination**:
+- If `operator.friendly_name == "Summary Extractor"` → Creates conversation summaries
+- Otherwise → Creates observations
+
+See `examples/exec_demo/server.py` for a complete implementation.
 
 ## Dependencies
 

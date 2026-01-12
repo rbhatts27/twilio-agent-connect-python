@@ -302,3 +302,111 @@ class MemoryClient:
         except httpx.HTTPError as e:
             self.logger.error(f"Failed to search knowledge base: {e}")
             raise
+
+    async def create_observation(
+        self,
+        profile_id: str,
+        content: str,
+        source: str = "conversation-intelligence",
+        conversation_ids: Optional[list[str]] = None,
+        occurred_at: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """
+        Create a new observation in Memora.
+
+        Args:
+            profile_id: Profile ID to associate observation with
+            content: Observation content (the summary text or extracted fact)
+            source: Source system identifier (default: "conversation-intelligence")
+            conversation_ids: List of conversation IDs this observation relates to
+            occurred_at: Optional timestamp when observation occurred (ISO 8601 format)
+
+        Returns:
+            Dict with created observation details
+
+        Raises:
+            httpx.HTTPError: If the API request fails
+        """
+        endpoint = f"/v1/Stores/{self.store_id}/Profiles/{profile_id}/Observations"
+        url = f"{self.base_url}{endpoint}"
+
+        payload: dict[str, Any] = {
+            "content": content,
+            "source": source,
+        }
+        if conversation_ids:
+            payload["conversationIds"] = conversation_ids
+        if occurred_at:
+            payload["occurredAt"] = occurred_at
+
+        try:
+            async with self._get_client() as client:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+                result: dict[str, Any] = response.json()
+                return result
+
+        except httpx.HTTPError as e:
+            response_text = (
+                getattr(e.response, "text", "No response body")
+                if hasattr(e, "response")
+                else "No response"
+            )
+            self.logger.error(
+                f"Failed to create observation: {e}\n"
+                f"URL: {url}\n"
+                f"Profile ID: {profile_id}\n"
+                f"Response: {response_text}"
+            )
+            raise
+
+    async def create_conversation_summaries(
+        self,
+        profile_id: str,
+        summaries: list[dict[str, Any]],
+    ) -> dict[str, str]:
+        """
+        Create conversation summaries in Memora.
+
+        Args:
+            profile_id: Profile ID to associate summaries with
+            summaries: List of summary objects, each containing:
+                - content (str): The summary text
+                - conversationId (str): The conversation ID
+                - occurredAt (str): ISO 8601 timestamp when conversation occurred
+                - source (str, optional): Source system identifier
+
+        Returns:
+            Response dict with message field (e.g., {"message": "Summaries creation accepted"})
+
+        Raises:
+            httpx.HTTPError: If the API request fails
+        """
+        endpoint = f"/v1/Stores/{self.store_id}/Profiles/{profile_id}/ConversationSummaries"
+        url = f"{self.base_url}{endpoint}"
+
+        payload: dict[str, Any] = {
+            "summaries": summaries,
+        }
+
+        try:
+            async with self._get_client() as client:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+                result: dict[str, str] = response.json()
+                return result
+
+        except httpx.HTTPError as e:
+            response_text = (
+                getattr(e.response, "text", "No response body")
+                if hasattr(e, "response")
+                else "No response"
+            )
+            self.logger.error(
+                f"Failed to create conversation summaries: {e}\n"
+                f"URL: {url}\n"
+                f"Profile ID: {profile_id}\n"
+                f"Summary count: {len(summaries)}\n"
+                f"Response: {response_text}"
+            )
+            raise

@@ -12,6 +12,15 @@ from tac.models.conversation import (
     ParticipantResponse,
 )
 from tac.models.conversation_event import ConversationEvent, ConversationEventType
+from tac.models.intelligence import (
+    CommunicationsRange,
+    ExecutionDetails,
+    IntelligenceConfiguration,
+    Operator,
+    OperatorResultEvent,
+    Participant,
+    TriggerDetails,
+)
 from tac.models.knowledge import Knowledge
 from tac.models.memory import (
     MemoryRetrievalRequest,
@@ -30,20 +39,27 @@ __all__ = [
     "CommunicationContent",
     "CommunicationParticipant",
     "CommunicationRequest",
+    "CommunicationsRange",
     "ConversationEvent",
     "ConversationEventType",
     "ConversationRequest",
     "ConversationResponse",
     "ConversationSession",
+    "ExecutionDetails",
+    "IntelligenceConfiguration",
     "Knowledge",
     "MemoryRetrievalRequest",
     "MemoryRetrievalResponse",
     "ObservationInfo",
+    "Operator",
+    "OperatorResultEvent",
     "PaginationMeta",
+    "Participant",
     "ParticipantAddress",
     "ParticipantRequest",
     "ParticipantResponse",
     "ProfileResponse",
     "SummaryInfo",
+    "TriggerDetails",
     "VoiceServerConfig",
 ]

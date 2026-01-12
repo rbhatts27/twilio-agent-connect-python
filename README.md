@@ -14,6 +14,7 @@ Explore the [examples](examples) directory to see the SDK in action.
 
 - **SMS Channel Support**: Built-in webhook handling for Twilio SMS conversations
 - **Voice Channel Support**: WebSocket protocol handling for Twilio Voice with ConversationRelay
+- **Conversation Intelligence**: Webhook processing for CI operator results to create observations and summaries in Memora
 - **Memory Management**: Automatic integration with Twilio Memora for persistent user context
 - **Conversation Lifecycle**: Automatic tracking of conversation sessions and state
 - **Type-Safe**: Full type hints and Pydantic models throughout
@@ -153,6 +154,57 @@ That's it! The server automatically:
 
 For manual control over FastAPI configuration, see [`examples/channels/voice.py`](examples/channels/voice.py).
 
+## Quick Example: Conversation Intelligence Webhook Processing
+
+TAC can process Conversation Intelligence (CI) operator result webhooks to automatically create observations and summaries in Memora:
+
+```python
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from tac import TAC, TACConfig
+from tac.intelligence import OperatorResultProcessor
+
+app = FastAPI()
+
+# 1. Configure TAC with memory enabled
+tac = TAC(config=TACConfig.from_env())
+
+# 2. Initialize the CI processor (requires Twilio Memory to be enabled)
+ci_processor = None
+if tac.is_twilio_memory_enabled():
+    ci_processor = OperatorResultProcessor(tac.memory_client)
+
+# 3. Handle CI webhook events
+@app.post("/ci-webhook")
+async def ci_webhook_handler(request: Request):
+    if not ci_processor:
+        return JSONResponse(
+            content={"error": "Memory not configured"},
+            status_code=400,
+        )
+
+    payload = await request.json()
+    result = await ci_processor.process_event(payload)
+
+    if result.success:
+        if result.skipped:
+            print(f"Skipped: {result.skip_reason}")
+        else:
+            print(f"Created {result.created_count} {result.event_type}(s)")
+    else:
+        print(f"Error: {result.error}")
+
+    return JSONResponse(content=result.model_dump())
+```
+
+The processor automatically:
+- Filters events by `MEMORA_` prefix in intelligence configuration friendly name
+- Filters out test events (patterns like `testserviceconfig`, `test_service`, etc.)
+- Extracts profile IDs from event participants
+- Creates **observations** for standard operator results
+- Creates **conversation summaries** for "Summary Extractor" operator results
+- Handles multiple output formats (JSON, CLASSIFICATION, EXTRACTION, TEXT, GENERATION)
+
 ## Configuration
 
 TAC can be configured using environment variables (recommended) or programmatically.
@@ -209,11 +261,21 @@ tac = TAC(config=config)
 
 ## How It Works
 
+### Message Flow (SMS/Voice)
+
 1. **Webhook Received**: Twilio sends SMS webhook to your server
 2. **Channel Processing**: `SMSChannel` validates and processes the event
 3. **Memory Retrieval**: TAC optionally retrieves user memories from Memora
 4. **Callback Invoked**: Your `on_message_ready` callback receives user message, context, and optional memory response
 5. **LLM Integration**: Your code calls LLM with message and optional memories, sends response
+
+### Conversation Intelligence Flow
+
+1. **Webhook Received**: Twilio CI sends operator result webhook to your `/ci-webhook` endpoint
+2. **Event Filtering**: `OperatorResultProcessor` filters by `MEMORA_` prefix and discards test events
+3. **Profile Extraction**: Extracts profile IDs from event participants
+4. **Content Generation**: Parses operator result based on output format (JSON, CLASSIFICATION, EXTRACTION, TEXT)
+5. **Memory Creation**: Creates observations or conversation summaries in Memora for each profile
 
 ## Examples
 
