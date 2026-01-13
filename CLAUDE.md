@@ -89,7 +89,7 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
 
 - **`src/tac/channels/`** - Channel-specific orchestration and conversation lifecycle management
   - `base.py` - `BaseChannel` abstract class with conversation session management (`_start_conversation`, `_end_conversation`); `send_response()` with optional `role` parameter
-  - `sms.py` - `SMSChannel` implementation handling webhook events, message validation, and memory retrieval
+  - `sms.py` - `SMSChannel` implementation handling webhook events, message validation, memory retrieval, and idempotency-based deduplication using Twilio's `i-twilio-idempotency-token` header
   - `voice.py` - `VoiceChannel` for Voice/ConversationRelay WebSocket protocol handling; supports both simplified server (via `VoiceServerConfig`) and manual FastAPI approaches
 
 - **`src/tac/tools/`** - LLM tool integration for Sierra primitives
@@ -281,12 +281,71 @@ def handle_message(user_message, context, memory_response=None):
 
 tac.on_message_ready(handle_message)
 
-# 3. In your webhook handler
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    sms_channel.process_webhook(request.json)
+# 3. In your webhook handler (FastAPI example)
+@app.post('/webhook')
+async def webhook(request: Request):
+    # Extract idempotency token from headers for deduplication
+    idempotency_token = request.headers.get("i-twilio-idempotency-token")
+
+    # Fire and forget - process webhook asynchronously
+    asyncio.create_task(sms_channel.process_webhook(request.json(), idempotency_token))
+
+    # Return 200 immediately to prevent Twilio retries
     return {"status": "ok"}
+
+# 4. Optional: Configure deduplication capacity for high-traffic applications
+# Default 10000 is suitable for most applications
+sms_channel_high_traffic = SMSChannel(tac, dedup_capacity=50000)
 ```
+
+### SMS Channel Deduplication
+
+The SMS channel uses a defense-in-depth approach to prevent duplicate message processing:
+
+**Two-Layer Defense:**
+
+1. **Immediate 200 Response** (Primary Prevention):
+   - Returns HTTP 200 immediately using `asyncio.create_task()` for fire-and-forget processing
+   - Prevents Twilio from retrying webhooks (Twilio retries if no response within ~5 seconds)
+   - Most effective way to prevent duplicates
+
+2. **Idempotency-Based Deduplication** (Backup Protection):
+   - Uses Twilio's `i-twilio-idempotency-token` header for deduplication
+   - Tracks processed tokens using sliding window with configurable capacity (default: 10,000 tokens)
+   - Same token = same webhook (retry), different tokens = different webhooks
+   - O(1) performance using OrderedDict with FIFO removal when capacity reached
+   - Logs duplicates at DEBUG level (not WARNING)
+
+**Implementation:**
+```python
+# In your webhook handler
+@app.post('/webhook')
+async def webhook(request: Request):
+    # Extract idempotency token from headers
+    idempotency_token = request.headers.get("i-twilio-idempotency-token")
+
+    # Process webhook asynchronously and return 200 immediately
+    asyncio.create_task(sms_channel.process_webhook(webhook_data, idempotency_token))
+    return JSONResponse(content={"status": "ok"}, status_code=200)
+```
+
+**Configuration:**
+```python
+# Default capacity (suitable for most apps)
+channel = SMSChannel(tac)
+
+# High-traffic production (increase capacity)
+channel = SMSChannel(tac, dedup_capacity=50000)
+
+# Low-resource testing (decrease capacity)
+channel = SMSChannel(tac, dedup_capacity=1000)
+```
+
+**Capacity guidelines:**
+- At 100 webhooks/sec: 10K capacity = 100 seconds of deduplication window
+- At 10 webhooks/sec: 10K capacity = 16+ minutes of deduplication window
+- Twilio webhook retries typically complete within ~15 minutes
+- With immediate 200 response, retries are rare, so default capacity is sufficient for most applications
 
 ### SMS Channel Conversation Lifecycle
 

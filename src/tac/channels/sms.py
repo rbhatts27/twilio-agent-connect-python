@@ -1,5 +1,6 @@
 """SMS Channel implementation for TAC."""
 
+from collections import OrderedDict
 from typing import Any, Optional
 
 from twilio.rest import Client
@@ -23,12 +24,15 @@ class SMSChannel(BaseChannel):
     SMS-specific metadata extraction.
     """
 
-    def __init__(self, tac: TAC):
+    def __init__(self, tac: TAC, dedup_capacity: int = 10000):
         """
-        Initialize SMS channel.
+        Initialize SMS channel with idempotency-based deduplication.
 
         Args:
             tac: TAC instance for memory/context operations
+            dedup_capacity: Maximum number of idempotency tokens to track.
+                          Default 10000 is suitable for most applications.
+                          Uses Twilio's i-twilio-idempotency-token header for deduplication.
 
         Raises:
             ValueError: If twilio_phone_number is not configured
@@ -41,8 +45,41 @@ class SMSChannel(BaseChannel):
                 "provide twilio_phone_number in TACConfig."
             )
         self.twilio = Client(tac.config.twilio_account_sid, tac.config.twilio_auth_token)
+        # Track processed idempotency tokens to prevent duplicate webhook processing
+        # OrderedDict maintains insertion order for FIFO removal when at capacity
+        self._processed_tokens: OrderedDict[str, bool] = OrderedDict()
+        self._max_tracked_tokens = dedup_capacity
 
-    async def process_webhook(self, webhook_data: dict[str, Any]) -> None:
+    def _is_duplicate_webhook(self, idempotency_token: str) -> bool:
+        """
+        Check if a webhook has already been processed using Twilio's idempotency token.
+
+        Uses a sliding window approach with fixed capacity to track tokens.
+        When capacity is reached, the oldest token is automatically removed (FIFO).
+
+        Args:
+            idempotency_token: Twilio's i-twilio-idempotency-token header value
+
+        Returns:
+            True if the webhook has already been processed (is a duplicate),
+            False if this is the first time seeing this webhook
+        """
+        # Check if we've already processed this webhook
+        if idempotency_token in self._processed_tokens:
+            return True
+
+        # Sliding window: Remove oldest entry if at capacity
+        if len(self._processed_tokens) >= self._max_tracked_tokens:
+            # Remove the oldest (first) entry - FIFO
+            self._processed_tokens.popitem(last=False)
+
+        # Mark webhook as processed
+        self._processed_tokens[idempotency_token] = True
+        return False
+
+    async def process_webhook(
+        self, webhook_data: dict[str, Any], idempotency_token: Optional[str] = None
+    ) -> None:
         """
         Process SMS webhook event and manage conversation lifecycle.
 
@@ -52,9 +89,19 @@ class SMSChannel(BaseChannel):
         - communication.created: Process incoming messages from customers
         - conversation.updated: Clean up when conversation is closed
 
+        Uses Twilio's i-twilio-idempotency-token header to prevent duplicate processing
+        when webhooks are retried.
+
         Args:
             webhook_data: Raw webhook event data from Twilio
+            idempotency_token: Optional Twilio idempotency token from request headers
         """
+        # Deduplicate using Twilio's idempotency token (if provided)
+        if idempotency_token:
+            if self._is_duplicate_webhook(idempotency_token):
+                self.logger.debug("DUPLICATE WEBHOOK (retry)")
+                return
+
         try:
             event = ConversationEvent(**webhook_data)
         except Exception as e:
@@ -112,11 +159,6 @@ class SMSChannel(BaseChannel):
                 conversation_id=conversation_id,
             )
             return
-
-        self.logger.info(
-            "Sending SMS response via Twilio",
-            conversation_id=conversation_id,
-        )
 
         # TODO this is a super hacky workaround because Maestro isn't ready to
         # support sending messages yet. Defensively go from conversation_id ->

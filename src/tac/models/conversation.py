@@ -210,8 +210,10 @@ class Communication(BaseModel):
         description="Unique communication identifier",
         json_schema_extra={"example": "comms_communication_00000000000000000000000000"},
     )
-    conversation_id: str = Field(..., alias="conversationId", description="Conversation ID")
-    account_id: str = Field(..., alias="accountId", description="Account ID")
+    conversation_id: Optional[str] = Field(
+        None, alias="conversationId", description="Conversation ID"
+    )
+    account_id: Optional[str] = Field(None, alias="accountId", description="Account ID")
     author: CommunicationParticipant = Field(..., description="Author of the communication")
     content: CommunicationContent = Field(..., description="Content of the communication")
     recipients: list[CommunicationParticipant] = Field(..., description="Communication recipients")

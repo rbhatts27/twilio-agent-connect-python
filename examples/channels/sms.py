@@ -5,6 +5,7 @@ SMS Server for Twilio Agent Connect
 Example demonstrating SMSChannel with FastAPI server for webhook endpoint.
 """
 
+import asyncio
 import os
 import sys
 from typing import Optional
@@ -155,17 +156,26 @@ if __name__ == "__main__":
     # Create FastAPI app
     app = FastAPI(title="TAC SMS Server")
 
-    @app.post("/sms")
+    @app.post("/webhook")
     async def sms_webhook(request: Request) -> JSONResponse:
-        """Handle incoming SMS webhooks from Twilio."""
+        """Handle incoming SMS webhooks from Twilio.
+
+        Returns 200 immediately to prevent Twilio retries, then processes webhook
+        asynchronously. Uses Twilio's i-twilio-idempotency-token header for
+        deduplication in case retries still occur.
+        """
         try:
             form_data = await request.json()
             webhook_data = dict(form_data)
 
-            # Debug: Log the raw webhook data to see what Twilio is sending
-            logger.debug(f"Received webhook data: {webhook_data}")
+            # Extract idempotency token from headers for deduplication
+            idempotency_token = request.headers.get("i-twilio-idempotency-token")
 
-            await sms_channel.process_webhook(webhook_data)
+            # Fire and forget - process webhook completely asynchronously
+            # Pass idempotency token for deduplication
+            asyncio.create_task(sms_channel.process_webhook(webhook_data, idempotency_token))
+
+            # Return 200 immediately without waiting for processing
             return JSONResponse(content={"status": "ok"}, status_code=200)
 
         except Exception as e:

@@ -59,11 +59,13 @@ def create_communication_created_webhook(
     author_address: str = "+12345678901",
 ) -> dict[str, Any]:
     """Create a COMMUNICATION_CREATED webhook event."""
+    # Generate unique communication ID using timestamp to avoid deduplication
+    comm_id = f"comms_communication_{timestamp.replace(':', '').replace('.', '').replace('-', '')}"
     return {
         "eventType": "COMMUNICATION_CREATED",
         "timestamp": timestamp,
         "data": {
-            "id": f"comms_communication_{conversation_id[-6:]}",
+            "id": comm_id,
             "conversationId": conversation_id,
             "accountId": "ACtest123",
             "serviceId": "IStest123",

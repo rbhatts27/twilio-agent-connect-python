@@ -39,8 +39,8 @@ dev = [
     "mypy>=1.0.0,<2",
     "types-requests>=2.31.0,<3",
     # Example dependencies
-    "openai>=1.0.0,<2",
-    "openai-agents>=0.1.0",
+    "openai>=2.0.0",
+    "openai-agents>=0.6.0",
     # Voice dependencies
     "fastapi>=0.115.0,<1",
     "uvicorn[standard]>=0.32.0,<1",
