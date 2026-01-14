@@ -1,4 +1,4 @@
-.PHONY: help install test lint format type-check pre-commit clean build server sync dev-setup ci check install-pre-commit
+.PHONY: help install test lint format type-check pre-commit clean build server quickstart sync dev-setup ci check install-pre-commit
 
 # Include local overrides if present (not tracked in git)
 -include Makefile.local
@@ -49,6 +49,9 @@ build: ## Build the package
 
 server: ## Start the webhook test server on port 8000
 	python examples/channels/sms.py --port 8000
+
+quickstart: ## Start the TAC quickstart setup wizard on port 8080
+	uv run python examples/quickstart/server.py
 
 exec-demo: ## Start the exec_demo server with hot reloading (watches both examples and src)
 	cd examples/exec_demo && uv run uvicorn server:app --host 0.0.0.0 --port 8000 --reload --reload-dir . --reload-dir ../../src/tac

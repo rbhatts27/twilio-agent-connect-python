@@ -25,6 +25,11 @@ Explore the [examples](examples) directory to see the SDK in action.
 
 To get started, set up your Python environment (Python 3.9 or newer required), and then install TAC SDK package.
 
+> **Quick Setup**: Use the [Quickstart Wizard](examples/quickstart/) to automatically create Memory and Maestro services and generate your `.env` file:
+> ```bash
+> make quickstart  # Open http://localhost:8080
+> ```
+
 ### uv (Recommended)
 
 We recommend using [uv](https://docs.astral.sh/uv/) for the best development experience:
@@ -209,6 +214,8 @@ The processor automatically:
 
 TAC can be configured using environment variables (recommended) or programmatically.
 
+> **Tip**: Use the [Quickstart Wizard](examples/quickstart/) (`make quickstart`) to automatically create Memory and Maestro services and generate a complete `.env` file.
+
 ### Using Environment Variables (Recommended)
 
 Set these in your `.env` file and use `TACConfig.from_env()`:
@@ -281,6 +288,7 @@ tac = TAC(config=config)
 
 Check out the [examples](examples) directory for complete working examples:
 
+- **[`quickstart/`](examples/quickstart)**: Web-based setup wizard to create Memory and Maestro services and generate `.env` file
 - **[`exec_demo/`](examples/exec_demo)**: Complete multi-channel demo with SMS and Voice support, OpenAI Agents integration, and custom business tools
 - **[`servers/voice.py`](examples/servers/voice.py)**: **Recommended starting point** - Simplified voice server with automatic setup using VoiceServerConfig
 - **[`channels/sms.py`](examples/channels/sms.py)**: SMS webhook server with FastAPI and TAC integration

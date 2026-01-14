@@ -51,6 +51,9 @@ uv run pytest tests/test_tac.py::test_function_name
 
 ### Examples
 ```bash
+# Start quickstart wizard to create Memory and Maestro services (port 8080)
+make quickstart
+
 # Run webhook server for testing Twilio webhooks (defaults to port 8000)
 make server
 

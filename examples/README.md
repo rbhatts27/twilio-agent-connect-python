@@ -12,6 +12,19 @@ This directory contains examples demonstrating how to use the Twilio Agent Conne
    ```
 
 2. **Configure environment:**
+
+   **Option A: Use the Quickstart Wizard (Recommended)**
+
+   Run the setup wizard to automatically create Memory and Maestro services and generate your `.env` file:
+   ```bash
+   make quickstart
+   # Open http://localhost:8080
+   ```
+
+   The wizard will guide you through entering your Twilio credentials and create all required services.
+
+   **Option B: Manual Configuration**
+
    Copy `.env.example` to `.env` and fill in your credentials:
 
    **Required:**
@@ -52,6 +65,22 @@ This directory contains examples demonstrating how to use the Twilio Agent Conne
    ```
 
 ## Examples Overview
+
+### [quickstart/](quickstart/) - Setup Wizard
+
+Web-based setup wizard to create Memory and Maestro services:
+
+- **Automated setup** - Creates Memory Store, Profile, and Maestro Configuration
+- **Credential management** - Saves form inputs to localStorage
+- **Environment generation** - Generates complete `.env` file with copy button
+- **Configuration management** - List and delete existing Maestro configurations
+
+```bash
+make quickstart
+# Open http://localhost:8080
+```
+
+[→ View Quickstart Wizard](quickstart/)
 
 ### [exec_demo/](exec_demo/) - Multi-Channel Demo
 
