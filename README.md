@@ -122,17 +122,17 @@ from tac.models.memory import MemoryRetrievalResponse
 tac = TAC(config=TACConfig.from_env())
 
 # 2. Register callback for when memories are retrieved
-async def handle_memory_ready(
+async def handle_message_ready(
+    user_message: str,
     context: ConversationSession,
-    memory_response: MemoryRetrievalResponse,
-    user_message: str
+    memory_response: Optional[MemoryRetrievalResponse] = None
 ):
     """Called when memory retrieval completes"""
     # Process memories and call your LLM
     # llm_response = await your_llm.generate(user_message, memory_response)
     # await voice_channel.send_response(context.conversation_id, llm_response)
 
-tac.on_memory_ready(handle_memory_ready)
+tac.on_message_ready(handle_message_ready)
 
 # 3. Initialize Voice channel with server configuration
 voice_channel = VoiceChannel(

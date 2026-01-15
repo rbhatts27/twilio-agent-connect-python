@@ -62,7 +62,7 @@ uv run python examples/servers/voice.py
 3. Server creates conversation and participant, generates TwiML with WebSocket URL
 4. Voice channel establishes WebSocket connection via `/ws`
 5. TAC retrieves memories (observations, summaries, sessions)
-6. `handle_memory_ready` callback invoked with context and memories
+6. `handle_message_ready` callback invoked with context and memories
 7. OpenAI generates response using conversation history
 8. Response sent back via voice channel
 
@@ -75,12 +75,12 @@ from tac.channels.voice import VoiceChannel
 tac = TAC(config=TACConfig(...))
 
 # Register callback
-async def handle_memory_ready(context, memory_response, user_message):
+async def handle_message_ready(user_message, context, memory_response):
     # Generate response with OpenAI
     response = await openai_client.chat.completions.create(...)
     await voice_channel.send_response(context.conversation_id, response)
 
-tac.on_memory_ready(handle_memory_ready)
+tac.on_message_ready(handle_message_ready)
 
 # Initialize channel with server configuration
 voice_channel = VoiceChannel(

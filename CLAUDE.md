@@ -402,11 +402,11 @@ tac = TAC(config)
 
 # 2. Register callback to handle memory-ready events
 # Note: context.profile available (fetched once at conversation start for Voice)
-async def handle_memory(context, memory_response, user_message):
+async def handle_memory(user_message, context, memory_response):
     llm_response = await call_your_llm(user_message, memory_response)
     await voice_channel.send_response(context.conversation_id, llm_response)
 
-tac.on_memory_ready(handle_memory)
+tac.on_message_ready(handle_memory)
 
 # 3. Initialize channel with server configuration
 voice_channel = VoiceChannel(
