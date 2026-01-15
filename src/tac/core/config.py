@@ -8,20 +8,20 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 
 class TwilioMemoryConfig(BaseModel):
     """
-    Configuration for Twilio Memory (Memora) integration.
+    Configuration for Twilio Memory Service integration.
 
     This config should only be provided if you have purchased Twilio Memory functionality.
     When provided, TAC will automatically retrieve memory for SMS conversations.
     """
 
     memory_store_id: str = Field(
-        description="Memora Memory Store ID (starts with mem_service_)",
+        description="Memory Store ID (starts with mem_store_ or mem_service_)",
     )
     api_key: str = Field(
-        description="API Key for Memora authentication",
+        description="Twilio API Key SID (starts with SK)",
     )
     api_token: str = Field(
-        description="API Token for Memora authentication",
+        description="Twilio API Key Secret",
     )
 
     trait_groups: Optional[list[str]] = Field(
@@ -34,8 +34,8 @@ class TwilioMemoryConfig(BaseModel):
             "example": {
                 "memory_store_id": "mem_service_xxxxxxxxxxxxxxxxxx",
                 "trait_groups": ["Contact", "Preferences"],
-                "api_key": "your_api_key_here",
-                "api_token": "your_api_token_here",
+                "api_key": "SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "api_token": "your_api_key_secret_here",
             }
         },
     )
@@ -46,9 +46,9 @@ class TwilioMemoryConfig(BaseModel):
         Create TwilioMemoryConfig from environment variables.
 
         Loads configuration from the following environment variables:
-        - TWILIO_TAC_MEMORY_STORE_ID: Memora Memory Store ID (starts with mem_service_)
-        - TWILIO_TAC_MEMORY_API_KEY: API Key for Memora authentication
-        - TWILIO_TAC_MEMORY_API_TOKEN: API Token for Memora authentication
+        - TWILIO_TAC_MEMORY_STORE_ID: Memory Store ID (starts with mem_store_ or mem_service_)
+        - TWILIO_TAC_MEMORY_API_KEY: Twilio API Key SID (starts with SK)
+        - TWILIO_TAC_MEMORY_API_TOKEN: Twilio API Key Secret
         - TWILIO_TAC_TRAIT_GROUPS: Comma-separated list of trait groups (optional)
 
         Returns:
@@ -98,6 +98,7 @@ class TACConfig(BaseModel):
     @classmethod
     def validate_environment(cls, v: str) -> str:
         """Validate that environment is one of the allowed values."""
+        v = v.lower()  # Normalize to lowercase
         allowed = {"dev", "stage", "prod"}
         if v not in allowed:
             raise ValueError(f"environment must be one of {allowed}, got '{v}'")
@@ -113,9 +114,8 @@ class TACConfig(BaseModel):
     twilio_account_sid: str = Field(description="Twilio Account SID")
     twilio_auth_token: str = Field(description="Twilio Auth Token from Twilio Console")
 
-    twilio_phone_number: Optional[str] = Field(
-        default=None,
-        description="Twilio Phone Number to use for sending messages. Required for SMS channel.",
+    twilio_phone_number: str = Field(
+        description="Twilio Phone Number for Voice (inbound) and SMS (send/receive).",
     )
 
     knowledge_base_id: Optional[str] = Field(
@@ -138,13 +138,13 @@ class TACConfig(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def memora_base_url(self) -> str:
-        """Return the Memora base URL based on the environment."""
-        memora_urls = {
+        """Return the Memory Service base URL based on the environment."""
+        memory_urls = {
             "dev": "https://memory.dev.twilio.com",
             "stage": "https://memory.stage.twilio.com",
             "prod": "https://memory.twilio.com",
         }
-        return memora_urls[self.environment]
+        return memory_urls[self.environment]
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -186,7 +186,7 @@ class TACConfig(BaseModel):
         - TWILIO_TAC_CONVERSATION_SERVICE_SID: Twilio Conversation Service SID
         - TWILIO_TAC_ACCOUNT_SID: Twilio Account SID
         - TWILIO_TAC_AUTH_TOKEN: Twilio Auth Token
-        - TWILIO_TAC_PHONE_NUMBER: Twilio Phone Number (optional, required for SMS channel)
+        - TWILIO_TAC_PHONE_NUMBER: Twilio Phone Number for Voice and SMS channels
         - TWILIO_TAC_KNOWLEDGE_BASE_ID: Knowledge Base ID (optional)
         - TWILIO_TAC_LOG_LEVEL: Logging level (optional, defaults to INFO)
         - TWILIO_TAC_ENABLE_VOICE_ACTIVE_HYDRATION: Enable voice active hydration (optional,
@@ -194,9 +194,9 @@ class TACConfig(BaseModel):
 
         Memory configuration is automatically loaded via TwilioMemoryConfig.from_env()
         from these environment variables (all optional):
-        - TWILIO_TAC_MEMORY_STORE_ID: Memora Memory Store ID
-        - TWILIO_TAC_MEMORY_API_KEY: API Key for Memora
-        - TWILIO_TAC_MEMORY_API_TOKEN: API Token for Memora
+        - TWILIO_TAC_MEMORY_STORE_ID: Memory Store ID
+        - TWILIO_TAC_MEMORY_API_KEY: Twilio API Key SID
+        - TWILIO_TAC_MEMORY_API_TOKEN: Twilio API Key Secret
         - TWILIO_TAC_TRAIT_GROUPS: Comma-separated list of trait groups
 
         Returns:
@@ -231,7 +231,7 @@ class TACConfig(BaseModel):
             conversation_service_sid=os.environ["TWILIO_TAC_CONVERSATION_SERVICE_SID"],
             twilio_account_sid=os.environ["TWILIO_TAC_ACCOUNT_SID"],
             twilio_auth_token=os.environ["TWILIO_TAC_AUTH_TOKEN"],
-            twilio_phone_number=os.environ.get("TWILIO_TAC_PHONE_NUMBER"),
+            twilio_phone_number=os.environ["TWILIO_TAC_PHONE_NUMBER"],
             knowledge_base_id=os.environ.get("TWILIO_TAC_KNOWLEDGE_BASE_ID"),
             log_level=os.environ.get("TWILIO_TAC_LOG_LEVEL", "INFO"),
             enable_voice_active_hydration=enable_voice_active_hydration,

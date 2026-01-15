@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Twilio Agent Connect (TAC) is a Python SDK that integrates third-party LLM agentic applications with Twilio communication APIs. TAC provides middleware for identity resolution, memory/context management (via Memora), conversation orchestration (via Maestro), and channel handling (Voice, SMS).
+Twilio Agent Connect (TAC) is a Python SDK that integrates third-party LLM agentic applications with Twilio communication APIs. TAC provides middleware for identity resolution, memory/context management (via Memory Service), conversation orchestration (via Maestro), and channel handling (Voice, SMS).
 
-**Key Architecture Principle**: TAC is not an agent runtime itself—it's middleware that enables existing LLM applications (OpenAI Agents SDK, Bedrock, LangChain, etc.) to leverage Twilio Sierra primitives (Memora for memory, Maestro for conversations, ConversationRelay for voice).
+**Key Architecture Principle**: TAC is not an agent runtime itself—it's middleware that enables existing LLM applications (OpenAI Agents SDK, Bedrock, LangChain, etc.) to leverage Twilio Sierra primitives (Memory for memory, Maestro for conversations, ConversationRelay for voice).
 
 ## Development Commands
 
@@ -88,7 +88,7 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
   - `intelligence.py` - Conversation Intelligence models: `OperatorResultEvent`, `IntelligenceConfiguration`, `Operator`, `Participant`, `ExecutionDetails`, `TriggerDetails`, `CommunicationsRange`
 
 - **`src/tac/intelligence/`** - Conversation Intelligence webhook processing
-  - `operator_result_processor.py` - `OperatorResultProcessor` class for processing CI webhook events; creates observations/summaries in Memora based on operator results
+  - `operator_result_processor.py` - `OperatorResultProcessor` class for processing CI webhook events; creates observations/summaries in Memory based on operator results
 
 - **`src/tac/channels/`** - Channel-specific orchestration and conversation lifecycle management
   - `base.py` - `BaseChannel` abstract class with conversation session management (`_start_conversation`, `_end_conversation`); `send_response()` with optional `role` parameter
@@ -115,11 +115,11 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
    - `onConversationRemoved`: Channel calls `_end_conversation(conv_id)` → cleans up session
 
 3. **Message Processing**: `TAC.retrieve_memory(conversation_context, query)` → retrieves memories using one of two paths:
-   - **If Memora is configured** (`twilio_memory_config` provided):
+   - **If Memory is configured** (`twilio_memory_config` provided):
      - If `profile_id` is available: Uses it directly to retrieve memory
      - If `profile_id` is missing: Automatically calls `lookup_profile(id_type="phone", value=author_info.address)` to find profile, assigns first matching profile to `conversation_context.profile_id`, then retrieves memory
-     - Retrieves full memory (observations, summaries, communications) from Memora using `conversation_context.profile_id` and `config.twilio_memory_config.memory_store_id`
-   - **If Memora is NOT configured**: Falls back to Maestro's `list_communications()` API to retrieve only communications (conversation history) - observations and summaries arrays will be empty
+     - Retrieves full memory (observations, summaries, communications) from Memory using `conversation_context.profile_id` and `config.twilio_memory_config.memory_store_id`
+   - **If Memory is NOT configured**: Falls back to Maestro's `list_communications()` API to retrieve only communications (conversation history) - observations and summaries arrays will be empty
    - Both paths return `MemoryRetrievalResponse` → triggers `on_message_ready()` callback with memory response
 
 4. **Message Ready Hook**: Developers register callbacks via `tac.on_message_ready(callback)` to handle incoming messages
@@ -142,11 +142,11 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
   - Returns: `ProfileLookupResponse` with `normalized_value` and `profiles` (list of profile IDs)
   - Normalizes identifier values according to identity resolution settings (e.g., E.164 for phone numbers)
   - Returns canonical profile IDs (earliest ID if profiles have been merged)
-- `create_observation()`: Create a new observation in Memora
+- `create_observation()`: Create a new observation in Memory
   - Endpoint: `POST /v1/Stores/{store_id}/Profiles/{profile_id}/Observations`
   - Parameters: `profile_id`, `content`, `source` (default: "conversation-intelligence"), `conversation_ids`, `occurred_at`
   - Returns: Dict with created observation details
-- `create_conversation_summaries()`: Create conversation summaries in Memora
+- `create_conversation_summaries()`: Create conversation summaries in Memory
   - Endpoint: `POST /v1/Stores/{store_id}/Profiles/{profile_id}/ConversationSummaries`
   - Parameters: `profile_id`, `summaries` (list of dicts with `content`, `conversationId`, `occurredAt`, `source`)
   - Returns: Response dict with message field
@@ -179,7 +179,7 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
 - `list_communications(conversation_id, channel_id, page_size, page_token)`: Lists communications for a conversation
   - Endpoint: `GET /v2/Conversations/{conversation_id}/Communications`
   - Returns: List of `CommunicationResponse` objects
-  - Used for memory fallback when Memora is not configured
+  - Used for memory fallback when Memory is not configured
 - `create_communication(conversation_id, communication_request)`: Creates a new communication in a conversation
   - Endpoint: `POST /v2/Conversations/{conversation_id}/Communications`
   - Returns: `Communication` object
@@ -223,7 +223,7 @@ Tests are located in `tests/` directory:
 - `test_tools.py` - Tools module tests (function_tool decorator, TACTool format conversions)
 - `test_profile_retrieval.py` - Profile retrieval tests (trait_groups, fetch_profile, context.profile, lookup_profile)
 - `test_profile_lookup_in_memory.py` - Automatic profile lookup in retrieve_memory tests (lookup by phone, fallback behavior)
-- `test_memory_fallback.py` - Memory retrieval fallback tests (Memora to Maestro fallback)
+- `test_memory_fallback.py` - Memory retrieval fallback tests (Memory to Maestro fallback)
 - `test_init.py` - Package initialization tests
 - `test_intelligence.py` - Conversation Intelligence processor tests (models, filtering, validation, content parsing)
 
@@ -235,13 +235,13 @@ Test requirements (pytest.ini_options in pyproject.toml):
 ## Configuration Requirements
 
 When initializing TAC, developers must provide:
-- `environment` - TAC environment ("dev", "stage", or "prod") - automatically sets Memora and Maestro base URLs
+- `environment` - TAC environment ("dev", "stage", or "prod") - case-insensitive, automatically sets Memory and Maestro base URLs
 - `twilio_account_sid` - From Twilio Console
 - `twilio_auth_token` - From Twilio Console
 - `conversation_service_sid` - Twilio Conversation Service SID (starts with `conv_configuration_`)
+- `twilio_phone_number` - Twilio Phone Number for Voice (inbound) and SMS (send/receive)
 
 Optional configuration:
-- `twilio_phone_number` - Twilio Phone Number to use for sending messages - **Required for SMS channel, optional for Voice**
 - `twilio_memory_config` - Optional TwilioMemoryConfig object with:
   - `memory_store_id` field (starts with `mem_service_`) - Required for Twilio Memory functionality
   - `trait_groups` field (list of strings) - Optional, specifies which trait groups to include in profile retrieval
@@ -503,7 +503,7 @@ TAC provides two architectural patterns:
 
 ### Conversation Intelligence Webhook Processing
 
-The `OperatorResultProcessor` processes Conversation Intelligence webhook events and creates observations or summaries in Memora:
+The `OperatorResultProcessor` processes Conversation Intelligence webhook events and creates observations or summaries in Memory:
 
 ```python
 from tac import TAC, TACConfig

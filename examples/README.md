@@ -38,9 +38,9 @@ This directory contains examples demonstrating how to use the Twilio Agent Conne
 
    **Optional (for Twilio Memory):**
    ```bash
-   TWILIO_TAC_MEMORY_STORE_ID=mem_service_xxxxxxxxxxxxxxxxxx
-   TWILIO_TAC_MEMORY_API_KEY=your_api_key_here
-   TWILIO_TAC_MEMORY_API_TOKEN=your_api_token_here
+   TWILIO_TAC_MEMORY_STORE_ID=mem_store_xxxxxxxxxxxxxxxxxx
+   TWILIO_TAC_MEMORY_API_KEY=SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  # Twilio API Key SID
+   TWILIO_TAC_MEMORY_API_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  # Twilio API Key Secret
    TWILIO_TAC_TRAIT_GROUPS=Contact,Preferences
    ```
 
@@ -128,7 +128,7 @@ Examples showing how to integrate TAC tools with popular LLM frameworks:
 
 ## What You'll Learn
 
-- ✅ Setting up TAC with Twilio services (Memora, Maestro)
+- ✅ Setting up TAC with Twilio services (Memory, Maestro)
 - ✅ Processing SMS and Voice webhooks
 - ✅ Retrieving and using user memories
 - ✅ Integrating TAC tools with LLM frameworks

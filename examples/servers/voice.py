@@ -104,20 +104,7 @@ async def handle_message_ready(
 
 
 if __name__ == "__main__":
-    # Initialize TAC - automatically loads all configuration from environment variables
-    # Required env vars:
-    #   - TWILIO_TAC_ENVIRONMENT (dev, stage, or prod)
-    #   - TWILIO_TAC_CONVERSATION_SERVICE_SID
-    #   - TWILIO_TAC_ACCOUNT_SID
-    #   - TWILIO_TAC_AUTH_TOKEN
-    #   - TWILIO_TAC_PHONE_NUMBER
-    # Optional env vars:
-    #   - TWILIO_TAC_LOG_LEVEL (defaults to INFO)
-    #   - TWILIO_TAC_MEMORY_STORE_ID, TWILIO_TAC_MEMORY_API_KEY, TWILIO_TAC_MEMORY_API_TOKEN (for Twilio Memory)
-    #   - TWILIO_TAC_TRAIT_GROUPS (comma-separated, e.g., "Contact,Preferences")
-    #   - TWILIO_TAC_VOICE_PUBLIC_DOMAIN (required for voice server)
-    #   - TWILIO_TAC_OPENAI_API_KEY (required for OpenAI)
-    #   - TWILIO_TAC_KNOWLEDGE_BASE_ID (optional, for knowledge base search)
+    # Initialize TAC - see examples/README.md for configuration
     tac = TAC(config=TACConfig.from_env())
 
     # Create knowledge tool if knowledge base ID is provided

@@ -2,8 +2,7 @@
 
 Twilio Agent Connect (TAC) is a powerful Python library designed to simplify the development of intelligent,
 context-aware applications using Twilio's communication technologies. TAC provides seamless integration with Twilio's
-Memora (memory management) and conversation services, enabling you to build LLM-powered agents with persistent memory
-and conversation context.
+Memory and Conversation services, enabling you to build LLM-powered agents with persistent memory and conversation context.
 
 > [!NOTE]
 > Looking for the JavaScript/TypeScript version? Check out [TAC SDK JS/TS](https://github.com/twilio-internal/twilio-agentic-framework-typescript).
@@ -14,8 +13,8 @@ Explore the [examples](examples) directory to see the SDK in action.
 
 - **SMS Channel Support**: Built-in webhook handling for Twilio SMS conversations
 - **Voice Channel Support**: WebSocket protocol handling for Twilio Voice with ConversationRelay
-- **Conversation Intelligence**: Webhook processing for CI operator results to create observations and summaries in Memora
-- **Memory Management**: Automatic integration with Twilio Memora for persistent user context
+- **Conversation Intelligence**: Webhook processing for CI operator results to create observations and summaries in Memory
+- **Memory Management**: Automatic integration with Twilio Memory for persistent user context
 - **Conversation Lifecycle**: Automatic tracking of conversation sessions and state
 - **Type-Safe**: Full type hints and Pydantic models throughout
 - **Callback-Based**: Simple `on_message_ready` callback for LLM integration with optional memory retrieval
@@ -161,7 +160,7 @@ For manual control over FastAPI configuration, see [`examples/channels/voice.py`
 
 ## Quick Example: Conversation Intelligence Webhook Processing
 
-TAC can process Conversation Intelligence (CI) operator result webhooks to automatically create observations and summaries in Memora:
+TAC can process Conversation Intelligence (CI) operator result webhooks to automatically create observations and summaries in Memory:
 
 ```python
 from fastapi import FastAPI, Request
@@ -228,17 +227,17 @@ tac = TAC(config=TACConfig.from_env())
 ```
 
 **Required Environment Variables:**
-- `TWILIO_TAC_ENVIRONMENT` - TAC environment: `"prod"`, `"stage"`, or `"dev"` (sets Memora and Maestro URLs)
+- `TWILIO_TAC_ENVIRONMENT` - TAC environment: `"prod"`, `"stage"`, or `"dev"` (case-insensitive, sets Memory and Maestro URLs)
 - `TWILIO_TAC_ACCOUNT_SID` - Your Twilio Account SID (e.g., `ACxxxxx...`)
 - `TWILIO_TAC_AUTH_TOKEN` - Your Twilio Auth Token
 - `TWILIO_TAC_CONVERSATION_SERVICE_SID` - Twilio Conversation Service SID (e.g., `conv_configuration_xxxxx...`)
+- `TWILIO_TAC_PHONE_NUMBER` - Your Twilio Phone Number for Voice (inbound) and SMS (send/receive)
 
 **Optional Environment Variables:**
-- `TWILIO_TAC_PHONE_NUMBER` - Your Twilio Phone Number (e.g., `+1234567890`) - **Required for SMS channel**
 - `TWILIO_TAC_LOG_LEVEL` - Logging level (default: `INFO`)
-- `TWILIO_TAC_MEMORY_STORE_ID` - Memora Memory Store ID (e.g., `mem_service_xxxxx...`)
-- `TWILIO_TAC_MEMORY_API_KEY` - API Key for Memora
-- `TWILIO_TAC_MEMORY_API_TOKEN` - API Token for Memora
+- `TWILIO_TAC_MEMORY_STORE_ID` - Memory Store ID (e.g., `mem_store_xxxxx...`)
+- `TWILIO_TAC_MEMORY_API_KEY` - Twilio API Key SID (starts with `SK`)
+- `TWILIO_TAC_MEMORY_API_TOKEN` - Twilio API Key Secret
 - `TWILIO_TAC_TRAIT_GROUPS` - Comma-separated trait groups (e.g., `"Contact,Preferences"`)
 
 ### Manual Configuration
@@ -272,7 +271,7 @@ tac = TAC(config=config)
 
 1. **Webhook Received**: Twilio sends SMS webhook to your server
 2. **Channel Processing**: `SMSChannel` validates and processes the event
-3. **Memory Retrieval**: TAC optionally retrieves user memories from Memora
+3. **Memory Retrieval**: TAC optionally retrieves user memories from Memory
 4. **Callback Invoked**: Your `on_message_ready` callback receives user message, context, and optional memory response
 5. **LLM Integration**: Your code calls LLM with message and optional memories, sends response
 
@@ -282,7 +281,7 @@ tac = TAC(config=config)
 2. **Event Filtering**: `OperatorResultProcessor` filters by `MEMORA_` prefix and discards test events
 3. **Profile Extraction**: Extracts profile IDs from event participants
 4. **Content Generation**: Parses operator result based on output format (JSON, CLASSIFICATION, EXTRACTION, TEXT)
-5. **Memory Creation**: Creates observations or conversation summaries in Memora for each profile
+5. **Memory Creation**: Creates observations or conversation summaries in Memory for each profile
 
 ## Examples
 
