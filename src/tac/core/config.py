@@ -6,6 +6,62 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 
+class ConversationIntelligenceConfig(BaseModel):
+    """
+    Configuration for Conversation Intelligence webhook filtering.
+
+    This config specifies which CI configuration and operators to process.
+    Events that don't match are filtered out.
+    """
+
+    configuration_id: str = Field(
+        description="Conversation Intelligence Configuration ID",
+    )
+    observation_operator_sid: Optional[str] = Field(
+        default=None,
+        description="Operator SID for observation extraction (e.g., LY...)",
+    )
+    summary_operator_sid: Optional[str] = Field(
+        default=None,
+        description="Operator SID for summary extraction (e.g., LY...)",
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "configuration_id": "your_ci_configuration_id",
+                "observation_operator_sid": "LY00000000000000000000000000000001",
+                "summary_operator_sid": "LY00000000000000000000000000000002",
+            }
+        },
+    )
+
+    @classmethod
+    def from_env(cls) -> Optional["ConversationIntelligenceConfig"]:
+        """
+        Create ConversationIntelligenceConfig from environment variables.
+
+        Loads configuration from the following environment variables:
+        - TWILIO_TAC_CI_CONFIGURATION_ID: CI Configuration ID (required)
+        - TWILIO_TAC_CI_OBSERVATION_OPERATOR_SID: Operator SID for observations (optional)
+        - TWILIO_TAC_CI_SUMMARY_OPERATOR_SID: Operator SID for summaries (optional)
+
+        Returns:
+            ConversationIntelligenceConfig instance if configuration_id is set,
+            None otherwise.
+        """
+        configuration_id = os.environ.get("TWILIO_TAC_CI_CONFIGURATION_ID")
+
+        if not configuration_id:
+            return None
+
+        return cls(
+            configuration_id=configuration_id,
+            observation_operator_sid=os.environ.get("TWILIO_TAC_CI_OBSERVATION_OPERATOR_SID"),
+            summary_operator_sid=os.environ.get("TWILIO_TAC_CI_SUMMARY_OPERATOR_SID"),
+        )
+
+
 class TwilioMemoryConfig(BaseModel):
     """
     Configuration for Twilio Memory Service integration.
@@ -135,6 +191,12 @@ class TACConfig(BaseModel):
         "to keep conversation history in sync.",
     )
 
+    conversation_intelligence_config: Optional[ConversationIntelligenceConfig] = Field(
+        default=None,
+        description="Optional Conversation Intelligence configuration for filtering webhook "
+        "events. When provided to OperatorResultProcessor, only matching events are processed.",
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def memora_base_url(self) -> str:
@@ -172,6 +234,11 @@ class TACConfig(BaseModel):
                     "api_token": "your_api_token_here",
                     "trait_groups": ["Contact", "Preferences"],
                 },
+                "conversation_intelligence_config": {
+                    "configuration_id": "GAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "observation_operator_sid": "LYxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "summary_operator_sid": "LYyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+                },
             }
         },
     )
@@ -199,6 +266,12 @@ class TACConfig(BaseModel):
         - TWILIO_TAC_MEMORY_API_TOKEN: Twilio API Key Secret
         - TWILIO_TAC_TRAIT_GROUPS: Comma-separated list of trait groups
 
+        Conversation Intelligence configuration is automatically loaded via
+        ConversationIntelligenceConfig.from_env() from these environment variables (all optional):
+        - TWILIO_TAC_CI_CONFIGURATION_ID: CI Configuration ID (TTID format)
+        - TWILIO_TAC_CI_OBSERVATION_OPERATOR_SID: Operator SID for observations
+        - TWILIO_TAC_CI_SUMMARY_OPERATOR_SID: Operator SID for summaries
+
         Returns:
             TACConfig instance with all configuration loaded from environment.
 
@@ -220,6 +293,9 @@ class TACConfig(BaseModel):
         # Load optional memory configuration
         twilio_memory_config = TwilioMemoryConfig.from_env()
 
+        # Load optional conversation intelligence configuration
+        conversation_intelligence_config = ConversationIntelligenceConfig.from_env()
+
         # Parse enable_voice_active_hydration as boolean
         enable_voice_active_hydration = False
         voice_hydration_str = os.environ.get("TWILIO_TAC_ENABLE_VOICE_ACTIVE_HYDRATION", "").lower()
@@ -236,4 +312,5 @@ class TACConfig(BaseModel):
             log_level=os.environ.get("TWILIO_TAC_LOG_LEVEL", "INFO"),
             enable_voice_active_hydration=enable_voice_active_hydration,
             twilio_memory_config=twilio_memory_config,
+            conversation_intelligence_config=conversation_intelligence_config,
         )

@@ -71,8 +71,8 @@ make ngrok
 The codebase follows a modular design matching the architecture diagram in TAC.md:
 
 - **`src/tac/core/`** - Core TAC class, configuration, and context models
-  - `tac.py` - Main `TAC` class with `retrieve_memory()` (with automatic profile lookup), `fetch_profile()`, and `on_message_ready()` hook
-  - `config.py` - `TACConfig` Pydantic model for SDK configuration; `TwilioMemoryConfig` with optional `trait_groups`
+  - `tac.py` - Main `TAC` class with `retrieve_memory()` (with automatic profile lookup), `fetch_profile()`, `on_message_ready()` hook, `ci_processor` (optional `OperatorResultProcessor`), and `process_cintel_event()` method
+  - `config.py` - `TACConfig` Pydantic model for SDK configuration; `TwilioMemoryConfig` with optional `trait_groups`; `ConversationIntelligenceConfig` with `configuration_id`, `observation_operator_sid`, `summary_operator_sid`
 
 - **`src/tac/context/`** - Integration with Twilio Sierra primitives
   - `memory.py` - `MemoryClient` for memory retrieval (traits, observations, sessions), profile retrieval with `get_profile()`, and profile lookup with `lookup_profile()`
@@ -85,10 +85,10 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
   - `voice.py` - Voice WebSocket message models: `SetupMessage`, `PromptMessage`, `InterruptMessage`, `CustomParameters`, `VoiceServerConfig`, `ConversationRelayCallbackPayload`
   - `conversation_event.py` - `ConversationEvent` model for parsing Twilio webhook events with comprehensive event fields
   - `knowledge.py` - `Knowledge` model for knowledge tool integration
-  - `intelligence.py` - Conversation Intelligence models: `OperatorResultEvent`, `IntelligenceConfiguration`, `Operator`, `Participant`, `ExecutionDetails`, `TriggerDetails`, `CommunicationsRange`
+  - `intelligence.py` - Conversation Intelligence models: `OperatorResultEvent`, `OperatorProcessingResult`, `IntelligenceConfiguration`, `Operator`, `Participant`, `ExecutionDetails`, `TriggerDetails`, `CommunicationsRange`
 
 - **`src/tac/intelligence/`** - Conversation Intelligence webhook processing
-  - `operator_result_processor.py` - `OperatorResultProcessor` class for processing CI webhook events; creates observations/summaries in Memory based on operator results
+  - `operator_result_processor.py` - `OperatorResultProcessor` class for processing CI webhook events; requires `ConversationIntelligenceConfig` to filter events by configuration ID and operator SIDs; creates observations/summaries in Memory based on operator results; returns `OperatorProcessingResult`
 
 - **`src/tac/channels/`** - Channel-specific orchestration and conversation lifecycle management
   - `base.py` - `BaseChannel` abstract class with conversation session management (`_start_conversation`, `_end_conversation`); `send_response()` with optional `role` parameter
@@ -246,6 +246,12 @@ Optional configuration:
   - `memory_store_id` field (starts with `mem_service_`) - Required for Twilio Memory functionality
   - `trait_groups` field (list of strings) - Optional, specifies which trait groups to include in profile retrieval
   - When provided, memory is automatically retrieved for SMS conversations and profile is fetched (once for Voice, per message for SMS)
+- `conversation_intelligence_config` - Optional ConversationIntelligenceConfig object with:
+  - `configuration_id` field (required) - CI Configuration ID
+  - `observation_operator_sid` field (optional) - Operator SID for observation extraction (e.g., `LY...`)
+  - `summary_operator_sid` field (optional) - Operator SID for summary extraction (e.g., `LY...`)
+  - If operator SIDs are not set, falls back to friendly_name detection ("Summary Extractor" → summary, otherwise → observation)
+  - Environment variables: `TWILIO_TAC_CI_CONFIGURATION_ID` (required), `TWILIO_TAC_CI_OBSERVATION_OPERATOR_SID` (optional), `TWILIO_TAC_CI_SUMMARY_OPERATOR_SID` (optional)
 - `log_level` - Optional, defaults to "INFO"
 
 ## Common Patterns
@@ -503,28 +509,25 @@ TAC provides two architectural patterns:
 
 ### Conversation Intelligence Webhook Processing
 
-The `OperatorResultProcessor` processes Conversation Intelligence webhook events and creates observations or summaries in Memory:
+TAC automatically initializes the `OperatorResultProcessor` when both `twilio_memory_config` and `conversation_intelligence_config` are provided. Use `tac.process_cintel_event()` to process CI webhook events:
 
 ```python
 from tac import TAC, TACConfig
-from tac.intelligence import OperatorResultProcessor
 
-# 1. Setup TAC with memory configuration
+# 1. Setup TAC with memory and CI configuration
+# The CI processor (tac.ci_processor) is automatically initialized when both
+# twilio_memory_config and conversation_intelligence_config are provided
 tac = TAC(config=TACConfig.from_env())
 
-# 2. Initialize the processor (requires Twilio Memory to be enabled)
-if tac.is_twilio_memory_enabled():
-    processor = OperatorResultProcessor(tac.memory_client)
-
-# 3. Process CI webhook events
+# 2. Process CI webhook events using tac.process_cintel_event()
 @app.post("/ci-webhook")
 async def ci_webhook_handler(request: Request):
     payload = await request.json()
-    result = await processor.process_event(payload)
+    result = await tac.process_cintel_event(payload)
 
     if result.success:
         if result.skipped:
-            # Event was filtered (non-MEMORA_, test event, etc.)
+            # Event was filtered (non-MEMORA_, test event, config mismatch, etc.)
             print(f"Skipped: {result.skip_reason}")
         else:
             # Observations or summaries created
@@ -535,15 +538,31 @@ async def ci_webhook_handler(request: Request):
     return result.model_dump()
 ```
 
+For advanced usage, you can also access the processor directly via `tac.ci_processor` or create one manually:
+
+```python
+from tac.core.config import ConversationIntelligenceConfig
+from tac.intelligence import OperatorResultProcessor
+
+ci_config = ConversationIntelligenceConfig(
+    configuration_id="your_ci_configuration_id",
+    observation_operator_sid="LY...",
+    summary_operator_sid="LY...",
+)
+processor = OperatorResultProcessor(tac.memora_client, ci_config)
+result = await processor.process_event(payload)
+```
+
 **Filtering Logic** (ported from Go transformer.go):
 - Only processes events where `intelligence_configuration.friendly_name` starts with `MEMORA_`
 - Filters out test events (patterns: `testserviceconfig`, `test_service`, `test-service`, `testservice`)
-- Validates required fields: `account_id`, `conversation_id`, `output_format`, `result`, `date_created`
-- Validates ID formats: `conv_conversation_[0-7][0-9a-z]{25}`, `mem_profile_[0-7][0-9a-z]{25}`, `mem_(store|service)_[0-7][0-9a-z]{25}`
+- Filters by `intelligence_configuration.id` matching `configuration_id` in config
+- Filters by `operator.id` matching `observation_operator_sid` or `summary_operator_sid` in config
 
 **Event Type Determination**:
-- If `operator.friendly_name == "Summary Extractor"` → Creates conversation summaries
-- Otherwise → Creates observations
+- If `operator.id` matches `observation_operator_sid` → Creates observations
+- If `operator.id` matches `summary_operator_sid` → Creates conversation summaries
+- Otherwise → Skipped (operator SID mismatch)
 
 See `examples/exec_demo/server.py` for a complete implementation.
 

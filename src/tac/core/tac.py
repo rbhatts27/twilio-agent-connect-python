@@ -13,6 +13,8 @@ from tac.context.conversation import ConversationClient
 from tac.context.memory import MemoryClient
 from tac.core.config import TACConfig
 from tac.core.logging import get_logger, setup_logging
+from tac.intelligence.operator_result_processor import OperatorResultProcessor
+from tac.models.intelligence import OperatorProcessingResult
 from tac.models.memory import (
     MemoryRetrievalResponse,
     ProfileLookupResponse,
@@ -84,6 +86,15 @@ class TAC:
             auth_token=self.config.twilio_auth_token,
             service_id=self.config.conversation_service_sid,
         )
+
+        # Initialize CI processor if both memory and CI config are provided
+        self.ci_processor: Optional[OperatorResultProcessor] = None
+        if self.memora_client and self.config.conversation_intelligence_config:
+            self.ci_processor = OperatorResultProcessor(
+                memory_client=self.memora_client,
+                config=self.config.conversation_intelligence_config,
+            )
+            self.logger.info("Conversation Intelligence processor initialized")
 
         # Callback for when message is ready (supports both sync and async)
         self._message_ready_callback: Optional[
@@ -463,3 +474,51 @@ class TAC:
             else:
                 # Call sync callback directly
                 self._interrupt_callback(conversation_context, interrupt_data)
+
+    async def process_cintel_event(
+        self,
+        payload: dict[str, Any],
+    ) -> OperatorProcessingResult:
+        """
+        Process a Conversation Intelligence webhook event.
+
+        This method delegates to the internal CI processor to handle incoming
+        CI webhook payloads, validate them, and create observations or summaries
+        in Memora based on operator results.
+
+        Args:
+            payload: The raw webhook payload dictionary from Twilio CI
+
+        Returns:
+            OperatorProcessingResult with processing status and details
+
+        Raises:
+            ValueError: If CI processor is not initialized (requires both
+                twilio_memory_config and conversation_intelligence_config)
+
+        Example:
+            ```python
+            @app.post("/ci-webhook")
+            async def ci_webhook_handler(request: Request):
+                payload = await request.json()
+                result = await tac.process_cintel_event(payload)
+
+                if result.success:
+                    if result.skipped:
+                        print(f"Skipped: {result.skip_reason}")
+                    else:
+                        print(f"Created {result.created_count} {result.event_type}(s)")
+                else:
+                    print(f"Error: {result.error}")
+
+                return result.model_dump()
+            ```
+        """
+        if not self.ci_processor:
+            raise ValueError(
+                "Conversation Intelligence processor is not initialized. "
+                "Ensure both twilio_memory_config and conversation_intelligence_config "
+                "are provided when creating TACConfig."
+            )
+
+        return await self.ci_processor.process_event(payload)

@@ -7,14 +7,11 @@ import pytest
 
 from tac.intelligence.operator_result_processor import (
     OperatorResultProcessor,
-    ProcessingResult,
     _extract_profile_ids,
     _extract_store_id_from_friendly_name,
     _generate_content,
-    _is_test_event,
     _parse_observations_content,
     _parse_summaries_content,
-    is_summary_event,
 )
 from tac.models.intelligence import (
     ClassificationResult,
@@ -25,6 +22,7 @@ from tac.models.intelligence import (
     IntelligenceConfiguration,
     JSONResult,
     Operator,
+    OperatorProcessingResult,
     OperatorResultEvent,
     Participant,
     TextGenerationResult,
@@ -35,6 +33,9 @@ from tac.models.intelligence import (
 VALID_STORE_ID = "mem_store_01234567890123456789abcdef"
 VALID_PROFILE_ID = "mem_profile_01234567890123456789abcdef"
 VALID_CONV_ID = "conv_conversation_01234567890123456789abcdef"
+VALID_CONFIG_ID = "GA00000000000000000000000000000000"
+VALID_OBSERVATION_OPERATOR_SID = "LY00000000000000000000000000000001"
+VALID_SUMMARY_OPERATOR_SID = "LY00000000000000000000000000000002"
 
 
 def make_valid_event(
@@ -43,24 +44,70 @@ def make_valid_event(
     profile_id: str = VALID_PROFILE_ID,
     conversation_id: str = VALID_CONV_ID,
     memory_store_id: str = VALID_STORE_ID,
+    configuration_id: str = VALID_CONFIG_ID,
+    operator_id: str = VALID_OBSERVATION_OPERATOR_SID,
     result: Any = None,
 ) -> dict[str, Any]:
-    """Create a valid event payload for testing."""
+    """Create a valid webhook event payload for testing.
+
+    This returns the new structure with operatorResults array.
+    """
     if result is None:
         result = {"payload": '{"observations": [{"content": "Test observation"}]}'}
 
     return {
-        "id": "test-event-id-123",
         "accountId": "AC00000000000000000000000000000000",
         "conversationId": conversation_id,
         "memoryStoreId": memory_store_id,
         "intelligenceConfiguration": {
-            "id": "GA00000000000000000000000000000000",
+            "id": configuration_id,
             "friendlyName": friendly_name,
             "version": 1,
         },
+        "operatorResults": [
+            {
+                "id": "intelligence_operatorresult_0123456789abcdefghijklmno",
+                "operator": {
+                    "id": operator_id,
+                    "friendlyName": operator_friendly_name,
+                    "version": 1,
+                },
+                "outputFormat": "JSON",
+                "result": result,
+                "dateCreated": "2025-01-15T10:30:45Z",
+                "referenceIds": [],
+                "executionDetails": {
+                    "trigger": {
+                        "on": "conversation_closed",
+                        "timestamp": "2025-01-15T10:30:45Z",
+                    },
+                    "participants": [
+                        {
+                            "id": "comms_participant_0123456789abcdefghijklmno",
+                            "profileId": profile_id,
+                            "type": "CUSTOMER",
+                        }
+                    ],
+                },
+            }
+        ],
+    }
+
+
+def make_operator_result(
+    operator_friendly_name: str = "Observation Extractor",
+    operator_id: str = VALID_OBSERVATION_OPERATOR_SID,
+    profile_id: str = VALID_PROFILE_ID,
+    result: Any = None,
+) -> dict[str, Any]:
+    """Create a valid operator result payload for testing helper functions."""
+    if result is None:
+        result = {"payload": '{"observations": [{"content": "Test observation"}]}'}
+
+    return {
+        "id": "intelligence_operatorresult_0123456789abcdefghijklmno",
         "operator": {
-            "id": "LY00000000000000000000000000000000",
+            "id": operator_id,
             "friendlyName": operator_friendly_name,
             "version": 1,
         },
@@ -85,16 +132,32 @@ class TestModelParsing:
     """Test Pydantic model parsing."""
 
     def test_operator_result_event_parsing(self):
-        """Test parsing a complete OperatorResultEvent."""
+        """Test parsing a complete OperatorResultEvent (webhook wrapper)."""
         payload = make_valid_event()
         event = OperatorResultEvent(**payload)
 
-        assert event.id == "test-event-id-123"
         assert event.account_id == "AC00000000000000000000000000000000"
         assert event.conversation_id == VALID_CONV_ID
         assert event.memory_store_id == VALID_STORE_ID
-        assert event.output_format == "JSON"
-        assert event.date_created == "2025-01-15T10:30:45Z"
+        assert len(event.operator_results) == 1
+
+        # Check the first operator result
+        op_result = event.operator_results[0]
+        assert op_result.output_format == "JSON"
+        assert op_result.date_created == "2025-01-15T10:30:45Z"
+
+    def test_operator_result_parsing(self):
+        """Test parsing an individual OperatorResult."""
+        from tac.models.intelligence import OperatorResult
+
+        payload = make_operator_result()
+        op_result = OperatorResult(**payload)
+
+        assert op_result.id == "intelligence_operatorresult_0123456789abcdefghijklmno"
+        assert op_result.output_format == "JSON"
+        assert op_result.date_created == "2025-01-15T10:30:45Z"
+        assert op_result.operator is not None
+        assert op_result.operator.friendly_name == "Observation Extractor"
 
     def test_intelligence_configuration_parsing(self):
         """Test IntelligenceConfiguration model."""
@@ -163,67 +226,32 @@ class TestModelParsing:
 class TestFilteringLogic:
     """Test event filtering logic."""
 
-    def test_is_test_event_detects_patterns(self):
-        """Test test event detection."""
-        test_names = [
-            "MEMORA_testserviceconfig_123",
-            "MEMORA_test_service_456",
-            "MEMORA_test-service-789",
-            "MEMORA_testservice",
-            "MEMORA_TESTSERVICE",  # Case insensitive
-        ]
-        for name in test_names:
-            assert _is_test_event(name), f"Should detect as test: {name}"
-
-    def test_is_test_event_allows_valid(self):
-        """Test that valid events are not detected as test."""
-        valid_names = [
-            "MEMORA_mem_store_123",
-            "MEMORA_production_store",
-            "MEMORA_my_service",
-        ]
-        for name in valid_names:
-            assert not _is_test_event(name), f"Should not detect as test: {name}"
-
     def test_extract_store_id_from_friendly_name(self):
         """Test store ID extraction from friendly name."""
         assert _extract_store_id_from_friendly_name("MEMORA_mem_store_123") == "mem_store_123"
         assert _extract_store_id_from_friendly_name("OTHER_mem_store_123") is None
         assert _extract_store_id_from_friendly_name("mem_store_123") is None
 
-    def test_is_summary_event_true(self):
-        """Test summary event detection."""
-        payload = make_valid_event(operator_friendly_name="Summary Extractor")
-        event = OperatorResultEvent(**payload)
-        assert is_summary_event(event) is True
-
-    def test_is_summary_event_false(self):
-        """Test observation event detection."""
-        payload = make_valid_event(operator_friendly_name="Observation Extractor")
-        event = OperatorResultEvent(**payload)
-        assert is_summary_event(event) is False
-
-        # Test with other names
-        payload = make_valid_event(operator_friendly_name="Other Operator")
-        event = OperatorResultEvent(**payload)
-        assert is_summary_event(event) is False
-
 
 class TestProfileExtraction:
-    """Test profile ID extraction."""
+    """Test profile ID extraction from OperatorResult."""
 
     def test_extract_profile_ids_valid(self):
         """Test extracting valid profile IDs."""
-        payload = make_valid_event()
-        event = OperatorResultEvent(**payload)
-        profile_ids = _extract_profile_ids(event)
+        from tac.models.intelligence import OperatorResult
+
+        payload = make_operator_result()
+        op_result = OperatorResult(**payload)
+        profile_ids = _extract_profile_ids(op_result)
         assert len(profile_ids) == 1
         assert profile_ids[0] == VALID_PROFILE_ID
 
-    def test_extract_profile_ids_multiple(self):
-        """Test extracting multiple profile IDs."""
+    def test_extract_profile_ids_multiple_customers(self):
+        """Test extracting multiple CUSTOMER profile IDs."""
+        from tac.models.intelligence import OperatorResult
+
         second_profile_id = "mem_profile_11234567890123456789abcdef"
-        payload = make_valid_event()
+        payload = make_operator_result()
         payload["executionDetails"]["participants"] = [
             {
                 "id": "p1",
@@ -233,63 +261,98 @@ class TestProfileExtraction:
             {
                 "id": "p2",
                 "profileId": second_profile_id,
+                "type": "CUSTOMER",
+            },
+        ]
+        op_result = OperatorResult(**payload)
+        profile_ids = _extract_profile_ids(op_result)
+        assert len(profile_ids) == 2
+
+    def test_extract_profile_ids_filters_non_customer(self):
+        """Test that non-CUSTOMER participants are filtered out."""
+        from tac.models.intelligence import OperatorResult
+
+        payload = make_operator_result()
+        payload["executionDetails"]["participants"] = [
+            {
+                "id": "p1",
+                "profileId": VALID_PROFILE_ID,
+                "type": "CUSTOMER",
+            },
+            {
+                "id": "p2",
+                "profileId": "mem_profile_11234567890123456789abcdef",
                 "type": "AGENT",
             },
         ]
-        event = OperatorResultEvent(**payload)
-        profile_ids = _extract_profile_ids(event)
-        assert len(profile_ids) == 2
+        op_result = OperatorResult(**payload)
+        profile_ids = _extract_profile_ids(op_result)
+        # Only CUSTOMER participants are included
+        assert len(profile_ids) == 1
+        assert profile_ids[0] == VALID_PROFILE_ID
 
     def test_extract_profile_ids_accepts_any_format(self):
-        """Test that all profile IDs are accepted regardless of format."""
-        payload = make_valid_event()
+        """Test that CUSTOMER profile IDs are accepted regardless of format."""
+        from tac.models.intelligence import OperatorResult
+
+        payload = make_operator_result()
         payload["executionDetails"]["participants"] = [
             {"id": "p1", "profileId": "any_profile_id", "type": "CUSTOMER"},
             {
                 "id": "p2",
                 "profileId": VALID_PROFILE_ID,
-                "type": "AGENT",
+                "type": "CUSTOMER",
             },
         ]
-        event = OperatorResultEvent(**payload)
-        profile_ids = _extract_profile_ids(event)
+        op_result = OperatorResult(**payload)
+        profile_ids = _extract_profile_ids(op_result)
         assert len(profile_ids) == 2
         assert profile_ids[0] == "any_profile_id"
         assert profile_ids[1] == VALID_PROFILE_ID
 
     def test_extract_profile_ids_empty_participants(self):
         """Test extraction with no participants."""
-        payload = make_valid_event()
+        from tac.models.intelligence import OperatorResult
+
+        payload = make_operator_result()
         payload["executionDetails"]["participants"] = []
-        event = OperatorResultEvent(**payload)
-        profile_ids = _extract_profile_ids(event)
+        op_result = OperatorResult(**payload)
+        profile_ids = _extract_profile_ids(op_result)
         assert len(profile_ids) == 0
 
 
 class TestContentGeneration:
-    """Test content generation from event results."""
+    """Test content generation from operator results."""
 
     def test_generate_content_json(self):
         """Test JSON content generation."""
-        payload = make_valid_event(result={"payload": '{"observations": [{"content": "test"}]}'})
-        event = OperatorResultEvent(**payload)
-        content = _generate_content(event)
+        from tac.models.intelligence import OperatorResult
+
+        payload = make_operator_result(
+            result={"payload": '{"observations": [{"content": "test"}]}'}
+        )
+        op_result = OperatorResult(**payload)
+        content = _generate_content(op_result)
         assert content == '{"observations": [{"content": "test"}]}'
 
     def test_generate_content_classification(self):
         """Test classification content generation."""
-        payload = make_valid_event(result={"label": "positive"})
+        from tac.models.intelligence import OperatorResult
+
+        payload = make_operator_result(result={"label": "positive"})
         payload["outputFormat"] = "CLASSIFICATION"
-        event = OperatorResultEvent(**payload)
-        content = _generate_content(event)
+        op_result = OperatorResult(**payload)
+        content = _generate_content(op_result)
         assert content == "positive"
 
     def test_generate_content_text(self):
         """Test text generation content."""
-        payload = make_valid_event(result={"result": "Generated text content"})
+        from tac.models.intelligence import OperatorResult
+
+        payload = make_operator_result(result={"result": "Generated text content"})
         payload["outputFormat"] = "TEXT"
-        event = OperatorResultEvent(**payload)
-        content = _generate_content(event)
+        op_result = OperatorResult(**payload)
+        content = _generate_content(op_result)
         assert content == "Generated text content"
 
 
@@ -353,35 +416,27 @@ class TestOperatorResultProcessor:
         return client
 
     @pytest.fixture
-    def processor(self, mock_memory_client):
-        """Create a processor with mock client."""
-        return OperatorResultProcessor(mock_memory_client)
+    def ci_config(self):
+        """Create a CI config for testing."""
+        from tac.core.config import ConversationIntelligenceConfig
 
-    @pytest.mark.asyncio
-    async def test_process_event_skips_non_memora(self, processor):
-        """Test that non-MEMORA events are skipped."""
-        payload = make_valid_event(friendly_name="OTHER_config")
-        result = await processor.process_event(payload)
+        return ConversationIntelligenceConfig(
+            configuration_id=VALID_CONFIG_ID,
+            observation_operator_sid=VALID_OBSERVATION_OPERATOR_SID,
+            summary_operator_sid=VALID_SUMMARY_OPERATOR_SID,
+        )
 
-        assert result.success is True
-        assert result.skipped is True
-        assert "Non-memora" in result.skip_reason
-
-    @pytest.mark.asyncio
-    async def test_process_event_skips_test_events(self, processor):
-        """Test that test events are skipped."""
-        payload = make_valid_event(friendly_name="MEMORA_testservice_123")
-        result = await processor.process_event(payload)
-
-        assert result.success is True
-        assert result.skipped is True
-        assert "Test event" in result.skip_reason
+    @pytest.fixture
+    def processor(self, mock_memory_client, ci_config):
+        """Create a processor with mock client and config."""
+        return OperatorResultProcessor(mock_memory_client, ci_config)
 
     @pytest.mark.asyncio
     async def test_process_event_requires_profile_ids(self, processor):
         """Test that profile IDs are required."""
         payload = make_valid_event()
-        payload["executionDetails"]["participants"] = []
+        # executionDetails is now nested inside operatorResults
+        payload["operatorResults"][0]["executionDetails"]["participants"] = []
         result = await processor.process_event(payload)
 
         assert result.success is False
@@ -405,6 +460,7 @@ class TestOperatorResultProcessor:
         """Test successful summary event processing."""
         payload = make_valid_event(
             operator_friendly_name="Summary Extractor",
+            operator_id=VALID_SUMMARY_OPERATOR_SID,
             result={"payload": '{"summary": "Test summary content"}'},
         )
         result = await processor.process_event(payload)
@@ -415,11 +471,36 @@ class TestOperatorResultProcessor:
         mock_memory_client.create_conversation_summaries.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_process_event_multiple_profiles(self, processor, mock_memory_client):
-        """Test processing with multiple profiles."""
+    async def test_process_event_skips_mismatched_configuration_id(self, processor):
+        """Test that events with mismatched configuration ID are skipped."""
+        payload = make_valid_event(
+            configuration_id="GA_DIFFERENT_CONFIG_ID_00000000000",
+        )
+        result = await processor.process_event(payload)
+
+        assert result.success is True
+        assert result.skipped is True
+        assert "Configuration ID mismatch" in result.skip_reason
+
+    @pytest.mark.asyncio
+    async def test_process_event_skips_mismatched_operator_sid(self, processor):
+        """Test that events with mismatched operator SID are skipped."""
+        payload = make_valid_event(
+            operator_id="LY_DIFFERENT_OPERATOR_SID_0000000000",
+        )
+        result = await processor.process_event(payload)
+
+        assert result.success is True
+        assert result.skipped is True
+        assert "Operator SID mismatch" in result.skip_reason
+
+    @pytest.mark.asyncio
+    async def test_process_event_multiple_customer_profiles(self, processor, mock_memory_client):
+        """Test processing with multiple CUSTOMER profiles."""
         second_profile_id = "mem_profile_11234567890123456789abcdef"
         payload = make_valid_event(result={"payload": '{"observations": [{"content": "Test"}]}'})
-        payload["executionDetails"]["participants"] = [
+        # executionDetails is now nested inside operatorResults
+        payload["operatorResults"][0]["executionDetails"]["participants"] = [
             {
                 "id": "p1",
                 "profileId": VALID_PROFILE_ID,
@@ -428,13 +509,13 @@ class TestOperatorResultProcessor:
             {
                 "id": "p2",
                 "profileId": second_profile_id,
-                "type": "AGENT",
+                "type": "CUSTOMER",
             },
         ]
         result = await processor.process_event(payload)
 
         assert result.success is True
-        assert result.created_count == 2  # One for each profile
+        assert result.created_count == 2  # One for each CUSTOMER profile
         assert mock_memory_client.create_observation.call_count == 2
 
     @pytest.mark.asyncio
@@ -497,12 +578,12 @@ class TestOperatorResultProcessor:
         assert result.success is True
 
 
-class TestProcessingResult:
-    """Test ProcessingResult model."""
+class TestOperatorProcessingResult:
+    """Test OperatorProcessingResult model."""
 
     def test_processing_result_success(self):
         """Test successful processing result."""
-        result = ProcessingResult(
+        result = OperatorProcessingResult(
             success=True,
             event_type="observation",
             created_count=5,
@@ -515,7 +596,7 @@ class TestProcessingResult:
 
     def test_processing_result_skipped(self):
         """Test skipped processing result."""
-        result = ProcessingResult(
+        result = OperatorProcessingResult(
             success=True,
             skipped=True,
             skip_reason="Non-memora event",
@@ -526,7 +607,7 @@ class TestProcessingResult:
 
     def test_processing_result_error(self):
         """Test error processing result."""
-        result = ProcessingResult(
+        result = OperatorProcessingResult(
             success=False,
             error="Validation failed",
         )

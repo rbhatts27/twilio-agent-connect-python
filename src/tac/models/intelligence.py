@@ -240,41 +240,47 @@ class JSONResult(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class OperatorResultEvent(BaseModel):
-    """Operator result event from Conversation Intelligence webhook.
+class OperatorProcessingResult(BaseModel):
+    """Result of processing a Conversation Intelligence webhook event."""
 
-    This model represents the payload received from the CI service when an
-    operator produces results. It contains metadata about the execution
-    context and the actual operator output.
+    success: bool = Field(
+        ...,
+        description="Whether processing completed successfully",
+    )
+    event_type: Optional[str] = Field(
+        default=None,
+        description="Type of event processed: 'observation', 'summary', or None if filtered/failed",
+    )
+    skipped: bool = Field(
+        default=False,
+        description="True if event was filtered out (not an error)",
+    )
+    skip_reason: Optional[str] = Field(
+        default=None,
+        description="Reason for skipping (e.g., 'non-memora event')",
+    )
+    error: Optional[str] = Field(
+        default=None,
+        description="Error message if processing failed",
+    )
+    created_count: int = Field(
+        default=0,
+        description="Number of observations/summaries created",
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class OperatorResult(BaseModel):
+    """Individual operator result from a CI webhook event.
+
+    This model represents a single operator result within the operatorResults array.
     """
 
     id: str = Field(
         ...,
-        description="Unique Identifier for Operator Results (UUID)",
-        json_schema_extra={"example": "550e8400-e29b-41d4-a716-446655440000"},
-    )
-    account_id: str = Field(
-        ...,
-        alias="accountId",
-        description="Twilio Account SID (Sid<AC>)",
-        json_schema_extra={"example": "AC00000000000000000000000000000000"},
-    )
-    conversation_id: str = Field(
-        ...,
-        alias="conversationId",
-        description="Conversation ID (TTID) associated with the execution",
-        json_schema_extra={"example": "conv_conversation_00000000000000000000000000"},
-    )
-    memory_store_id: Optional[str] = Field(
-        default=None,
-        alias="memoryStoreId",
-        description="Memory store id",
-        json_schema_extra={"example": "mem_store_00000000000000000000000000"},
-    )
-    intelligence_configuration: IntelligenceConfiguration = Field(
-        ...,
-        alias="intelligenceConfiguration",
-        description="Intelligence configuration details",
+        description="Unique Identifier for Operator Results (TTID)",
+        json_schema_extra={"example": "intelligence_operatorresult_00000000000000000000000000"},
     )
     operator: Operator = Field(
         ...,
@@ -306,6 +312,45 @@ class OperatorResultEvent(BaseModel):
         ...,
         alias="executionDetails",
         description="Execution context details",
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class OperatorResultEvent(BaseModel):
+    """Operator result event from Conversation Intelligence webhook.
+
+    This model represents the webhook payload received from the CI service.
+    It contains metadata about the conversation and an array of operator results.
+    """
+
+    account_id: str = Field(
+        ...,
+        alias="accountId",
+        description="Twilio Account SID (Sid<AC>)",
+        json_schema_extra={"example": "AC00000000000000000000000000000000"},
+    )
+    conversation_id: str = Field(
+        ...,
+        alias="conversationId",
+        description="Conversation ID (TTID) associated with the execution",
+        json_schema_extra={"example": "conv_conversation_00000000000000000000000000"},
+    )
+    memory_store_id: Optional[str] = Field(
+        default=None,
+        alias="memoryStoreId",
+        description="Memory store id",
+        json_schema_extra={"example": "mem_store_00000000000000000000000000"},
+    )
+    intelligence_configuration: IntelligenceConfiguration = Field(
+        ...,
+        alias="intelligenceConfiguration",
+        description="Intelligence configuration details",
+    )
+    operator_results: list[OperatorResult] = Field(
+        ...,
+        alias="operatorResults",
+        description="List of operator results from this event",
     )
 
     model_config = {"populate_by_name": True}

@@ -166,29 +166,23 @@ TAC can process Conversation Intelligence (CI) operator result webhooks to autom
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from tac import TAC, TACConfig
-from tac.intelligence import OperatorResultProcessor
 
 app = FastAPI()
 
-# 1. Configure TAC with memory enabled
+# 1. Configure TAC with memory and CI config enabled
+# Set these in your .env file:
+#   TWILIO_TAC_CI_CONFIGURATION_ID=your_ci_configuration_id
+#   TWILIO_TAC_CI_OBSERVATION_OPERATOR_SID=LY...
+#   TWILIO_TAC_CI_SUMMARY_OPERATOR_SID=LY...
 tac = TAC(config=TACConfig.from_env())
 
-# 2. Initialize the CI processor (requires Twilio Memory to be enabled)
-ci_processor = None
-if tac.is_twilio_memory_enabled():
-    ci_processor = OperatorResultProcessor(tac.memory_client)
-
-# 3. Handle CI webhook events
+# 2. Handle CI webhook events using tac.process_cintel_event()
+# The CI processor is automatically initialized when both twilio_memory_config
+# and conversation_intelligence_config are provided
 @app.post("/ci-webhook")
 async def ci_webhook_handler(request: Request):
-    if not ci_processor:
-        return JSONResponse(
-            content={"error": "Memory not configured"},
-            status_code=400,
-        )
-
     payload = await request.json()
-    result = await ci_processor.process_event(payload)
+    result = await tac.process_cintel_event(payload)
 
     if result.success:
         if result.skipped:
@@ -202,11 +196,10 @@ async def ci_webhook_handler(request: Request):
 ```
 
 The processor automatically:
-- Filters events by `MEMORA_` prefix in intelligence configuration friendly name
-- Filters out test events (patterns like `testserviceconfig`, `test_service`, etc.)
+- Filters by configuration ID and operator SIDs matching the provided config
 - Extracts profile IDs from event participants
-- Creates **observations** for standard operator results
-- Creates **conversation summaries** for "Summary Extractor" operator results
+- Creates **observations** for operators matching `observation_operator_sid`
+- Creates **conversation summaries** for operators matching `summary_operator_sid`
 - Handles multiple output formats (JSON, CLASSIFICATION, EXTRACTION, TEXT, GENERATION)
 
 ## Configuration
@@ -239,6 +232,9 @@ tac = TAC(config=TACConfig.from_env())
 - `TWILIO_TAC_MEMORY_API_KEY` - Twilio API Key SID (starts with `SK`)
 - `TWILIO_TAC_MEMORY_API_TOKEN` - Twilio API Key Secret
 - `TWILIO_TAC_TRAIT_GROUPS` - Comma-separated trait groups (e.g., `"Contact,Preferences"`)
+- `TWILIO_TAC_CI_CONFIGURATION_ID` - CI Configuration ID - **Required for CI webhook processing**
+- `TWILIO_TAC_CI_OBSERVATION_OPERATOR_SID` - Operator SID for observations (e.g., `LY...`) - Optional
+- `TWILIO_TAC_CI_SUMMARY_OPERATOR_SID` - Operator SID for summaries (e.g., `LY...`) - Optional
 
 ### Manual Configuration
 

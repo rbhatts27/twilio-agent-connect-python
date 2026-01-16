@@ -7,78 +7,16 @@ https://github.com/twilio-internal/memora-domain/blob/main/services/common/cinte
 import json
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
 from tac.context.memory import MemoryClient
+from tac.core.config import ConversationIntelligenceConfig
 from tac.core.logging import get_logger
-from tac.models.intelligence import OperatorResultEvent
-
-# Test event patterns to filter out
-TEST_PATTERNS = [
-    "testserviceconfig",
-    "test_service",
-    "test-service",
-    "testservice",
-]
-
-
-class ProcessingResult(BaseModel):
-    """Result of processing a CI webhook event."""
-
-    success: bool = Field(
-        ...,
-        description="Whether processing completed successfully",
-    )
-    event_type: Optional[str] = Field(
-        default=None,
-        description="Type of event processed: 'observation', 'summary', or None if filtered/failed",
-    )
-    skipped: bool = Field(
-        default=False,
-        description="True if event was filtered out (not an error)",
-    )
-    skip_reason: Optional[str] = Field(
-        default=None,
-        description="Reason for skipping (e.g., 'non-memora event')",
-    )
-    error: Optional[str] = Field(
-        default=None,
-        description="Error message if processing failed",
-    )
-    created_count: int = Field(
-        default=0,
-        description="Number of observations/summaries created",
-    )
-
-    model_config = {"populate_by_name": True}
-
-
-def is_summary_event(event: OperatorResultEvent) -> bool:
-    """
-    Check if event represents a Summary (vs Observation) based on operator.friendly_name.
-
-    Args:
-        event: The operator result event to check
-
-    Returns:
-        True if this is a summary event, False for observation
-    """
-    friendly_name = event.operator.friendly_name if event.operator else None
-    return friendly_name == "Summary Extractor"
-
-
-def _is_test_event(friendly_name: str) -> bool:
-    """
-    Check if an event is a test event that should be discarded.
-
-    Args:
-        friendly_name: The intelligence configuration friendly name
-
-    Returns:
-        True if this is a test event
-    """
-    friendly_name_lower = friendly_name.lower()
-    return any(pattern in friendly_name_lower for pattern in TEST_PATTERNS)
+from tac.models.intelligence import (
+    OperatorProcessingResult,
+    OperatorResult,
+    OperatorResultEvent,
+)
 
 
 def _extract_store_id_from_friendly_name(friendly_name: str) -> Optional[str]:
@@ -98,40 +36,40 @@ def _extract_store_id_from_friendly_name(friendly_name: str) -> Optional[str]:
     return friendly_name[7:]  # Strip "MEMORA_" prefix
 
 
-def _extract_profile_ids(event: OperatorResultEvent) -> list[str]:
+def _extract_profile_ids(operator_result: "OperatorResult") -> list[str]:
     """
-    Extract valid profile IDs from event participants.
+    Extract valid profile IDs from operator result participants.
 
     Args:
-        event: The operator result event
+        operator_result: The individual operator result
 
     Returns:
         List of valid profile IDs
     """
     profile_ids: list[str] = []
 
-    if not event.execution_details or not event.execution_details.participants:
+    if not operator_result.execution_details or not operator_result.execution_details.participants:
         return profile_ids
 
-    for participant in event.execution_details.participants:
-        if participant.profile_id:
+    for participant in operator_result.execution_details.participants:
+        if participant.profile_id and participant.type == "CUSTOMER":
             profile_ids.append(participant.profile_id)
 
     return profile_ids
 
 
-def _generate_content(event: OperatorResultEvent) -> Optional[str]:
+def _generate_content(operator_result: "OperatorResult") -> Optional[str]:
     """
-    Generate content string from the event result based on output format.
+    Generate content string from the operator result based on output format.
 
     Args:
-        event: The operator result event
+        operator_result: The individual operator result
 
     Returns:
         The content string or None if unable to extract
     """
-    output_format = event.output_format.upper()
-    result = event.result
+    output_format = operator_result.output_format.upper()
+    result = operator_result.result
 
     # Handle different result formats
     if output_format == "JSON":
@@ -246,13 +184,24 @@ class OperatorResultProcessor:
     This processor handles incoming CI webhook payloads, validates them,
     and creates observations or summaries in Memora based on the event type.
 
+    Events are filtered by:
+    - MEMORA_ prefix in intelligence configuration friendly name
+    - Configuration ID matching the provided config
+    - Operator SID matching observation or summary operator SID in config
+
     Example usage:
         ```python
         from tac.context.memory import MemoryClient
+        from tac.core.config import ConversationIntelligenceConfig
         from tac.intelligence import OperatorResultProcessor
 
         memory_client = MemoryClient(...)
-        processor = OperatorResultProcessor(memory_client)
+        config = ConversationIntelligenceConfig(
+            configuration_id="GA...",
+            observation_operator_sid="LY...",
+            summary_operator_sid="LY...",
+        )
+        processor = OperatorResultProcessor(memory_client, config)
 
         result = await processor.process_event(webhook_payload)
         if result.success:
@@ -264,136 +213,212 @@ class OperatorResultProcessor:
         ```
     """
 
-    def __init__(self, memory_client: MemoryClient) -> None:
+    def __init__(
+        self,
+        memory_client: MemoryClient,
+        config: ConversationIntelligenceConfig,
+    ) -> None:
         """
         Initialize the CI event processor.
 
         Args:
             memory_client: MemoryClient instance for creating observations/summaries
+            config: ConversationIntelligenceConfig for filtering events by configuration
+                ID and operator SIDs
         """
         self.memory_client = memory_client
+        self.config = config
         self.logger = get_logger(__name__)
 
-    async def process_event(self, payload: dict[str, Any]) -> ProcessingResult:
+    async def process_event(self, payload: dict[str, Any]) -> OperatorProcessingResult:
         """
         Process a CI webhook payload.
 
         This method:
         1. Parses the payload into an OperatorResultEvent (Pydantic validates required fields)
-        2. Applies filtering logic (MEMORA_ prefix, test events)
-        3. Extracts profile IDs and store ID
-        4. Generates content from the result
+        2. Applies filtering logic based on intelligence configuration ID and operator SIDs
+        3. Iterates over operator_results array
+        4. For each operator result: extracts profile IDs, generates content
         5. Creates observations or summaries in Memora
 
         Args:
             payload: The raw webhook payload dictionary
 
         Returns:
-            ProcessingResult with status and details
+            OperatorProcessingResult with status and details
         """
+        # Import here to avoid circular imports at module level
+
         # Parse payload into OperatorResultEvent (Pydantic validates required fields)
         try:
             event = OperatorResultEvent(**payload)
         except ValidationError as e:
             self.logger.error(f"Failed to parse event payload: {e}")
-            return ProcessingResult(
+            return OperatorProcessingResult(
                 success=False,
                 error=f"Failed to parse event payload: {e}",
             )
 
-        # Filter by MEMORA_ prefix
-        friendly_name = event.intelligence_configuration.friendly_name or ""
-        if not friendly_name.startswith("MEMORA_"):
+        # Filter by configuration ID
+        if event.intelligence_configuration.id != self.config.configuration_id:
             self.logger.debug(
-                f"Discarding non-memory event - does not have MEMORA_ prefix: {event.id}"
+                f"Discarding event - configuration ID mismatch: "
+                f"got {event.intelligence_configuration.id}, "
+                f"expected {self.config.configuration_id}"
             )
-            return ProcessingResult(
+            return OperatorProcessingResult(
                 success=True,
                 skipped=True,
-                skip_reason="Non-memora event (missing MEMORA_ prefix)",
+                skip_reason=f"Configuration ID mismatch (expected {self.config.configuration_id})",
             )
 
-        # Filter test events
-        if _is_test_event(friendly_name):
-            self.logger.debug(f"Discarding test event: {event.id}")
-            return ProcessingResult(
-                success=True,
-                skipped=True,
-                skip_reason="Test event",
+        # Process each operator result in the array
+        total_created = 0
+        all_errors: list[str] = []
+        event_types: set[str] = set()
+        skipped_count = 0
+        last_skip_reason: Optional[str] = None
+
+        for operator_result in event.operator_results:
+            result = await self._process_operator_result(
+                event=event,
+                operator_result=operator_result,
             )
 
-        # Extract profile IDs
-        profile_ids = _extract_profile_ids(event)
-        if not profile_ids:
-            error_msg = f"No profile IDs found in event {event.id}"
-            self.logger.error(error_msg)
-            return ProcessingResult(
+            if result.success and not result.skipped:
+                total_created += result.created_count
+                if result.event_type:
+                    event_types.add(result.event_type)
+            elif result.success and result.skipped:
+                skipped_count += 1
+                last_skip_reason = result.skip_reason
+            elif not result.success and result.error:
+                all_errors.append(result.error)
+
+        # Aggregate results
+        if total_created == 0 and all_errors:
+            return OperatorProcessingResult(
                 success=False,
-                error=error_msg,
+                error="; ".join(all_errors),
             )
 
-        # Extract store ID
-        store_id = event.memory_store_id or _extract_store_id_from_friendly_name(friendly_name)
+        # If all operators were skipped, return skipped
+        if total_created == 0 and skipped_count == len(event.operator_results):
+            return OperatorProcessingResult(
+                success=True,
+                skipped=True,
+                skip_reason=last_skip_reason or "All operators skipped",
+            )
 
-        if not store_id:
-            error_msg = f"No store ID found in event {event.id}"
+        # Determine combined event type
+        combined_type: Optional[str] = None
+        if len(event_types) == 1:
+            combined_type = event_types.pop()
+        elif len(event_types) > 1:
+            combined_type = "mixed"
+
+        return OperatorProcessingResult(
+            success=True,
+            event_type=combined_type,
+            created_count=total_created,
+        )
+
+    async def _process_operator_result(
+        self,
+        event: OperatorResultEvent,
+        operator_result: "OperatorResult",
+    ) -> OperatorProcessingResult:
+        """
+        Process a single operator result from the event.
+
+        Args:
+            event: The parent webhook event (for conversation_id)
+            operator_result: The individual operator result to process
+
+        Returns:
+            OperatorProcessingResult with status and count
+        """
+        # Extract profile IDs from this operator result
+        profile_ids = _extract_profile_ids(operator_result)
+        if not profile_ids:
+            error_msg = f"No profile IDs found in operator result {operator_result.id}"
             self.logger.error(error_msg)
-            return ProcessingResult(
+            return OperatorProcessingResult(
                 success=False,
                 error=error_msg,
             )
 
         # Generate content from result
-        content = _generate_content(event)
+        content = _generate_content(operator_result)
         if not content:
-            error_msg = f"Failed to generate content from event {event.id}"
+            error_msg = f"Failed to generate content from operator result {operator_result.id}"
             self.logger.error(error_msg)
-            return ProcessingResult(
+            return OperatorProcessingResult(
                 success=False,
                 error=error_msg,
             )
 
-        # Determine event type and process
-        if is_summary_event(event):
-            return await self._process_summary_event(
-                event=event,
-                content=content,
-                profile_ids=profile_ids,
-                store_id=store_id,
-            )
-        else:
+        # Determine event type by operator SID and process
+        operator_id = operator_result.operator.id if operator_result.operator else None
+
+        # Check if operator matches configured SIDs
+        if (
+            self.config.observation_operator_sid
+            and operator_id == self.config.observation_operator_sid
+        ):
+            # Process as observation (SID match)
             return await self._process_observation_event(
                 event=event,
+                operator_result=operator_result,
                 content=content,
                 profile_ids=profile_ids,
-                store_id=store_id,
+            )
+        elif self.config.summary_operator_sid and operator_id == self.config.summary_operator_sid:
+            # Process as summary (SID match)
+            return await self._process_summary_event(
+                event=event,
+                operator_result=operator_result,
+                content=content,
+                profile_ids=profile_ids,
+            )
+        else:
+            # SIDs are configured but don't match - skip
+            self.logger.debug(
+                f"Skipping operator - SID {operator_id} doesn't match "
+                f"observation ({self.config.observation_operator_sid}) or "
+                f"summary ({self.config.summary_operator_sid})"
+            )
+            return OperatorProcessingResult(
+                success=True,
+                skipped=True,
+                skip_reason="Operator SID mismatch",
             )
 
     async def _process_observation_event(
         self,
         event: OperatorResultEvent,
+        operator_result: "OperatorResult",
         content: str,
         profile_ids: list[str],
-        store_id: str,
-    ) -> ProcessingResult:
+    ) -> OperatorProcessingResult:
         """
         Process an observation event by creating observations in Memora.
 
         Args:
-            event: The parsed operator result event
+            event: The parent webhook event (for conversation_id)
+            operator_result: The individual operator result
             content: The generated content string
             profile_ids: List of profile IDs to create observations for
-            store_id: The memory store ID
 
         Returns:
-            ProcessingResult with status and count
+            OperatorProcessingResult with status and count
         """
         # Parse observations from content
         observation_contents = _parse_observations_content(content)
 
         if not observation_contents:
-            self.logger.info(f"No observations to create from event {event.id}")
-            return ProcessingResult(
+            self.logger.info(f"No observations to create from operator result {operator_result.id}")
+            return OperatorProcessingResult(
                 success=True,
                 event_type="observation",
                 skipped=True,
@@ -412,7 +437,7 @@ class OperatorResultProcessor:
                         content=obs_content,
                         source="conversation-intelligence",
                         conversation_ids=[event.conversation_id],
-                        occurred_at=event.date_created,
+                        occurred_at=operator_result.date_created,
                     )
                     created_count += 1
                 except Exception as e:
@@ -421,14 +446,16 @@ class OperatorResultProcessor:
                     errors.append(error_msg)
 
         if created_count == 0 and errors:
-            return ProcessingResult(
+            return OperatorProcessingResult(
                 success=False,
                 event_type="observation",
                 error="; ".join(errors),
             )
 
-        self.logger.info(f"Created {created_count} observation(s) from event {event.id}")
-        return ProcessingResult(
+        self.logger.info(
+            f"Created {created_count} observation(s) from operator result {operator_result.id}"
+        )
+        return OperatorProcessingResult(
             success=True,
             event_type="observation",
             created_count=created_count,
@@ -437,28 +464,28 @@ class OperatorResultProcessor:
     async def _process_summary_event(
         self,
         event: OperatorResultEvent,
+        operator_result: "OperatorResult",
         content: str,
         profile_ids: list[str],
-        store_id: str,
-    ) -> ProcessingResult:
+    ) -> OperatorProcessingResult:
         """
         Process a summary event by creating conversation summaries in Memora.
 
         Args:
-            event: The parsed operator result event
+            event: The parent webhook event (for conversation_id)
+            operator_result: The individual operator result
             content: The generated content string
             profile_ids: List of profile IDs to create summaries for
-            store_id: The memory store ID
 
         Returns:
-            ProcessingResult with status and count
+            OperatorProcessingResult with status and count
         """
         # Parse summaries from content
         summary_contents = _parse_summaries_content(content)
 
         if not summary_contents:
-            self.logger.info(f"No summaries to create from event {event.id}")
-            return ProcessingResult(
+            self.logger.info(f"No summaries to create from operator result {operator_result.id}")
+            return OperatorProcessingResult(
                 success=True,
                 event_type="summary",
                 skipped=True,
@@ -477,7 +504,7 @@ class OperatorResultProcessor:
                     {
                         "content": summary_content,
                         "conversationId": event.conversation_id,
-                        "occurredAt": event.date_created,
+                        "occurredAt": operator_result.date_created,
                         "source": "conversation-intelligence",
                     }
                 )
@@ -494,14 +521,16 @@ class OperatorResultProcessor:
                 errors.append(error_msg)
 
         if created_count == 0 and errors:
-            return ProcessingResult(
+            return OperatorProcessingResult(
                 success=False,
                 event_type="summary",
                 error="; ".join(errors),
             )
 
-        self.logger.info(f"Created {created_count} summary(ies) from event {event.id}")
-        return ProcessingResult(
+        self.logger.info(
+            f"Created {created_count} summary(ies) from operator result {operator_result.id}"
+        )
+        return OperatorProcessingResult(
             success=True,
             event_type="summary",
             created_count=created_count,
