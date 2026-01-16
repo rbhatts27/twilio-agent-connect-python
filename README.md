@@ -330,5 +330,5 @@ make test
 make check
 ```
 
-# TAF E2E Tests
+# TAC E2E Tests
 [![Build status](https://badge.buildkite.com/68ec35be00f84b3ad7895e1f2079ebccbe69dd75eba2889543.svg?branch=main)](https://buildkite.com/twilio/taf-e2e-tests)

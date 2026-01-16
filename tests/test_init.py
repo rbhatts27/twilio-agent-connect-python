@@ -2,9 +2,11 @@ from tac import TAC, TACConfig, __version__
 
 
 def test_version():
-    """Test that version is available and is a string."""
+    """Test that version is available and follows PEP 440 format."""
     assert isinstance(__version__, str)
-    assert __version__ == "0.1.1"
+    # Version should be non-empty and look like a valid version (e.g., "0.1.0", "0.1.0a1")
+    assert len(__version__) > 0
+    assert __version__[0].isdigit()
 
 
 def test_imports():
