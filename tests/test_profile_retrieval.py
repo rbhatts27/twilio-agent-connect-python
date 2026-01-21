@@ -224,7 +224,7 @@ class TestProfileInSMSChannel:
         with patch("tac.channels.sms.Client"):
             config = get_test_config_with_trait_groups(trait_groups=["Contact"])
             tac = TAC(config)
-            channel = SMSChannel(tac)
+            channel = SMSChannel(tac, auto_retrieve_memory=False)
 
             # Track callback data
             received_context = None
@@ -292,7 +292,7 @@ class TestProfileInSMSChannel:
 
             config = get_test_config_with_trait_groups(trait_groups=["Contact"])
             tac = TAC(config)
-            channel = SMSChannel(tac)
+            channel = SMSChannel(tac, auto_retrieve_memory=False)
 
             mock_profile = get_mock_profile_response()
 
@@ -322,7 +322,7 @@ class TestProfileInSMSChannel:
         with patch("tac.channels.sms.Client"):
             config = get_test_config_with_trait_groups()
             tac = TAC(config)
-            channel = SMSChannel(tac)
+            channel = SMSChannel(tac, auto_retrieve_memory=False)
 
             mock_profile = get_mock_profile_response()
 
@@ -373,7 +373,7 @@ class TestProfileInSMSChannel:
         with patch("tac.channels.sms.Client"):
             config = get_test_config_with_trait_groups()
             tac = TAC(config)
-            channel = SMSChannel(tac)
+            channel = SMSChannel(tac, auto_retrieve_memory=False)
 
             mock_profile_v1 = ProfileResponse(
                 id="profile_test_123",

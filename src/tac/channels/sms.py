@@ -24,7 +24,7 @@ class SMSChannel(BaseChannel):
     SMS-specific metadata extraction.
     """
 
-    def __init__(self, tac: TAC, dedup_capacity: int = 10000):
+    def __init__(self, tac: TAC, dedup_capacity: int = 10000, auto_retrieve_memory: bool = True):
         """
         Initialize SMS channel with idempotency-based deduplication.
 
@@ -33,11 +33,14 @@ class SMSChannel(BaseChannel):
             dedup_capacity: Maximum number of idempotency tokens to track.
                           Default 10000 is suitable for most applications.
                           Uses Twilio's i-twilio-idempotency-token header for deduplication.
+            auto_retrieve_memory: If True (default), automatically retrieve memory
+                before invoking the on_message_ready callback. Set to False to
+                disable automatic memory retrieval.
 
         Raises:
             ValueError: If twilio_phone_number is not configured
         """
-        super().__init__(tac)
+        super().__init__(tac, auto_retrieve_memory=auto_retrieve_memory)
         if not tac.config.twilio_phone_number:
             raise ValueError(
                 "twilio_phone_number is required for SMS channel. "
@@ -312,28 +315,8 @@ class SMSChannel(BaseChannel):
                 # Update session with fresh profile data
                 session.profile = profile
 
-        # Retrieve memory only if Twilio Memory is enabled
-        memory_response = None
-        if self.tac.is_twilio_memory_enabled():
-            try:
-                memory_response = await self.tac.retrieve_memory(session, query=message_text)
-                self.logger.debug(
-                    "Memory retrieved",
-                    conversation_id=conv_id,
-                )
-            except Exception as e:
-                self.logger.error(
-                    "Failed to retrieve memory",
-                    conversation_id=conv_id,
-                    error=str(e),
-                    exc_info=True,
-                )
-                # Continue without memory rather than failing the entire message processing
-        else:
-            self.logger.debug(
-                "Twilio Memory not enabled, skipping memory retrieval",
-                conversation_id=conv_id,
-            )
+        # Retrieve memory if auto_retrieve_memory is enabled and Twilio Memory is configured
+        memory_response = await self._retrieve_memory_if_enabled(session, message_text, conv_id)
 
         # Trigger message ready callback (with or without memory)
         try:

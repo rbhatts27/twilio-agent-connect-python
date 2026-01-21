@@ -135,7 +135,7 @@ class TestSMSChannel:
     def test_initialization(self) -> None:
         """Test SMS channel initialization."""
         tac = TAC(get_test_config())
-        channel = SMSChannel(tac)
+        channel = SMSChannel(tac, auto_retrieve_memory=False)
 
         assert channel.tac == tac
 
@@ -152,7 +152,7 @@ class TestSMSChannel:
     async def test_process_conversation_started(self) -> None:
         """Test processing conversation.created and participant.added events."""
         tac = TAC(get_test_config())
-        channel = SMSChannel(tac)
+        channel = SMSChannel(tac, auto_retrieve_memory=False)
 
         # Process conversation.created
         conversation_webhook = create_conversation_created_webhook(
@@ -174,7 +174,7 @@ class TestSMSChannel:
     async def test_process_message_auto_initialize(self) -> None:
         """Test processing message auto-initializes conversation if not started."""
         tac = TAC(get_test_config())
-        channel = SMSChannel(tac)
+        channel = SMSChannel(tac, auto_retrieve_memory=False)
 
         # Callback to capture context
         captured_context = None
@@ -215,7 +215,7 @@ class TestSMSChannel:
     async def test_process_message_with_existing_conversation(self) -> None:
         """Test processing message with pre-existing conversation."""
         tac = TAC(get_test_config())
-        channel = SMSChannel(tac)
+        channel = SMSChannel(tac)  # auto_retrieve_memory=True to test memory retrieval
 
         # Start conversation first
         conversation_webhook = create_conversation_created_webhook(
@@ -249,7 +249,7 @@ class TestSMSChannel:
     async def test_process_empty_message_ignored(self) -> None:
         """Test that empty messages are ignored."""
         tac = TAC(get_test_config())
-        channel = SMSChannel(tac)
+        channel = SMSChannel(tac, auto_retrieve_memory=False)
 
         webhook_data = create_communication_created_webhook(
             "CH123456", "MB123", "", "2025-11-18T00:00:00.000Z"
@@ -266,7 +266,7 @@ class TestSMSChannel:
     async def test_process_conversation_ended(self) -> None:
         """Test processing onConversationRemoved event."""
         tac = TAC(get_test_config())
-        channel = SMSChannel(tac)
+        channel = SMSChannel(tac, auto_retrieve_memory=False)
 
         # Start conversation
         start_webhook = create_conversation_created_webhook("CH123456", "2025-11-18T00:00:00.000Z")
@@ -284,7 +284,7 @@ class TestSMSChannel:
     async def test_send_response_with_active_conversation(self) -> None:
         """Test sending response to active conversation."""
         tac = TAC(get_test_config())
-        channel = SMSChannel(tac)
+        channel = SMSChannel(tac, auto_retrieve_memory=False)
 
         # Mock list_participants to return customer participant with matching profile_id
         from tac.models.conversation import ParticipantResponse
@@ -333,7 +333,7 @@ class TestSMSChannel:
     def test_send_response_to_unknown_conversation(self) -> None:
         """Test sending response to non-existent conversation logs error."""
         tac = TAC(get_test_config())
-        channel = SMSChannel(tac)
+        channel = SMSChannel(tac, auto_retrieve_memory=False)
 
         # Should log error but not raise
         asyncio.run(channel.send_response("CH_UNKNOWN", "Test response"))
@@ -342,7 +342,7 @@ class TestSMSChannel:
     async def test_multiple_concurrent_conversations(self) -> None:
         """Test handling multiple concurrent conversations."""
         tac = TAC(get_test_config())
-        channel = SMSChannel(tac)
+        channel = SMSChannel(tac, auto_retrieve_memory=False)
 
         # Start first conversation
         await channel.process_webhook(
@@ -371,7 +371,7 @@ class TestSMSChannel:
     async def test_ignores_unsupported_event_types(self) -> None:
         """Test that unsupported event types are ignored."""
         tac = TAC(get_test_config())
-        channel = SMSChannel(tac)
+        channel = SMSChannel(tac, auto_retrieve_memory=False)
 
         webhook_data = {
             "eventType": "SOME_UNSUPPORTED_EVENT",

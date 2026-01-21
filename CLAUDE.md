@@ -124,7 +124,7 @@ The codebase follows a modular design matching the architecture diagram in TAC.m
 
 4. **Message Ready Hook**: Developers register callbacks via `tac.on_message_ready(callback)` to handle incoming messages
    - For SMS: Receives `user_message`, `context` (ConversationSession), and `memory_response` (MemoryRetrievalResponse)
-   - For Voice: Receives `user_message`, `context`, and `memory_response` (may be None)
+   - For Voice: Receives `user_message`, `context`, and `memory_response` (automatically retrieved when `auto_retrieve_memory=True` and Memory is configured)
 
 ### API Clients
 
@@ -245,7 +245,7 @@ Optional configuration:
 - `twilio_memory_config` - Optional TwilioMemoryConfig object with:
   - `memory_store_id` field (starts with `mem_service_`) - Required for Twilio Memory functionality
   - `trait_groups` field (list of strings) - Optional, specifies which trait groups to include in profile retrieval
-  - When provided, memory is automatically retrieved for SMS conversations and profile is fetched (once for Voice, per message for SMS)
+  - When provided, memory is automatically retrieved for both SMS and Voice conversations (when `auto_retrieve_memory=True`, the default). Profile is fetched once for Voice at conversation start, per message for SMS.
 - `conversation_intelligence_config` - Optional ConversationIntelligenceConfig object with:
   - `configuration_id` field (required) - CI Configuration ID
   - `observation_operator_sid` field (optional) - Operator SID for observation extraction (e.g., `LY...`)
@@ -407,7 +407,8 @@ config = TACConfig(
 tac = TAC(config)
 
 # 2. Register callback to handle memory-ready events
-# Note: context.profile available (fetched once at conversation start for Voice)
+# Note: memory_response available when auto_retrieve_memory=True (default) and Memory configured
+# Profile is fetched once at conversation start for Voice
 async def handle_memory(user_message, context, memory_response):
     llm_response = await call_your_llm(user_message, memory_response)
     await voice_channel.send_response(context.conversation_id, llm_response)
@@ -458,6 +459,7 @@ tac = TAC(config)
 voice_channel = VoiceChannel(tac)
 
 # 2. Register callback to handle message processing
+# memory_response available when auto_retrieve_memory=True (default) and Memory configured
 async def handle_message(user_message, context, memory_response=None):
     # Access profile traits if available (fetched once at conversation start for Voice)
     if context.profile:

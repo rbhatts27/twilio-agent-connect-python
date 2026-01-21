@@ -49,6 +49,7 @@ class VoiceChannel(BaseChannel):
         tac: TAC,
         session_manager: Optional["SessionManager"] = None,
         server_config: Optional[VoiceServerConfig] = None,
+        auto_retrieve_memory: bool = True,
     ):
         """
         Initialize Voice channel for websocket protocol handling.
@@ -62,8 +63,12 @@ class VoiceChannel(BaseChannel):
                 and new prompts.
             server_config: Optional server configuration. If provided, enables the simplified
                          start() method to automatically create and run a FastAPI server.
+            auto_retrieve_memory: If True (default), automatically retrieve memory
+                before invoking the on_message_ready callback. Set to False to
+                disable automatic memory retrieval (e.g., for latency-sensitive
+                voice applications).
         """
-        super().__init__(tac)
+        super().__init__(tac, auto_retrieve_memory=auto_retrieve_memory)
 
         # Optional session manager for task tracking, cancellation, and streaming
         self.session_manager = session_manager
@@ -704,12 +709,17 @@ class VoiceChannel(BaseChannel):
                 recipient_participant_id=session.ai_agent_info.participant_id,
             )
 
-        # Trigger message ready callback without memory (voice channel doesn't fetch memory)
+        # Retrieve memory if auto_retrieve_memory is enabled and Twilio Memory is configured
+        memory_response = await self._retrieve_memory_if_enabled(session, message_body, conv_id)
+
+        # Trigger message ready callback
         try:
-            await self.tac.trigger_message_ready(message_body, session, None)
+            await self.tac.trigger_message_ready(message_body, session, memory_response)
         except Exception as e:
             self.logger.error(
-                f"Error in message ready callback for conversation {conv_id}: {e}",
+                "Error in message ready callback",
+                conversation_id=conv_id,
+                error=str(e),
                 exc_info=True,
             )
 

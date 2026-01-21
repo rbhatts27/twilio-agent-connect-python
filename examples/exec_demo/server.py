@@ -118,20 +118,6 @@ async def handle_message_ready(
             profile_id=context.profile_id,
         )
 
-        # Voice channel does not retrieve memory, so we need to retrieve it here
-        # SMS channel already retrieves memory before calling this callback
-        if not memory_response and context.channel == "voice" and tac.is_twilio_memory_enabled():
-            if context.profile_id:
-                try:
-                    memory_response = await tac.retrieve_memory(context, query=user_message)
-                except Exception as e:
-                    logger.error(
-                        "Failed to retrieve memory for voice channel",
-                        conversation_id=conv_id,
-                        error=str(e),
-                        exc_info=True,
-                    )
-
         if memory_response:
             # Build memory summary
             memory_items = []

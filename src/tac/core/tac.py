@@ -363,7 +363,7 @@ class TAC:
         Args:
             user_message: The user's message content
             conversation_context: Conversation context with conversation_id, profile_id, channel
-            memory_response: Optional memory retrieval response (None for voice channel)
+            memory_response: Optional memory retrieval response
         """
         if self._message_ready_callback:
             # Check if callback is async

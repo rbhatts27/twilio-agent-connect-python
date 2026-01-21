@@ -85,8 +85,8 @@ async def handle_message_ready(
 
     Processes user message with OpenAI, using retrieved memories for context
     (if available) and maintaining conversation history for coherent multi-turn interactions.
-    For voice channel, memory_response will be None, but profile is fetched once
-    at conversation start and available throughout.
+    Memory is automatically retrieved when auto_retrieve_memory=True (default) and
+    Twilio Memory is configured. Profile is fetched once at conversation start.
     """
     logger.info(f"Processing message for conversation {context.conversation_id}")
 
@@ -97,7 +97,7 @@ async def handle_message_ready(
             f"{len(memory_response.communications or [])} communications"
         )
     else:
-        logger.info("No memory response (voice channel)")
+        logger.info("No memory response available")
 
     # Initialize conversation history with system message
     conv_id = context.conversation_id
