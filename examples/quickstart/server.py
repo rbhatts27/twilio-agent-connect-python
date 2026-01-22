@@ -60,7 +60,9 @@ async def create_memory_store(request: Request) -> dict:
     {
         "account_sid": "AC...",
         "api_key": "SK...",
-        "api_secret": "..."
+        "api_secret": "...",
+        "memory_display_name": "..." (optional),
+        "memory_description": "..." (optional)
     }
     """
     data = await request.json()
@@ -68,6 +70,8 @@ async def create_memory_store(request: Request) -> dict:
     account_sid = data.get("account_sid")
     api_key = data.get("api_key")
     api_secret = data.get("api_secret")
+    memory_display_name = data.get("memory_display_name")
+    memory_description = data.get("memory_description")
 
     if not all([account_sid, api_key, api_secret]):
         return {
@@ -75,9 +79,26 @@ async def create_memory_store(request: Request) -> dict:
             "message": "Missing required fields: account_sid, api_key, api_secret",
         }
 
-    # Generate unique name for the store
-    unique_suffix = str(uuid.uuid4())[:8]
-    unique_name = f"tac-quickstart-{unique_suffix}"
+    # Generate display name if not provided (required by API)
+    if not memory_display_name:
+        unique_suffix = str(uuid.uuid4())[:8]
+        memory_display_name = f"tac-quickstart-{unique_suffix}"
+
+    # Validate memory_description length (must not exceed 128 characters)
+    if memory_description and len(memory_description) > 128:
+        return {
+            "status": "error",
+            "message": "Memory description must not exceed 128 characters",
+        }
+
+    # Build payload
+    payload = {
+        "displayName": memory_display_name,
+    }
+
+    # Add optional description if provided
+    if memory_description:
+        payload["description"] = memory_description
 
     try:
         async with httpx.AsyncClient() as client:
@@ -87,11 +108,7 @@ async def create_memory_store(request: Request) -> dict:
                     "Content-Type": "application/json",
                     "Authorization": get_basic_auth_header(api_key, api_secret),
                 },
-                json={
-                    "uniqueName": unique_name,
-                    "displayName": unique_name,
-                    "accountSid": account_sid,
-                },
+                json=payload,
                 timeout=30.0,
             )
 
@@ -100,16 +117,13 @@ async def create_memory_store(request: Request) -> dict:
                 return {
                     "status": "success",
                     "memory_store_id": result.get("id"),
-                    "memory_store_name": unique_name,
+                    "memory_store_name": result.get("displayName", memory_display_name),
+                    "memory_store_status": result.get("status"),
+                    "intelligence_service_id": result.get("intelligenceServiceId"),
                     "message": f"Memory Store created: {result.get('id')}",
                 }
             else:
                 error_text = response.text
-                payload = {
-                    "uniqueName": unique_name,
-                    "displayName": unique_name,
-                    "accountSid": account_sid,
-                }
                 logger.error("Failed to create Memory Store")
                 logger.error(f"  Endpoint: {MEMORY_API_BASE}/Stores")
                 logger.error(f"  Payload: {json.dumps(payload, indent=2)}")
@@ -129,6 +143,70 @@ async def create_memory_store(request: Request) -> dict:
     except Exception as e:
         logger.exception(f"Error creating Memory Store: {str(e)}")
         return {"status": "error", "message": f"Error creating Memory Store: {str(e)}"}
+
+
+@app.post("/api/get-memory-store")
+async def get_memory_store(request: Request) -> dict:
+    """
+    Get Memory Store details by ID.
+
+    Expected payload:
+    {
+        "memory_store_id": "mem_store_...",
+        "api_key": "SK...",
+        "api_secret": "..."
+    }
+    """
+    data = await request.json()
+
+    memory_store_id = data.get("memory_store_id")
+    api_key = data.get("api_key")
+    api_secret = data.get("api_secret")
+
+    if not all([memory_store_id, api_key, api_secret]):
+        return {
+            "status": "error",
+            "message": "Missing required fields: memory_store_id, api_key, api_secret",
+        }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{MEMORY_API_BASE}/Stores/{memory_store_id}",
+                headers={"Authorization": get_basic_auth_header(api_key, api_secret)},
+                timeout=30.0,
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                return {
+                    "status": "success",
+                    "memory_store": {
+                        "id": result.get("id"),
+                        "displayName": result.get("displayName"),
+                        "description": result.get("description"),
+                        "status": result.get("status"),
+                    },
+                }
+            else:
+                endpoint = f"{MEMORY_API_BASE}/Stores/{memory_store_id}"
+                logger.error("Failed to get Memory Store")
+                logger.error(f"  Endpoint: {endpoint}")
+                logger.error(f"  Status: {response.status_code}")
+                logger.error(f"  Response: {response.text}")
+                return {
+                    "status": "error",
+                    "message": f"Failed to get Memory Store: {response.status_code} - {response.text}",
+                    "endpoint": endpoint,
+                    "response": response.text,
+                    "status_code": response.status_code,
+                }
+
+    except httpx.TimeoutException:
+        return {"status": "error", "message": "Request timed out. Please try again."}
+    except Exception as e:
+        logger.exception(f"Error getting Memory Store: {str(e)}")
+        return {"status": "error", "message": f"Error getting Memory Store: {str(e)}"}
 
 
 @app.post("/api/verify-memory-store")
