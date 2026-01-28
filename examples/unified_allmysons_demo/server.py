@@ -442,15 +442,14 @@ async def get_profile_memory(profile_id: str, query: Optional[str] = None) -> JS
                 }
                 for s in (memory.summaries or [])
             ],
-            "sessions": [
+            "communications": [
                 {
-                    "id": sess.id,
-                    "started_at": sess.started_at,
-                    "ended_at": sess.ended_at,
-                    "channel": sess.channel,
-                    "message_count": len(sess.messages) if sess.messages else 0,
+                    "id": comm.id,
+                    "content": comm.content.text if comm.content else None,
+                    "created_at": comm.created_at,
+                    "channel": comm.author.channel if comm.author else None,
                 }
-                for sess in (memory.sessions or [])
+                for comm in (memory.communications or [])
             ],
         })
 
@@ -490,11 +489,11 @@ async def get_conversation_data(conversation_id: str) -> JSONResponse:
             "communications": [
                 {
                     "id": comm.id,
-                    "content": comm.content,
-                    "author_id": comm.author.id if comm.author else None,
-                    "author_type": comm.author.type if comm.author else None,
+                    "content": comm.content.text if comm.content else None,
+                    "author_id": comm.author.participant_id if comm.author else None,
+                    "author_address": comm.author.address if comm.author else None,
                     "created_at": comm.created_at,
-                    "channel": comm.channel,
+                    "channel": comm.author.channel if comm.author else None,
                 }
                 for comm in communications
             ],
@@ -657,7 +656,7 @@ async def maria_twiml(request: Request) -> Response:
         customer = await tac.maestro_client.add_participant(
             conversation_id=conversation_id,
             participant_type="CUSTOMER",
-            addresses=[ParticipantAddress(channel="voice", address=str(from_number))],
+            addresses=[ParticipantAddress(channel="VOICE", address=str(from_number))],
         )
 
         # Lookup profile by phone number
