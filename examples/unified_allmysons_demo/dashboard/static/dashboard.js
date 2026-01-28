@@ -932,6 +932,80 @@ document.addEventListener('keydown', (e) => {
 });
 
 // =============================================================================
+// Maria Agent Controls
+// =============================================================================
+
+/**
+ * Trigger Maria to call the support line.
+ */
+async function mariaCall() {
+    const btn = document.getElementById('mariaCallBtn');
+    const status = document.getElementById('mariaStatus');
+
+    btn.disabled = true;
+    btn.innerHTML = '📞 Calling...';
+    status.style.display = 'block';
+    status.textContent = 'Initiating call...';
+
+    try {
+        const response = await fetch('/api/maria/call', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            status.innerHTML = `<span class="text-success">✓ Call initiated!</span> SID: ${data.call_sid.slice(0, 15)}...`;
+            btn.innerHTML = '📞 Call Active';
+            setTimeout(() => {
+                btn.innerHTML = '📞 Call';
+                btn.disabled = false;
+            }, 30000);
+        } else {
+            status.innerHTML = `<span class="text-danger">✗ ${data.error}</span>`;
+            btn.innerHTML = '📞 Call';
+            btn.disabled = false;
+        }
+    } catch (error) {
+        status.innerHTML = `<span class="text-danger">✗ ${error.message}</span>`;
+        btn.innerHTML = '📞 Call';
+        btn.disabled = false;
+    }
+}
+window.mariaCall = mariaCall;
+
+/**
+ * Trigger Maria to send an SMS with a photo.
+ */
+async function mariaSms(photoType = 'living room') {
+    const btn = document.getElementById('mariaSmsBtn');
+    const status = document.getElementById('mariaStatus');
+
+    btn.disabled = true;
+    btn.innerHTML = '📱 Sending...';
+    status.style.display = 'block';
+    status.textContent = `Sending ${photoType} photo...`;
+
+    try {
+        const response = await fetch('/api/maria/sms', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photo_type: photoType })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            status.innerHTML = `<span class="text-success">✓ SMS sent!</span> ${photoType} photo • SID: ${data.message_sid.slice(0, 15)}...`;
+        } else {
+            status.innerHTML = `<span class="text-danger">✗ ${data.error}</span>`;
+        }
+    } catch (error) {
+        status.innerHTML = `<span class="text-danger">✗ ${error.message}</span>`;
+    }
+
+    btn.innerHTML = '📱 SMS + Photo';
+    btn.disabled = false;
+}
+window.mariaSms = mariaSms;
+
+// =============================================================================
 // Initialize on page load
 // =============================================================================
 

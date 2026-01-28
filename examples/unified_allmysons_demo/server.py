@@ -505,6 +505,125 @@ async def get_conversation_data(conversation_id: str) -> JSONResponse:
 
 
 # =============================================================================
+# Maria Agent API Endpoints (for Dashboard buttons)
+# =============================================================================
+
+
+@app.post("/api/maria/call")
+async def trigger_maria_call() -> JSONResponse:
+    """Trigger Maria to call the support line."""
+    try:
+        from twilio.rest import Client as TwilioClient
+
+        maria_number = os.environ.get("TWILIO_TAC_MARIA_NUMBER", "")
+        support_number = os.environ.get("TWILIO_TAC_PHONE_NUMBER", "")
+        public_domain = os.environ.get("TWILIO_TAC_VOICE_PUBLIC_DOMAIN", "")
+
+        if not maria_number:
+            return JSONResponse(
+                content={"error": "TWILIO_TAC_MARIA_NUMBER not configured. Add it to .env"},
+                status_code=400
+            )
+
+        twilio_client = TwilioClient(
+            os.environ.get("TWILIO_TAC_ACCOUNT_SID"),
+            os.environ.get("TWILIO_TAC_AUTH_TOKEN"),
+        )
+
+        # Use TwiML URL for ConversationRelay connection
+        if public_domain:
+            call = twilio_client.calls.create(
+                to=support_number,
+                from_=maria_number,
+                url=f"https://{public_domain}/maria-twiml",
+            )
+        else:
+            # Fallback to simple TTS
+            call = twilio_client.calls.create(
+                to=support_number,
+                from_=maria_number,
+                twiml="""
+                <Response>
+                    <Say voice="Polly.Joanna">
+                        Hi, this is Maria Ramirez. I'm calling to get a quote for a move
+                        from Austin to Denver. We have a 3 bedroom house and some special
+                        items including a baby grand piano.
+                    </Say>
+                    <Pause length="60"/>
+                </Response>
+                """,
+            )
+
+        logger.info(f"Maria call initiated: {call.sid}")
+        return JSONResponse(content={
+            "success": True,
+            "call_sid": call.sid,
+            "status": call.status,
+            "from": maria_number,
+            "to": support_number,
+        })
+
+    except Exception as e:
+        logger.error(f"Error initiating Maria call: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@app.post("/api/maria/sms")
+async def trigger_maria_sms(request: Request) -> JSONResponse:
+    """Trigger Maria to send an SMS with a photo."""
+    try:
+        from twilio.rest import Client as TwilioClient
+
+        # Get photo type from request body
+        body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+        photo_type = body.get("photo_type", "living room")
+
+        maria_number = os.environ.get("TWILIO_TAC_MARIA_NUMBER", "")
+        support_number = os.environ.get("TWILIO_TAC_PHONE_NUMBER", "")
+
+        if not maria_number:
+            return JSONResponse(
+                content={"error": "TWILIO_TAC_MARIA_NUMBER not configured"},
+                status_code=400
+            )
+
+        # Sample images
+        sample_images = {
+            "living room": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800",
+            "bedroom": "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=800",
+            "piano": "https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=800",
+            "furniture": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800",
+        }
+
+        image_url = sample_images.get(photo_type, sample_images["living room"])
+        message = f"Here's a photo of our {photo_type}. This should help with the estimate!"
+
+        twilio_client = TwilioClient(
+            os.environ.get("TWILIO_TAC_ACCOUNT_SID"),
+            os.environ.get("TWILIO_TAC_AUTH_TOKEN"),
+        )
+
+        msg = twilio_client.messages.create(
+            to=support_number,
+            from_=maria_number,
+            body=message,
+            media_url=[image_url],
+        )
+
+        logger.info(f"Maria SMS sent: {msg.sid}")
+        return JSONResponse(content={
+            "success": True,
+            "message_sid": msg.sid,
+            "status": msg.status,
+            "photo_type": photo_type,
+        })
+
+    except Exception as e:
+        logger.error(f"Error sending Maria SMS: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+# =============================================================================
 # Maria Agent TwiML Endpoint (for AI-to-AI demo)
 # =============================================================================
 
