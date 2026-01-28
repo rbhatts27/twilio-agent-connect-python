@@ -76,12 +76,17 @@ class MemoryClient:
         url = f"{self.base_url}{endpoint}"
 
         # Create the request payload with default values
+        # Note: communications_limit requires conversation_id, so exclude it when not provided
         request_data = MemoryRetrievalRequest(
             conversation_id=conversation_id,
             conversation_service_id=conversation_service_id,
             query=query,
+            communications_limit=10 if conversation_id else None,
         )
-        request_payload = request_data.model_dump(by_alias=True, exclude_none=True)
+        # Exclude communications_limit from payload when it's None
+        request_payload = request_data.model_dump(
+            by_alias=True, exclude_none=True, exclude={"communications_limit"} if not conversation_id else set()
+        )
 
         try:
             # POST request with JSON body as per API spec
