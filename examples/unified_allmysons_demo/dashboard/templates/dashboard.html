@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All My Sons - Unified Anchor Demo</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #1a1a2e;
+            color: #eee;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
+            border-bottom: 2px solid #e94560;
+        }
+
+        .navbar-brand {
+            color: #fff !important;
+            font-weight: 700;
+        }
+
+        .company-name {
+            color: #e94560;
+            font-size: 0.9rem;
+        }
+
+        .dashboard-container {
+            height: calc(100vh - 80px);
+            overflow: hidden;
+        }
+
+        .card {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 12px;
+        }
+
+        .card-header {
+            background: transparent;
+            border-bottom: 1px solid #0f3460;
+            color: #fff;
+        }
+
+        .conversations-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            overflow-y: auto;
+            height: 100%;
+        }
+
+        /* Channel-specific styling */
+        .conversation-card.border-start-sms {
+            border-left: 4px solid #0d6efd !important;
+        }
+
+        .conversation-card.border-start-voice {
+            border-left: 4px solid #198754 !important;
+        }
+
+        .conversation-card.concurrent {
+            border: 2px solid #e94560;
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.3);
+        }
+
+        .concurrent-badge {
+            background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .event-list, .activity-log {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .event-item {
+            border-left: 3px solid #0f3460;
+            background: #1a1a2e;
+            margin-bottom: 0.5rem;
+            border-radius: 4px;
+        }
+
+        .event-item.error {
+            border-left-color: #dc3545;
+            background: rgba(220, 53, 69, 0.1);
+        }
+
+        .event-item.concurrent_channel {
+            border-left-color: #e94560;
+            background: rgba(233, 69, 96, 0.1);
+        }
+
+        .log-entry {
+            background: #1a1a2e;
+            border-radius: 4px;
+        }
+
+        .log-entry.border-start-sms {
+            border-left: 3px solid #0d6efd !important;
+        }
+
+        .log-entry.border-start-voice {
+            border-left: 3px solid #198754 !important;
+        }
+
+        .log-entry.border-start-concurrent {
+            border-left: 3px solid #e94560 !important;
+            background: rgba(233, 69, 96, 0.05);
+        }
+
+        .badge {
+            font-weight: 500;
+        }
+
+        .text-muted {
+            color: #8892b0 !important;
+        }
+
+        .channel-indicator {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .channel-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .channel-dot.voice { background: #198754; }
+        .channel-dot.sms { background: #0d6efd; }
+        .channel-dot.active { animation: blink 1s infinite; }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .scenario-info {
+            background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .scenario-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .scenario-step:last-child {
+            border-bottom: none;
+        }
+
+        .step-number {
+            background: #e94560;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .timeline-container {
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .timeline-line {
+            position: absolute;
+            left: 12px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #0f3460;
+        }
+
+        .timeline-event {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: -22px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid #16213e;
+        }
+
+        .timeline-dot.voice { background: #198754; }
+        .timeline-dot.sms { background: #0d6efd; }
+        .timeline-dot.system { background: #6c757d; }
+        .timeline-dot.concurrent { background: #e94560; }
+
+        /* Anchor selector */
+        .anchor-selector {
+            background: #0f3460;
+            border: 1px solid #e94560;
+            color: #fff;
+            border-radius: 6px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            min-width: 280px;
+        }
+
+        .anchor-selector:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.5);
+        }
+
+        .anchor-selector option {
+            background: #16213e;
+            color: #eee;
+        }
+
+        /* SMS content display in activity log */
+        .sms-content-block {
+            background: rgba(13, 110, 253, 0.1);
+            border: 1px solid rgba(13, 110, 253, 0.2);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .sms-body-text {
+            color: #ccc;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+            word-break: break-word;
+        }
+
+        .media-gallery {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+
+        .media-thumbnail {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: #8892b0;
+            max-width: 200px;
+        }
+
+        .media-thumbnail img {
+            width: 48px;
+            height: 48px;
+            object-fit: cover;
+            border-radius: 4px;
+            background: #0f3460;
+        }
+
+        .media-thumbnail .media-icon {
+            font-size: 1.2rem;
+        }
+
+        .media-thumbnail .media-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sms-from-number {
+            color: #8892b0;
+            font-size: 0.7rem;
+            font-family: monospace;
+        }
+
+        /* Anchor status badge */
+        .anchor-badge {
+            background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+            font-size: 0.65rem;
+            padding: 0.2rem 0.5rem;
+        }
+
+        .stub-badge {
+            background: #6c757d;
+            font-size: 0.6rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <nav class="navbar navbar-dark shadow-sm">
+        <div class="container-fluid px-4">
+            <div>
+                <span class="navbar-brand mb-0 h1">All My Sons - Unified Anchor Demo</span>
+                <div class="company-name">All My Sons Moving & Storage</div>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <!-- Anchor Selector Dropdown -->
+                <select class="anchor-selector" id="anchorSelector" onchange="switchAnchor(this.value)">
+                    <option value="anchor1">1: Concurrent Cross-Channel</option>
+                    <option value="anchor2">2: Context Preservation</option>
+                    <option value="anchor3">3: Seamless Channel Switching</option>
+                    <option value="anchor4">4: AI-to-Human Transfer</option>
+                    <option value="anchor5">5: Proactive Outreach</option>
+                    <option value="anchor6">6: Multi-Party Conversation</option>
+                </select>
+
+                <div class="channel-indicator">
+                    <span class="channel-dot voice" id="voiceDot"></span>
+                    <small class="text-muted">Voice</small>
+                    <span class="channel-dot sms" id="smsDot"></span>
+                    <small class="text-muted">SMS</small>
+                </div>
+                <span class="badge rounded-pill" id="connectionStatus">Connecting...</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container-fluid p-4 dashboard-container">
+        <div class="row g-4 h-100">
+            <!-- Left Panel: Scenario & Conversations -->
+            <div class="col-md-6 d-flex flex-column h-100">
+                <!-- Scenario Info (dynamically populated) -->
+                <div class="scenario-info mb-3" id="scenarioInfo">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0" id="scenarioTitle">Loading...</h6>
+                        <span class="badge anchor-badge" id="anchorBadge"></span>
+                    </div>
+                    <div id="scenarioSteps"></div>
+                </div>
+
+                <!-- Conversations -->
+                <div class="card shadow-sm flex-grow-1 d-flex flex-column">
+                    <div class="card-header">
+                        <h5 class="mb-0">Active Conversations (<span id="conversationCount">0</span>)</h5>
+                    </div>
+                    <div class="card-body flex-grow-1 overflow-hidden">
+                        <div class="conversations-grid" id="conversationsGrid">
+                            <div class="text-center py-5 text-muted">
+                                <div style="font-size: 3rem; opacity: 0.3;">📦🚚</div>
+                                <p class="mb-1">No active conversations yet</p>
+                                <small>Call or text your Twilio number to start</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Activity Timeline -->
+            <div class="col-md-6 d-flex flex-column h-100">
+                <div class="card shadow-sm h-100 d-flex flex-column">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Activity Timeline</h5>
+                        <small class="text-muted" id="eventCount">0 events</small>
+                    </div>
+                    <div class="card-body flex-grow-1 overflow-auto" id="activityLog">
+                        <div class="text-center py-5 text-muted">
+                            <div style="font-size: 3rem; opacity: 0.3;">📋</div>
+                            <p>Waiting for events...</p>
+                            <small>Events will appear here in real-time</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard JavaScript -->
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>
