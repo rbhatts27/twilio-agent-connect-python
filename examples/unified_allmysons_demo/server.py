@@ -202,7 +202,7 @@ async def webhook_handler(request: Request) -> JSONResponse:
             message_body = webhook_data.get("Body", "")
             conversation_id = webhook_data.get("ConversationSid", "")
 
-            # Extract media attachments if present
+            # Extract media attachments if present (standard Twilio SMS format)
             num_media = int(webhook_data.get("NumMedia", 0))
             media_urls = []
             for i in range(num_media):
@@ -212,8 +212,22 @@ async def webhook_handler(request: Request) -> JSONResponse:
                     media_urls.append({
                         "url": media_url,
                         "content_type": media_type,
-                        "filename": f"attachment_{i + 1}",
+                        "filename": f"image_{i + 1}.jpg",
                     })
+
+            # Also check for Maestro/Conversations API media format
+            if not media_urls and "media" in webhook_data:
+                media_list = webhook_data.get("media", [])
+                if isinstance(media_list, list):
+                    for i, media in enumerate(media_list):
+                        if isinstance(media, dict):
+                            media_urls.append({
+                                "url": media.get("url", media.get("contentUrl", "")),
+                                "content_type": media.get("contentType", "image/jpeg"),
+                                "filename": media.get("filename", f"image_{i + 1}.jpg"),
+                            })
+
+            logger.debug(f"SMS webhook: body={message_body[:50] if message_body else 'empty'}, media_count={len(media_urls)}")
 
             # Push enhanced SMS event to dashboard
             if message_body or media_urls:
@@ -634,85 +648,54 @@ async def trigger_maria_sms(request: Request) -> JSONResponse:
 async def maria_twiml(request: Request) -> Response:
     """
     TwiML endpoint for Maria's outbound calls.
-    Creates a conversation and connects to voice handling.
+    Maria is a scripted customer who speaks pre-defined lines.
+    The support agent (on the receiving end) responds via ConversationRelay.
     """
-    public_domain = os.environ.get("TWILIO_TAC_VOICE_PUBLIC_DOMAIN", "")
-    websocket_url = f"wss://{public_domain}/ws"
-
     # Get CallSid from Twilio's request
     form_data = await request.form()
     call_sid = form_data.get("CallSid", "unknown")
-    from_number = form_data.get("From", "")
-    to_number = form_data.get("To", "")
 
-    logger.info(f"MARIA TWIML | Creating conversation for Maria's call [call_sid={call_sid}]")
+    logger.info(f"MARIA TWIML | Generating scripted customer dialogue [call_sid={call_sid}]")
 
-    try:
-        # Create a conversation for Maria's call
-        conversation = await tac.maestro_client.create_conversation(
-            name=f"Maria Demo Call {str(call_sid)[:10]}"
-        )
-        conversation_id = conversation.id
-
-        # Add customer participant (Maria)
-        customer = await tac.maestro_client.add_participant(
-            conversation_id=conversation_id,
-            participant_type="CUSTOMER",
-            addresses=[ParticipantAddress(channel="VOICE", address=str(from_number))],
-        )
-
-        # Lookup profile by phone number
-        profile_id = ""
-        if tac.memora_client:
-            try:
-                lookup_result = await tac.memora_client.lookup_profile(
-                    id_type="phone", value=str(from_number)
-                )
-                if lookup_result.profiles:
-                    profile_id = lookup_result.profiles[0]
-                    logger.info(f"MARIA TWIML | Found profile {profile_id} for {from_number}")
-            except Exception as e:
-                logger.warning(f"MARIA TWIML | Profile lookup failed: {e}")
-
-        # Add AI agent participant
-        ai_agent = await tac.maestro_client.add_participant(
-            conversation_id=conversation_id,
-            participant_type="AI_AGENT",
-        )
-
-        # Track this as an active voice call for cross-channel
-        anchor = get_active_anchor()
-        anchor.active_voice_calls[conversation_id] = True
-        anchor.link_phone_to_conversation(str(from_number), conversation_id)
-
-        logger.info(f"MARIA TWIML | Conversation created [conversation_id={conversation_id}, profile_id={profile_id}]")
-
-        # Generate TwiML with conversation parameters
-        twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
+    # Scripted conversation from Maria's perspective
+    # Maria speaks, pauses to let agent respond, then continues
+    twiml = '''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Connect>
-        <ConversationRelay url="{websocket_url}" voice="Google.en-US-Standard-C" welcomeGreeting="Hello! Thank you for calling All My Sons Moving and Storage. I'm your AI assistant. How can I help you today?">
-            <Parameter name="conversationId" value="{conversation_id}" />
-            <Parameter name="profileId" value="{profile_id}" />
-            <Parameter name="customerParticipantId" value="{customer.id}" />
-            <Parameter name="aiAgentParticipantId" value="{ai_agent.id}" />
-            <Parameter name="isMariaAgent" value="true" />
-        </ConversationRelay>
-    </Connect>
-</Response>'''
-
-        return Response(content=twiml, media_type="application/xml")
-
-    except Exception as e:
-        logger.error(f"MARIA TWIML | Error creating conversation: {e}", exc_info=True)
-        # Fallback to simple TTS if conversation creation fails
-        twiml = '''<?xml version="1.0" encoding="UTF-8"?>
-<Response>
+    <Pause length="3"/>
     <Say voice="Polly.Joanna">
-        Sorry, there was an error setting up the call. Please try again.
+        Hi! I'm Maria Ramirez. I'm planning a move from Austin, Texas to Denver, Colorado
+        and I need a quote for moving services.
     </Say>
+    <Pause length="6"/>
+    <Say voice="Polly.Joanna">
+        We have a three bedroom house, about two thousand square feet.
+        We have some furniture, a piano, and a few antiques that need special care.
+    </Say>
+    <Pause length="6"/>
+    <Say voice="Polly.Joanna">
+        The piano is an upright Yamaha, about 500 pounds. We also have a grandfather clock
+        and some antique china that belonged to my grandmother.
+    </Say>
+    <Pause length="5"/>
+    <Say voice="Polly.Joanna">
+        I'm also going to text you a photo of our living room so you can see the furniture.
+    </Say>
+    <Pause length="8"/>
+    <Say voice="Polly.Joanna">
+        We're hoping to move sometime next month. Can you give me a rough estimate?
+    </Say>
+    <Pause length="8"/>
+    <Say voice="Polly.Joanna">
+        That sounds reasonable. Thank you so much for your help! I'll think about it and call back to confirm.
+    </Say>
+    <Pause length="2"/>
+    <Say voice="Polly.Joanna">
+        Thanks! Goodbye!
+    </Say>
+    <Hangup/>
 </Response>'''
-        return Response(content=twiml, media_type="application/xml")
+
+    return Response(content=twiml, media_type="application/xml")
 
 
 # =============================================================================
@@ -759,14 +742,14 @@ async def run_demo() -> JSONResponse:
         logger.info(f"DEMO | Call initiated: {call.sid}")
         push_demo_status("progress", f"📞 Call connected (ID: {call.sid[:8]}...)", 30)
 
-        # Step 2: Schedule SMS with photo after 8 seconds
+        # Step 2: Schedule SMS with photo when Maria mentions it (~20 seconds in)
         async def send_delayed_sms():
-            await asyncio.sleep(8)
+            await asyncio.sleep(20)  # Maria says "I'm going to text you a photo" at ~20s
             push_demo_status("progress", "📱 Maria is sending a photo...", 60)
 
-            # Sample house photo
+            # Sample house photo (living room with furniture)
             image_url = "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800"
-            message = "Here's a photo of our living room for the estimate!"
+            message = "Here's a photo of our living room with the furniture we need to move!"
 
             try:
                 msg = twilio_client.messages.create(
@@ -776,10 +759,10 @@ async def run_demo() -> JSONResponse:
                     media_url=[image_url],
                 )
                 logger.info(f"DEMO | SMS sent: {msg.sid}")
-                push_demo_status("progress", "📱 Photo sent! Check the activity log.", 80)
+                push_demo_status("progress", "📱 Photo sent! Waiting for call to complete...", 80)
 
-                # Wait a bit then mark complete
-                await asyncio.sleep(5)
+                # Wait for call to finish (Maria's script is ~45 seconds total)
+                await asyncio.sleep(25)
                 push_demo_status("completed", "✅ Demo complete! Review the conversation.", 100)
 
             except Exception as e:
