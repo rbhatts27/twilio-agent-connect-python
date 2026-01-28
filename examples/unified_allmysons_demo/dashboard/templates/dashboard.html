@@ -306,6 +306,156 @@
             background: #6c757d;
             font-size: 0.6rem;
         }
+
+        /* Profile & Conversation Panels */
+        .data-panel {
+            background: #0f3460;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .data-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #16213e;
+        }
+
+        .data-panel h6 {
+            margin: 0;
+            color: #e94560;
+            font-size: 0.85rem;
+        }
+
+        .trait-item, .observation-item, .comm-item {
+            background: #1a1a2e;
+            border-radius: 4px;
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        .trait-name {
+            color: #8892b0;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+        }
+
+        .trait-value {
+            color: #fff;
+        }
+
+        .observation-content {
+            color: #ccc;
+            font-style: italic;
+        }
+
+        .observation-meta {
+            color: #8892b0;
+            font-size: 0.65rem;
+            margin-top: 0.25rem;
+        }
+
+        .comm-author {
+            font-size: 0.7rem;
+            color: #e94560;
+        }
+
+        .comm-content {
+            color: #eee;
+            margin-top: 0.25rem;
+        }
+
+        .comm-channel {
+            font-size: 0.65rem;
+            color: #8892b0;
+        }
+
+        .refresh-btn {
+            background: transparent;
+            border: 1px solid #e94560;
+            color: #e94560;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.7rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(233, 69, 96, 0.2);
+        }
+
+        .empty-state {
+            color: #8892b0;
+            font-size: 0.75rem;
+            text-align: center;
+            padding: 1rem;
+        }
+
+        /* Image modal for SMS attachments */
+        .image-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .image-modal.active {
+            display: flex;
+        }
+
+        .image-modal img {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 8px;
+        }
+
+        .image-modal .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: #fff;
+            font-size: 2rem;
+            cursor: pointer;
+        }
+
+        .media-thumbnail img {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .media-thumbnail img:hover {
+            transform: scale(1.1);
+        }
+
+        /* Three column layout for dashboard */
+        .dashboard-row {
+            display: flex;
+            gap: 1rem;
+            height: 100%;
+        }
+
+        .dashboard-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .dashboard-col.narrow {
+            flex: 0.8;
+        }
     </style>
 </head>
 <body>
@@ -340,9 +490,9 @@
 
     <!-- Main Container -->
     <div class="container-fluid p-4 dashboard-container">
-        <div class="row g-4 h-100">
-            <!-- Left Panel: Scenario & Conversations -->
-            <div class="col-md-6 d-flex flex-column h-100">
+        <div class="dashboard-row">
+            <!-- Left Column: Scenario & Conversations -->
+            <div class="dashboard-col">
                 <!-- Scenario Info (dynamically populated) -->
                 <div class="scenario-info mb-3" id="scenarioInfo">
                     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -369,8 +519,44 @@
                 </div>
             </div>
 
-            <!-- Right Panel: Activity Timeline -->
-            <div class="col-md-6 d-flex flex-column h-100">
+            <!-- Middle Column: Profile & Conversation Data -->
+            <div class="dashboard-col narrow">
+                <!-- Profile Data Panel -->
+                <div class="data-panel" id="profilePanel">
+                    <div class="data-panel-header">
+                        <h6>👤 Profile Data</h6>
+                        <button class="refresh-btn" onclick="refreshProfileData()">Refresh</button>
+                    </div>
+                    <div id="profileContent">
+                        <div class="empty-state">Select a conversation with a profile to view data</div>
+                    </div>
+                </div>
+
+                <!-- Observations Panel -->
+                <div class="data-panel" id="observationsPanel">
+                    <div class="data-panel-header">
+                        <h6>🧠 Observations & Memory</h6>
+                        <button class="refresh-btn" onclick="refreshMemoryData()">Refresh</button>
+                    </div>
+                    <div id="observationsContent">
+                        <div class="empty-state">No observations loaded</div>
+                    </div>
+                </div>
+
+                <!-- Conversation Data Panel -->
+                <div class="data-panel flex-grow-1" id="conversationPanel">
+                    <div class="data-panel-header">
+                        <h6>💬 Conversation (Maestro)</h6>
+                        <button class="refresh-btn" onclick="refreshConversationData()">Refresh</button>
+                    </div>
+                    <div id="conversationContent">
+                        <div class="empty-state">Select a conversation to view communications</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Activity Timeline -->
+            <div class="dashboard-col">
                 <div class="card shadow-sm h-100 d-flex flex-column">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">Activity Timeline</h5>
@@ -386,6 +572,12 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Image Modal for viewing SMS attachments -->
+    <div class="image-modal" id="imageModal" onclick="closeImageModal()">
+        <span class="close-btn">&times;</span>
+        <img id="modalImage" src="" alt="SMS Attachment">
     </div>
 
     <!-- Dashboard JavaScript -->

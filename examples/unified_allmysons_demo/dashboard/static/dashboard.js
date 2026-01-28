@@ -20,6 +20,10 @@ let currentAnchor = null;
 // Track active channels per conversation
 let activeChannels = new Map();
 
+// Currently selected conversation/profile for data panels
+let selectedConversationId = null;
+let selectedProfileId = null;
+
 // DOM elements
 const conversationsGrid = document.getElementById('conversationsGrid');
 const activityLog = document.getElementById('activityLog');
@@ -238,6 +242,21 @@ function updateConversationCard(event) {
 
     // Update card content
     updateCardContent(convId);
+
+    // Auto-select first conversation with profile, or auto-refresh if this is the selected conversation
+    if (convId === selectedConversationId) {
+        // Refresh data panels for the selected conversation
+        if (conversation.profile_id) {
+            loadProfileData(conversation.profile_id);
+            loadMemoryData(conversation.profile_id);
+        }
+        loadConversationData(convId);
+    } else if (!selectedConversationId && conversation.profile_id) {
+        // Auto-select first conversation that has a profile
+        selectConversation(convId, conversation.profile_id);
+        const card = document.getElementById(`card-${convId}`);
+        if (card) card.style.outline = '2px solid #e94560';
+    }
 }
 
 function createConversationCard(convId) {
@@ -250,6 +269,17 @@ function createConversationCard(convId) {
     const card = document.createElement('div');
     card.className = 'card conversation-card';
     card.id = `card-${convId}`;
+    card.style.cursor = 'pointer';
+
+    // Add click handler to select conversation for data panels
+    card.addEventListener('click', () => {
+        const conversation = conversations.get(convId);
+        selectConversation(convId, conversation?.profile_id);
+
+        // Highlight selected card
+        document.querySelectorAll('.conversation-card').forEach(c => c.style.outline = 'none');
+        card.style.outline = '2px solid #e94560';
+    });
 
     conversationsGrid.prepend(card);
     updateConversationCount();
@@ -388,6 +418,7 @@ function buildSmsContentPreview(event) {
                 html += `
                     <div class="media-thumbnail">
                         <img src="${escapeHtml(media.url)}" alt="${escapeHtml(filename)}"
+                             onclick="event.stopPropagation(); openImageModal('${escapeHtml(media.url)}')"
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
                         <span class="media-icon" style="display:none;">📷</span>
                         <span class="media-name">${escapeHtml(filename)}</span>
@@ -495,6 +526,7 @@ function buildActivityLogSmsContent(event) {
                 html += `
                     <div class="media-thumbnail">
                         <img src="${escapeHtml(media.url)}" alt="${escapeHtml(filename)}"
+                             onclick="openImageModal('${escapeHtml(media.url)}')"
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
                         <span class="media-icon" style="display:none;">📷</span>
                         <span class="media-name">${escapeHtml(filename)}</span>
@@ -620,6 +652,284 @@ function getEventBadgeClass(eventType) {
 function updateConversationCount() {
     conversationCount.textContent = conversations.size;
 }
+
+// =============================================================================
+// Profile & Conversation Data Panels
+// =============================================================================
+
+/**
+ * Select a conversation to view its profile and conversation data.
+ */
+function selectConversation(convId, profileId) {
+    selectedConversationId = convId;
+    selectedProfileId = profileId;
+
+    // Load data for the selected conversation
+    if (profileId) {
+        loadProfileData(profileId);
+        loadMemoryData(profileId);
+    } else {
+        document.getElementById('profileContent').innerHTML =
+            '<div class="empty-state">No profile ID associated with this conversation</div>';
+        document.getElementById('observationsContent').innerHTML =
+            '<div class="empty-state">No profile for memory lookup</div>';
+    }
+
+    if (convId) {
+        loadConversationData(convId);
+    }
+}
+
+/**
+ * Load profile data (traits) from Memora API.
+ */
+async function loadProfileData(profileId) {
+    const container = document.getElementById('profileContent');
+    container.innerHTML = '<div class="empty-state">Loading profile...</div>';
+
+    try {
+        const response = await fetch(`/api/profile/${encodeURIComponent(profileId)}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+            container.innerHTML = `<div class="empty-state">Error: ${escapeHtml(data.error)}</div>`;
+            return;
+        }
+
+        let html = `<div class="trait-item"><span class="trait-name">Profile ID</span><br><span class="trait-value font-monospace" style="font-size: 0.7rem;">${escapeHtml(data.id || profileId)}</span></div>`;
+
+        // Display traits
+        if (data.traits && Object.keys(data.traits).length > 0) {
+            for (const [group, traits] of Object.entries(data.traits)) {
+                html += `<div style="color: #e94560; font-size: 0.7rem; margin-top: 0.5rem; text-transform: uppercase;">${escapeHtml(group)}</div>`;
+                if (typeof traits === 'object' && traits !== null) {
+                    for (const [key, value] of Object.entries(traits)) {
+                        const displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+                        html += `<div class="trait-item"><span class="trait-name">${escapeHtml(key)}</span><br><span class="trait-value">${escapeHtml(displayValue)}</span></div>`;
+                    }
+                }
+            }
+        } else {
+            html += '<div class="empty-state">No traits found</div>';
+        }
+
+        container.innerHTML = html;
+
+    } catch (error) {
+        console.error('Error loading profile:', error);
+        container.innerHTML = `<div class="empty-state">Failed to load profile: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+/**
+ * Load memory data (observations, summaries) from Memora API.
+ */
+async function loadMemoryData(profileId) {
+    const container = document.getElementById('observationsContent');
+    container.innerHTML = '<div class="empty-state">Loading memory...</div>';
+
+    try {
+        const response = await fetch(`/api/profile/${encodeURIComponent(profileId)}/memory`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+            container.innerHTML = `<div class="empty-state">Error: ${escapeHtml(data.error)}</div>`;
+            return;
+        }
+
+        let html = '';
+
+        // Display observations
+        if (data.observations && data.observations.length > 0) {
+            html += '<div style="color: #e94560; font-size: 0.7rem; margin-bottom: 0.5rem;">OBSERVATIONS</div>';
+            for (const obs of data.observations.slice(0, 10)) {
+                html += `
+                    <div class="observation-item">
+                        <div class="observation-content">"${escapeHtml(obs.content)}"</div>
+                        <div class="observation-meta">${obs.source || 'unknown'} • ${formatDate(obs.created_at)}</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Display summaries
+        if (data.summaries && data.summaries.length > 0) {
+            html += '<div style="color: #e94560; font-size: 0.7rem; margin-top: 0.75rem; margin-bottom: 0.5rem;">SUMMARIES</div>';
+            for (const summary of data.summaries.slice(0, 5)) {
+                html += `
+                    <div class="observation-item">
+                        <div class="observation-content">"${escapeHtml(summary.content)}"</div>
+                        <div class="observation-meta">${formatDate(summary.created_at)}</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Display session count
+        if (data.sessions && data.sessions.length > 0) {
+            html += `<div style="color: #8892b0; font-size: 0.7rem; margin-top: 0.75rem;">${data.sessions.length} past session(s)</div>`;
+        }
+
+        if (!html) {
+            html = '<div class="empty-state">No memory data found for this profile</div>';
+        }
+
+        container.innerHTML = html;
+
+    } catch (error) {
+        console.error('Error loading memory:', error);
+        container.innerHTML = `<div class="empty-state">Failed to load memory: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+/**
+ * Load conversation data (participants, communications) from Maestro API.
+ */
+async function loadConversationData(convId) {
+    const container = document.getElementById('conversationContent');
+    container.innerHTML = '<div class="empty-state">Loading conversation...</div>';
+
+    try {
+        const response = await fetch(`/api/conversation/${encodeURIComponent(convId)}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+            container.innerHTML = `<div class="empty-state">Error: ${escapeHtml(data.error)}</div>`;
+            return;
+        }
+
+        let html = '';
+
+        // Display participants
+        if (data.participants && data.participants.length > 0) {
+            html += '<div style="color: #e94560; font-size: 0.7rem; margin-bottom: 0.5rem;">PARTICIPANTS</div>';
+            for (const p of data.participants) {
+                const addresses = (p.addresses || []).map(a => `${a.channel}: ${a.address}`).join(', ');
+                html += `
+                    <div class="trait-item">
+                        <span class="trait-name">${escapeHtml(p.type || 'unknown')}</span>
+                        <br><span class="trait-value" style="font-size: 0.75rem;">${escapeHtml(addresses || p.id)}</span>
+                    </div>
+                `;
+            }
+        }
+
+        // Display communications
+        if (data.communications && data.communications.length > 0) {
+            html += '<div style="color: #e94560; font-size: 0.7rem; margin-top: 0.75rem; margin-bottom: 0.5rem;">COMMUNICATIONS</div>';
+            for (const comm of data.communications.slice(-15)) {
+                const authorType = comm.author_type || 'unknown';
+                const channelBadge = comm.channel ? `<span class="badge bg-${comm.channel === 'voice' ? 'success' : 'primary'}" style="font-size: 0.6rem;">${comm.channel}</span>` : '';
+                html += `
+                    <div class="comm-item">
+                        <div class="comm-author">${escapeHtml(authorType)} ${channelBadge}</div>
+                        <div class="comm-content">${escapeHtml(comm.content || '(no content)')}</div>
+                        <div class="comm-channel">${formatDate(comm.created_at)}</div>
+                    </div>
+                `;
+            }
+        } else {
+            html += '<div class="empty-state">No communications yet</div>';
+        }
+
+        container.innerHTML = html;
+
+    } catch (error) {
+        console.error('Error loading conversation:', error);
+        container.innerHTML = `<div class="empty-state">Failed to load conversation: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+/**
+ * Refresh profile data for the selected profile.
+ */
+function refreshProfileData() {
+    if (selectedProfileId) {
+        loadProfileData(selectedProfileId);
+    }
+}
+window.refreshProfileData = refreshProfileData;
+
+/**
+ * Refresh memory data for the selected profile.
+ */
+function refreshMemoryData() {
+    if (selectedProfileId) {
+        loadMemoryData(selectedProfileId);
+    }
+}
+window.refreshMemoryData = refreshMemoryData;
+
+/**
+ * Refresh conversation data for the selected conversation.
+ */
+function refreshConversationData() {
+    if (selectedConversationId) {
+        loadConversationData(selectedConversationId);
+    }
+}
+window.refreshConversationData = refreshConversationData;
+
+/**
+ * Format a date string for display.
+ */
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const date = new Date(dateStr);
+        return date.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (e) {
+        return dateStr;
+    }
+}
+
+// =============================================================================
+// Image Modal for SMS Attachments
+// =============================================================================
+
+/**
+ * Open the image modal to view a full-size SMS attachment.
+ */
+function openImageModal(imageUrl) {
+    const modal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
+    modalImage.src = imageUrl;
+    modal.classList.add('active');
+}
+window.openImageModal = openImageModal;
+
+/**
+ * Close the image modal.
+ */
+function closeImageModal() {
+    const modal = document.getElementById('imageModal');
+    modal.classList.remove('active');
+}
+window.closeImageModal = closeImageModal;
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeImageModal();
+    }
+});
 
 // =============================================================================
 // Initialize on page load

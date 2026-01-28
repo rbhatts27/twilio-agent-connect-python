@@ -378,6 +378,160 @@ async def event_stream(request: Request) -> StreamingResponse:
 
 
 # =============================================================================
+# Profile & Conversation Data APIs (for Dashboard)
+# =============================================================================
+
+
+@app.get("/api/profile/{profile_id}")
+async def get_profile_data(profile_id: str) -> JSONResponse:
+    """Fetch profile data including traits from Memora."""
+    try:
+        if not tac.memora_client:
+            return JSONResponse(
+                content={"error": "Memora not configured"}, status_code=400
+            )
+
+        # Get profile with traits
+        profile = await tac.memora_client.get_profile(
+            profile_id=profile_id,
+            trait_groups=["Contact", "Preferences", "Demographics"],
+        )
+
+        return JSONResponse(content={
+            "id": profile.id,
+            "created_at": profile.created_at,
+            "traits": profile.traits,
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching profile: {e}", exc_info=True)
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@app.get("/api/profile/{profile_id}/memory")
+async def get_profile_memory(profile_id: str, query: Optional[str] = None) -> JSONResponse:
+    """Fetch profile memory including observations and summaries from Memora."""
+    try:
+        if not tac.memora_client:
+            return JSONResponse(
+                content={"error": "Memora not configured"}, status_code=400
+            )
+
+        # Get memory (observations, summaries, sessions)
+        memory = await tac.memora_client.retrieve_memory(
+            profile_id=profile_id,
+            query=query,
+        )
+
+        return JSONResponse(content={
+            "observations": [
+                {
+                    "id": obs.id,
+                    "content": obs.content,
+                    "created_at": obs.created_at,
+                    "source": obs.source,
+                }
+                for obs in (memory.observations or [])
+            ],
+            "summaries": [
+                {
+                    "id": s.id,
+                    "content": s.content,
+                    "created_at": s.created_at,
+                }
+                for s in (memory.summaries or [])
+            ],
+            "sessions": [
+                {
+                    "id": sess.id,
+                    "started_at": sess.started_at,
+                    "ended_at": sess.ended_at,
+                    "channel": sess.channel,
+                    "message_count": len(sess.messages) if sess.messages else 0,
+                }
+                for sess in (memory.sessions or [])
+            ],
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching profile memory: {e}", exc_info=True)
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@app.get("/api/conversation/{conversation_id}")
+async def get_conversation_data(conversation_id: str) -> JSONResponse:
+    """Fetch conversation data and communications from Maestro."""
+    try:
+        # Get communications for this conversation
+        communications = await tac.maestro_client.list_communications(
+            conversation_id=conversation_id,
+            page_size=50,
+        )
+
+        # Get participants
+        participants = await tac.maestro_client.list_participants(
+            conversation_id=conversation_id
+        )
+
+        return JSONResponse(content={
+            "conversation_id": conversation_id,
+            "participants": [
+                {
+                    "id": p.id,
+                    "type": p.type,
+                    "addresses": [
+                        {"channel": a.channel, "address": a.address}
+                        for a in (p.addresses or [])
+                    ],
+                }
+                for p in participants
+            ],
+            "communications": [
+                {
+                    "id": comm.id,
+                    "content": comm.content,
+                    "author_id": comm.author.id if comm.author else None,
+                    "author_type": comm.author.type if comm.author else None,
+                    "created_at": comm.created_at,
+                    "channel": comm.channel,
+                }
+                for comm in communications
+            ],
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching conversation: {e}", exc_info=True)
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+# =============================================================================
+# Maria Agent TwiML Endpoint (for AI-to-AI demo)
+# =============================================================================
+
+
+@app.post("/maria-twiml")
+async def maria_twiml() -> Response:
+    """
+    TwiML endpoint for Maria's outbound calls.
+    This connects Maria to the same voice handling as inbound calls.
+    """
+    public_domain = os.environ.get("TWILIO_TAC_VOICE_PUBLIC_DOMAIN", "")
+    websocket_url = f"wss://{public_domain}/ws"
+
+    # Simple TwiML that connects to our ConversationRelay
+    twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Connect>
+        <ConversationRelay url="{websocket_url}" voice="Google.en-US-Standard-C">
+            <Parameter name="isMariaAgent" value="true" />
+        </ConversationRelay>
+    </Connect>
+</Response>'''
+
+    return Response(content=twiml, media_type="application/xml")
+
+
+# =============================================================================
 # Health Check
 # =============================================================================
 
@@ -416,10 +570,18 @@ if __name__ == "__main__":
     print("  List Anchors:    GET /api/anchors")
     print("  Active Anchor:   GET /api/active-anchor")
     print("  Select Anchor:   POST /api/select-anchor")
+    print("\nData APIs (for Dashboard):")
+    print("  Profile Data:    GET /api/profile/{profile_id}")
+    print("  Profile Memory:  GET /api/profile/{profile_id}/memory")
+    print("  Conversation:    GET /api/conversation/{conversation_id}")
     print("\nAvailable Anchors:")
     for aid, aclass in ANCHOR_REGISTRY.items():
         temp = aclass(tac=tac, sms_channel=sms_channel, voice_channel=voice_channel)
         print(f"  {aid}: {temp.name} - {temp.short_description}")
+    print("\n🤖 Maria Agent (AI Consumer Simulation):")
+    print("  python maria_agent.py --demo   # Run full demo scenario")
+    print("  python maria_agent.py --call   # Initiate voice call")
+    print("  python maria_agent.py --photo  # Send SMS with photo")
     print("=" * 60 + "\n")
 
     uvicorn_log_config = uvicorn.config.LOGGING_CONFIG
