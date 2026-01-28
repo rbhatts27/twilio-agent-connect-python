@@ -137,7 +137,7 @@ class ParticipantResponse(BaseModel):
     id: str = Field(..., description="Participant ID")
     conversation_id: str = Field(..., alias="conversationId", description="Conversation ID")
     account_id: str = Field(..., alias="accountId", description="Account ID")
-    name: str = Field(..., description="Participant display name")
+    name: Optional[str] = Field(None, description="Participant display name")
     type: Optional[Literal["HUMAN_AGENT", "CUSTOMER", "AI_AGENT"]] = Field(
         None, description="Type of Participant in the Conversation"
     )
