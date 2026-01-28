@@ -42,6 +42,8 @@ class BaseAnchor:
         self.conversation_messages: dict[str, list[dict[str, Any]]] = {}
         self.active_voice_calls: dict[str, bool] = {}
         self.phone_to_conversation: dict[str, str] = {}
+        # Memory cache for voice calls - retrieve once at start, reuse throughout call
+        self.voice_memory_cache: dict[str, MemoryRetrievalResponse] = {}
 
     def link_phone_to_conversation(self, phone: str, conversation_id: str) -> None:
         """Link a phone number to a conversation for cross-channel routing."""

@@ -54,7 +54,7 @@ EVENT_PATTERNS = {
     # Standard events
     "USER MESSAGE": "user_message",
     "VOICE MESSAGE": "user_message",
-    "SMS MESSAGE": "user_message",
+    # Note: "SMS MESSAGE" removed - use push_sms_event() for SMS events with media support
     "MEMORY | Retrieved": "memory",
     "AI AGENT | Processing": "ai_processing",
     "AI RESPONSE": "ai_response",

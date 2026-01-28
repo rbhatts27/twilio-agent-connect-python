@@ -62,7 +62,8 @@ tac = TAC(config=TACConfig.from_env())
 setup_dashboard_logging()
 
 # Initialize channels
-voice_channel = VoiceChannel(tac)
+# Note: Disable auto memory retrieval for voice - we'll cache memory at call start
+voice_channel = VoiceChannel(tac, auto_retrieve_memory=False)
 sms_channel = SMSChannel(tac)
 
 # =============================================================================
@@ -735,38 +736,33 @@ async def maria_twiml(request: Request) -> Response:
 
     # Scripted conversation from Maria's perspective
     # Maria speaks, pauses to let agent respond, then continues
+    # Timeline: SMS sent at ~18s, so Maria mentions photo at ~15s
+    # Total script ~45 seconds for natural pacing
     twiml = """<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Pause length="3"/>
+    <Pause length="2"/>
     <Say voice="Polly.Joanna">
-        Hi! I'm Maria Ramirez. I'm planning a move from Austin, Texas to Denver, Colorado
-        and I need a quote for moving services.
+        Hi! I'm Maria Ramirez. I'm calling about a move from Austin to Denver.
+    </Say>
+    <Pause length="4"/>
+    <Say voice="Polly.Joanna">
+        We have a three bedroom house. I'm going to text you a photo of our living room right now.
     </Say>
     <Pause length="6"/>
     <Say voice="Polly.Joanna">
-        We have a three bedroom house, about two thousand square feet.
-        We have some furniture, a piano, and a few antiques that need special care.
-    </Say>
-    <Pause length="6"/>
-    <Say voice="Polly.Joanna">
-        The piano is an upright Yamaha, about 500 pounds. We also have a grandfather clock
-        and some antique china that belonged to my grandmother.
+        We have a piano, about 500 pounds, and some antiques that need special care.
     </Say>
     <Pause length="5"/>
     <Say voice="Polly.Joanna">
-        I'm also going to text you a photo of our living room so you can see the furniture.
+        We're hoping to move next month. Can you give me a rough estimate?
     </Say>
-    <Pause length="8"/>
+    <Pause length="6"/>
     <Say voice="Polly.Joanna">
-        We're hoping to move sometime next month. Can you give me a rough estimate?
-    </Say>
-    <Pause length="8"/>
-    <Say voice="Polly.Joanna">
-        That sounds reasonable. Thank you so much for your help! I'll think about it and call back to confirm.
+        That sounds reasonable. Thank you for your help!
     </Say>
     <Pause length="2"/>
     <Say voice="Polly.Joanna">
-        Thanks! Goodbye!
+        Goodbye!
     </Say>
     <Hangup/>
 </Response>"""
@@ -817,14 +813,16 @@ async def run_demo() -> JSONResponse:
         logger.info(f"DEMO | Call initiated: {call.sid}")
         push_demo_status("progress", f"📞 Call connected (ID: {call.sid[:8]}...)", 30)
 
-        # Step 2: Schedule SMS with photo when Maria mentions it (~20 seconds in)
+        # Step 2: Schedule SMS with photo when Maria mentions it (~16 seconds in)
+        # Timeline: Maria says "I'm going to text you a photo" at ~12s, send at ~16s
         async def send_delayed_sms():
-            await asyncio.sleep(20)  # Maria says "I'm going to text you a photo" at ~20s
+            await asyncio.sleep(16)
             push_demo_status("progress", "📱 Maria is sending a photo...", 60)
 
             # Sample house photo (living room with furniture)
             image_url = "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800"
-            message = "Here's a photo of our living room with the furniture we need to move!"
+            # Note: Include specific items that the mock analyze_furniture_photo tool can recognize
+            message = "Here's a photo of our living room! You can see the sofa, coffee table, bookshelf, and the antique cabinet I mentioned. The piano is in the next room."
 
             try:
                 msg = twilio_client.messages.create(
@@ -853,8 +851,8 @@ async def run_demo() -> JSONResponse:
 
                 push_demo_status("progress", "📱 Photo sent! Waiting for call to complete...", 80)
 
-                # Wait for call to finish (Maria's script is ~45 seconds total)
-                await asyncio.sleep(25)
+                # Wait for call to finish (Maria's script is ~35 seconds total)
+                await asyncio.sleep(20)
                 push_demo_status("completed", "✅ Demo complete! Review the conversation.", 100)
 
             except Exception as e:

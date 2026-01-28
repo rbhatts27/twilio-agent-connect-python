@@ -91,7 +91,26 @@ class Anchor1ConcurrentChannels(BaseAnchor):
                     profile_id=context.profile_id,
                 )
 
-            # Log memory retrieval
+            # Memory retrieval strategy:
+            # - Voice: Retrieve once at call start, cache and reuse for entire call
+            # - SMS: Use the provided memory_response (retrieved per message)
+            is_first_voice_message = False
+            if channel == "voice":
+                if conv_id not in self.voice_memory_cache:
+                    # First voice message - retrieve and cache memory
+                    is_first_voice_message = True
+                    logger.info(
+                        "MEMORY | Retrieving memory for voice call (will be cached)",
+                        conversation_id=conv_id,
+                    )
+                    memory_response = await self.tac.retrieve_memory(context, user_message)
+                    if memory_response:
+                        self.voice_memory_cache[conv_id] = memory_response
+                else:
+                    # Subsequent voice messages - use cached memory (no API call)
+                    memory_response = self.voice_memory_cache[conv_id]
+
+            # Log memory info
             if memory_response:
                 memory_items = []
                 if memory_response.observations:
@@ -99,11 +118,16 @@ class Anchor1ConcurrentChannels(BaseAnchor):
                 if memory_response.summaries:
                     memory_items.append(f"{len(memory_response.summaries)} summaries")
                 memory_summary = ", ".join(memory_items) if memory_items else "context"
-                logger.info(
-                    f"MEMORY | Retrieved {memory_summary}",
-                    conversation_id=conv_id,
-                    channel=channel,
-                )
+
+                if channel == "voice" and not is_first_voice_message:
+                    # Cached memory for voice - don't log as "Retrieved" to avoid confusion
+                    pass
+                else:
+                    logger.info(
+                        f"MEMORY | Retrieved {memory_summary}",
+                        conversation_id=conv_id,
+                        channel=channel,
+                    )
 
             # Check for concurrent channel activity
             is_concurrent = (
