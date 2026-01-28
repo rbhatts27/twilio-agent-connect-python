@@ -36,6 +36,7 @@ from tac import TAC, TACConfig
 from tac.channels import SMSChannel
 from tac.channels.voice import VoiceChannel
 from tac.core.logging import get_logger, setup_logging
+from tac.models.conversation import ParticipantAddress
 from tac.models.memory import MemoryRetrievalResponse
 from tac.models.session import ConversationSession
 
@@ -629,25 +630,88 @@ async def trigger_maria_sms(request: Request) -> JSONResponse:
 
 
 @app.post("/maria-twiml")
-async def maria_twiml() -> Response:
+async def maria_twiml(request: Request) -> Response:
     """
     TwiML endpoint for Maria's outbound calls.
-    This connects Maria to the same voice handling as inbound calls.
+    Creates a conversation and connects to voice handling.
     """
     public_domain = os.environ.get("TWILIO_TAC_VOICE_PUBLIC_DOMAIN", "")
     websocket_url = f"wss://{public_domain}/ws"
 
-    # Simple TwiML that connects to our ConversationRelay
-    twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
+    # Get CallSid from Twilio's request
+    form_data = await request.form()
+    call_sid = form_data.get("CallSid", "unknown")
+    from_number = form_data.get("From", "")
+    to_number = form_data.get("To", "")
+
+    logger.info(f"MARIA TWIML | Creating conversation for Maria's call [call_sid={call_sid}]")
+
+    try:
+        # Create a conversation for Maria's call
+        conversation = await tac.maestro_client.create_conversation(
+            name=f"Maria Demo Call {str(call_sid)[:10]}"
+        )
+        conversation_id = conversation.id
+
+        # Add customer participant (Maria)
+        customer = await tac.maestro_client.add_participant(
+            conversation_id=conversation_id,
+            participant_type="CUSTOMER",
+            addresses=[ParticipantAddress(channel="voice", address=str(from_number))],
+        )
+
+        # Lookup profile by phone number
+        profile_id = ""
+        if tac.memora_client:
+            try:
+                lookup_result = await tac.memora_client.lookup_profile(
+                    id_type="phone", value=str(from_number)
+                )
+                if lookup_result.profiles:
+                    profile_id = lookup_result.profiles[0]
+                    logger.info(f"MARIA TWIML | Found profile {profile_id} for {from_number}")
+            except Exception as e:
+                logger.warning(f"MARIA TWIML | Profile lookup failed: {e}")
+
+        # Add AI agent participant
+        ai_agent = await tac.maestro_client.add_participant(
+            conversation_id=conversation_id,
+            participant_type="AI_AGENT",
+        )
+
+        # Track this as an active voice call for cross-channel
+        anchor = get_active_anchor()
+        anchor.active_voice_calls[conversation_id] = True
+        anchor.link_phone_to_conversation(str(from_number), conversation_id)
+
+        logger.info(f"MARIA TWIML | Conversation created [conversation_id={conversation_id}, profile_id={profile_id}]")
+
+        # Generate TwiML with conversation parameters
+        twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
-        <ConversationRelay url="{websocket_url}" voice="Google.en-US-Standard-C">
+        <ConversationRelay url="{websocket_url}" voice="Google.en-US-Standard-C" welcomeGreeting="Hello! Thank you for calling All My Sons Moving and Storage. I'm your AI assistant. How can I help you today?">
+            <Parameter name="conversationId" value="{conversation_id}" />
+            <Parameter name="profileId" value="{profile_id}" />
+            <Parameter name="customerParticipantId" value="{customer.id}" />
+            <Parameter name="aiAgentParticipantId" value="{ai_agent.id}" />
             <Parameter name="isMariaAgent" value="true" />
         </ConversationRelay>
     </Connect>
 </Response>'''
 
-    return Response(content=twiml, media_type="application/xml")
+        return Response(content=twiml, media_type="application/xml")
+
+    except Exception as e:
+        logger.error(f"MARIA TWIML | Error creating conversation: {e}", exc_info=True)
+        # Fallback to simple TTS if conversation creation fails
+        twiml = '''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Joanna">
+        Sorry, there was an error setting up the call. Please try again.
+    </Say>
+</Response>'''
+        return Response(content=twiml, media_type="application/xml")
 
 
 # =============================================================================
