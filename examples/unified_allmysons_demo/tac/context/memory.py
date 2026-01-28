@@ -85,7 +85,9 @@ class MemoryClient:
         )
         # Exclude communications_limit from payload when it's None
         request_payload = request_data.model_dump(
-            by_alias=True, exclude_none=True, exclude={"communications_limit"} if not conversation_id else set()
+            by_alias=True,
+            exclude_none=True,
+            exclude={"communications_limit"} if not conversation_id else set(),
         )
 
         try:

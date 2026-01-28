@@ -19,7 +19,6 @@ Architecture:
 """
 
 import asyncio
-import json
 import os
 import re
 from pathlib import Path
@@ -171,9 +170,7 @@ async def handle_message_ready(
 
         # Check for concurrent channel activity
         is_concurrent = (
-            channel == "sms" and
-            conv_id in active_voice_calls and
-            active_voice_calls[conv_id]
+            channel == "sms" and conv_id in active_voice_calls and active_voice_calls[conv_id]
         )
 
         if is_concurrent:
@@ -392,8 +389,7 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "dashboard" / "static"
 async def dashboard_page() -> FileResponse:
     """Serve the dashboard HTML page."""
     return FileResponse(
-        BASE_DIR / "dashboard" / "templates" / "dashboard.html",
-        media_type="text/html"
+        BASE_DIR / "dashboard" / "templates" / "dashboard.html", media_type="text/html"
     )
 
 
@@ -401,8 +397,7 @@ async def dashboard_page() -> FileResponse:
 async def root() -> FileResponse:
     """Redirect root to dashboard."""
     return FileResponse(
-        BASE_DIR / "dashboard" / "templates" / "dashboard.html",
-        media_type="text/html"
+        BASE_DIR / "dashboard" / "templates" / "dashboard.html", media_type="text/html"
     )
 
 
@@ -443,13 +438,15 @@ async def event_stream(request: Request) -> StreamingResponse:
 @app.get("/health")
 async def health_check() -> JSONResponse:
     """Health check endpoint."""
-    return JSONResponse({
-        "status": "healthy",
-        "demo": "Anchor 1 - Concurrent Cross-Channel",
-        "company": "All My Sons Moving & Storage",
-        "channels": ["voice", "sms"],
-        "active_voice_calls": len([c for c, active in active_voice_calls.items() if active]),
-    })
+    return JSONResponse(
+        {
+            "status": "healthy",
+            "demo": "Anchor 1 - Concurrent Cross-Channel",
+            "company": "All My Sons Moving & Storage",
+            "channels": ["voice", "sms"],
+            "active_voice_calls": len([c for c, active in active_voice_calls.items() if active]),
+        }
+    )
 
 
 # =============================================================================

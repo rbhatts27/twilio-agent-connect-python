@@ -1,12 +1,12 @@
 """Anchor scenario modules for the unified All My Sons demo."""
 
-from anchors.base import BaseAnchor
 from anchors.anchor1 import Anchor1ConcurrentChannels
 from anchors.anchor2 import Anchor2ContextPreservation
 from anchors.anchor3 import Anchor3ChannelSwitching
 from anchors.anchor4 import Anchor4HumanTransfer
 from anchors.anchor5 import Anchor5ProactiveOutreach
 from anchors.anchor6 import Anchor6MultiParty
+from anchors.base import BaseAnchor
 
 ANCHOR_REGISTRY: dict[str, type] = {
     "anchor1": Anchor1ConcurrentChannels,

@@ -6,7 +6,6 @@ same move. The AI tracks who is speaking, maintains shared context,
 and coordinates between participants.
 """
 
-import logging
 from typing import Optional
 
 from anchors.base import BaseAnchor

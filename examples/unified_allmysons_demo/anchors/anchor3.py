@@ -6,7 +6,6 @@ Demo scenario: Customer starts on voice, switches to SMS mid-conversation
 full context across channel transitions.
 """
 
-import logging
 from typing import Optional
 
 from anchors.base import BaseAnchor

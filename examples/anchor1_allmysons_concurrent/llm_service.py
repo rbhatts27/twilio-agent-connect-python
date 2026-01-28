@@ -106,7 +106,9 @@ class LLMService:
             tools.append(create_send_quote_sms_tool(self.tac, context))
             tools.append(create_acknowledge_photo_sms_tool(self.tac, context))
 
-            logger.info(f"[LLM] Processing {message_channel} message with {len(tools)} tools available")
+            logger.info(
+                f"[LLM] Processing {message_channel} message with {len(tools)} tools available"
+            )
 
             # Create agent with TAC-enhanced instructions
             agent = Agent(
@@ -190,10 +192,12 @@ class LLMService:
 
         # Add profile information if available
         if context.profile_id:
-            instruction_parts.extend([
-                "=== CUSTOMER PROFILE ===",
-                f"Profile ID: {context.profile_id}",
-            ])
+            instruction_parts.extend(
+                [
+                    "=== CUSTOMER PROFILE ===",
+                    f"Profile ID: {context.profile_id}",
+                ]
+            )
 
             if context.profile and context.profile.traits:
                 customer_name = None
@@ -217,85 +221,94 @@ class LLMService:
 
         # Add relevant observations from memory
         if memory_response and memory_response.observations:
-            instruction_parts.extend([
-                "=== CUSTOMER HISTORY (from Memory) ===",
-                "Previous interactions and preferences:"
-            ])
+            instruction_parts.extend(
+                ["=== CUSTOMER HISTORY (from Memory) ===", "Previous interactions and preferences:"]
+            )
             for obs in memory_response.observations:
                 instruction_parts.append(f"- {obs.content}")
             instruction_parts.append("")
 
         # Add conversation summaries
         if memory_response and memory_response.summaries:
-            instruction_parts.extend([
-                "=== PREVIOUS CONVERSATION SUMMARIES ===",
-            ])
+            instruction_parts.extend(
+                [
+                    "=== PREVIOUS CONVERSATION SUMMARIES ===",
+                ]
+            )
             for summary in memory_response.summaries:
                 instruction_parts.append(f"- {summary.content}")
             instruction_parts.append("")
 
         # Quote process instructions
-        instruction_parts.extend([
-            "=== QUOTE PROCESS ===",
-            "To provide an accurate quote, you need:",
-            "1. Origin address (city, state)",
-            "2. Destination address (city, state)",
-            "3. Home size (bedrooms or square footage)",
-            "4. Any special items (pianos, antiques, pool tables, etc.)",
-            "",
-            "PHOTO WORKFLOW:",
-            "- Ask customer to text photos of their furniture, especially large/special items",
-            "- When they send photos, use analyze_furniture_photo to identify items",
-            "- Send SMS acknowledgment immediately: 'Got your photo! Analyzing now...'",
-            "- Continue voice conversation with photo analysis results",
-            "- Use identified items to calculate accurate quote",
-            "",
-            "QUOTE DELIVERY:",
-            "- Calculate quote using calculate_move_quote tool",
-            "- Verbally give the estimate range on voice call",
-            "- Send detailed breakdown via SMS using send_quote_sms tool",
-            "- Ask if they have questions about any line items",
-            "",
-        ])
+        instruction_parts.extend(
+            [
+                "=== QUOTE PROCESS ===",
+                "To provide an accurate quote, you need:",
+                "1. Origin address (city, state)",
+                "2. Destination address (city, state)",
+                "3. Home size (bedrooms or square footage)",
+                "4. Any special items (pianos, antiques, pool tables, etc.)",
+                "",
+                "PHOTO WORKFLOW:",
+                "- Ask customer to text photos of their furniture, especially large/special items",
+                "- When they send photos, use analyze_furniture_photo to identify items",
+                "- Send SMS acknowledgment immediately: 'Got your photo! Analyzing now...'",
+                "- Continue voice conversation with photo analysis results",
+                "- Use identified items to calculate accurate quote",
+                "",
+                "QUOTE DELIVERY:",
+                "- Calculate quote using calculate_move_quote tool",
+                "- Verbally give the estimate range on voice call",
+                "- Send detailed breakdown via SMS using send_quote_sms tool",
+                "- Ask if they have questions about any line items",
+                "",
+            ]
+        )
 
         # Channel-specific formatting
         if message_channel == "voice":
-            instruction_parts.extend([
-                "=== VOICE FORMATTING (Current Message) ===",
-                "This message is from a PHONE CALL using text-to-speech.",
-                "- Use PLAIN TEXT ONLY - no markdown, asterisks, or special formatting",
-                "- Speak naturally as you would on a phone call",
-                "- Say numbers clearly: 'four thousand two hundred dollars' not '$4,200'",
-                "- Keep responses concise but warm and helpful",
-                "- Pause naturally between topics",
-                "",
-            ])
+            instruction_parts.extend(
+                [
+                    "=== VOICE FORMATTING (Current Message) ===",
+                    "This message is from a PHONE CALL using text-to-speech.",
+                    "- Use PLAIN TEXT ONLY - no markdown, asterisks, or special formatting",
+                    "- Speak naturally as you would on a phone call",
+                    "- Say numbers clearly: 'four thousand two hundred dollars' not '$4,200'",
+                    "- Keep responses concise but warm and helpful",
+                    "- Pause naturally between topics",
+                    "",
+                ]
+            )
         elif message_channel == "sms":
-            instruction_parts.extend([
-                "=== SMS FORMATTING (Current Message) ===",
-                "This message is from SMS text messaging.",
-                "- Use markdown formatting for clarity",
-                "- Use **bold** for important numbers and totals",
-                "- Use bullet points for lists",
-                "- Keep messages focused and scannable",
-                "- If this is a photo description, acknowledge and analyze",
-                "",
-            ])
+            instruction_parts.extend(
+                [
+                    "=== SMS FORMATTING (Current Message) ===",
+                    "This message is from SMS text messaging.",
+                    "- Use markdown formatting for clarity",
+                    "- Use **bold** for important numbers and totals",
+                    "- Use bullet points for lists",
+                    "- Keep messages focused and scannable",
+                    "- If this is a photo description, acknowledge and analyze",
+                    "",
+                ]
+            )
 
         # Behavioral guidelines
-        instruction_parts.extend([
-            "=== BEHAVIOR GUIDELINES ===",
-            "1. Be warm, friendly, and reassuring - moving is stressful!",
-            "2. Proactively offer to help with special items and concerns",
-            "3. Explain pricing clearly - no surprises",
-            "4. If customer seems overwhelmed, offer to slow down or call back",
-            "5. Always recommend appropriate insurance for valuable items",
-            "6. Mention storage options if there's a gap between move dates",
-            "",
-            f"Company Contact: {COMPANY_INFO['phone']} | {COMPANY_INFO['email']}",
-            f"Hours: {COMPANY_INFO['hours']}",
-            "",
-        ])
+        instruction_parts.extend(
+            [
+                "=== BEHAVIOR GUIDELINES ===",
+                "1. Be warm, friendly, and reassuring - moving is stressful!",
+                "2. Proactively offer to help with special items and concerns",
+                "3. Explain pricing clearly - no surprises",
+                "4. If customer seems overwhelmed, offer to slow down or call back",
+                "5. Always recommend appropriate insurance for valuable items",
+                "6. Mention storage options if there's a gap between move dates",
+                "",
+                f"Company Contact: {COMPANY_INFO['phone']} | {COMPANY_INFO['email']}",
+                f"Hours: {COMPANY_INFO['hours']}",
+                "",
+            ]
+        )
 
         return "\n".join(instruction_parts)
 

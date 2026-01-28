@@ -392,7 +392,11 @@ STORAGE_OPTIONS = {
         "description": "1-4 weeks - perfect for move-in date gaps",
         "rate_per_sqft_month": 2.50,
         "min_charge_month": 200,
-        "features": ["Climate controlled", "24/7 security", "Free first month with long-distance move"],
+        "features": [
+            "Climate controlled",
+            "24/7 security",
+            "Free first month with long-distance move",
+        ],
     },
     "long_term": {
         "name": "Long-Term Storage",
@@ -406,7 +410,11 @@ STORAGE_OPTIONS = {
         "description": "Your items stay packed in our vault containers",
         "rate_per_vault_month": 250,
         "vault_size_sqft": 175,  # Equivalent to 5x7 storage unit
-        "features": ["Items stay wrapped", "No handling between moves", "Perfect for cross-country"],
+        "features": [
+            "Items stay wrapped",
+            "No handling between moves",
+            "Perfect for cross-country",
+        ],
     },
 }
 

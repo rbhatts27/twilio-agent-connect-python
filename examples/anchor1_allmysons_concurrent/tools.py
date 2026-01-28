@@ -16,7 +16,6 @@ from agents import function_tool as agents_function_tool
 from business_data import (
     COMPANY_INFO,
     FURNITURE_TYPES,
-    HOME_SIZE_ESTIMATES,
     INSURANCE_OPTIONS,
     PACKING_SERVICES,
     PRICING_MATRIX,
@@ -88,15 +87,17 @@ async def analyze_furniture_photo(photo_description: str) -> dict[str, Any]:
     for keyword, item_key in special_keywords.items():
         if keyword in description_lower:
             item_data = SPECIAL_ITEMS[item_key]
-            special_items_found.append({
-                "item": item_key.replace("_", " ").title(),
-                "weight_lbs": item_data["avg_weight_lbs"],
-                "cubic_feet": item_data["cubic_feet"],
-                "handling": item_data["handling"],
-                "special_fee": item_data["base_fee"],
-                "requirements": item_data["requirements"],
-                "insurance_value": item_data["insurance_value_typical"],
-            })
+            special_items_found.append(
+                {
+                    "item": item_key.replace("_", " ").title(),
+                    "weight_lbs": item_data["avg_weight_lbs"],
+                    "cubic_feet": item_data["cubic_feet"],
+                    "handling": item_data["handling"],
+                    "special_fee": item_data["base_fee"],
+                    "requirements": item_data["requirements"],
+                    "insurance_value": item_data["insurance_value_typical"],
+                }
+            )
             total_estimated_weight += item_data["avg_weight_lbs"]
             total_cubic_feet += item_data["cubic_feet"]
             handling_notes.extend(item_data["requirements"])
@@ -130,13 +131,15 @@ async def analyze_furniture_photo(photo_description: str) -> dict[str, Any]:
     for keyword, item_key in furniture_keywords.items():
         if keyword in description_lower:
             item_data = FURNITURE_TYPES[item_key]
-            identified_items.append({
-                "item": item_key.replace("_", " ").title(),
-                "category": item_data["category"],
-                "weight_lbs": item_data["avg_weight_lbs"],
-                "cubic_feet": item_data["cubic_feet"],
-                "handling": item_data["handling"],
-            })
+            identified_items.append(
+                {
+                    "item": item_key.replace("_", " ").title(),
+                    "category": item_data["category"],
+                    "weight_lbs": item_data["avg_weight_lbs"],
+                    "cubic_feet": item_data["cubic_feet"],
+                    "handling": item_data["handling"],
+                }
+            )
             total_estimated_weight += item_data["avg_weight_lbs"]
             total_cubic_feet += item_data["cubic_feet"]
 
@@ -216,10 +219,7 @@ async def calculate_move_quote(
     pricing = PRICING_MATRIX[tier]
 
     # Base cost calculation
-    base_cost = max(
-        home_size_sqft * pricing["base_rate_per_sqft"],
-        pricing["min_charge"]
-    )
+    base_cost = max(home_size_sqft * pricing["base_rate_per_sqft"], pricing["min_charge"])
 
     # Distance cost
     distance_cost = distance * pricing["per_mile"]
@@ -236,11 +236,13 @@ async def calculate_move_quote(
             if item_key_normalized in SPECIAL_ITEMS:
                 item_data = SPECIAL_ITEMS[item_key_normalized]
                 special_items_cost += item_data["base_fee"]
-                special_items_detail.append({
-                    "item": item_key_normalized.replace("_", " ").title(),
-                    "fee": item_data["base_fee"],
-                    "handling": item_data["handling"],
-                })
+                special_items_detail.append(
+                    {
+                        "item": item_key_normalized.replace("_", " ").title(),
+                        "fee": item_data["base_fee"],
+                        "handling": item_data["handling"],
+                    }
+                )
 
     # Packing cost
     packing_cost = 0
@@ -248,8 +250,7 @@ async def calculate_move_quote(
     if packing_service in PACKING_SERVICES:
         packing_data = PACKING_SERVICES[packing_service]
         packing_cost = max(
-            home_size_sqft * packing_data["rate_per_sqft"],
-            packing_data["min_charge"]
+            home_size_sqft * packing_data["rate_per_sqft"], packing_data["min_charge"]
         )
         packing_detail = {
             "service": packing_data["name"],
@@ -311,7 +312,9 @@ async def calculate_move_quote(
 
 
 @agents_function_tool
-async def get_insurance_options(declared_value: int, has_special_items: bool = False) -> dict[str, Any]:
+async def get_insurance_options(
+    declared_value: int, has_special_items: bool = False
+) -> dict[str, Any]:
     """
     Get available insurance options for a move.
 
@@ -322,7 +325,9 @@ async def get_insurance_options(declared_value: int, has_special_items: bool = F
     Returns:
         Available insurance options with pricing
     """
-    logger.info(f"[TOOL:INSURANCE] Getting options for ${declared_value} value, special: {has_special_items}")
+    logger.info(
+        f"[TOOL:INSURANCE] Getting options for ${declared_value} value, special: {has_special_items}"
+    )
 
     options = []
 
@@ -352,9 +357,11 @@ async def get_insurance_options(declared_value: int, has_special_items: bool = F
         "has_special_items": has_special_items,
         "options": options,
         "recommendation": (
-            "high_value" if has_special_items else
-            "full_value" if declared_value >= 10000 else
-            "basic"
+            "high_value"
+            if has_special_items
+            else "full_value"
+            if declared_value >= 10000
+            else "basic"
         ),
     }
 
@@ -381,7 +388,7 @@ async def get_storage_options(estimated_sqft: int, duration_weeks: int) -> dict[
         short_term = STORAGE_OPTIONS["short_term"].copy()
         cost = max(
             estimated_sqft * short_term["rate_per_sqft_month"] * months,
-            short_term["min_charge_month"] * months
+            short_term["min_charge_month"] * months,
         )
         short_term["estimated_cost"] = round(cost, 2)
         short_term["duration_months"] = round(months, 1)
@@ -392,7 +399,7 @@ async def get_storage_options(estimated_sqft: int, duration_weeks: int) -> dict[
     long_term = STORAGE_OPTIONS["long_term"].copy()
     cost = max(
         estimated_sqft * long_term["rate_per_sqft_month"] * months,
-        long_term["min_charge_month"] * months
+        long_term["min_charge_month"] * months,
     )
     long_term["estimated_cost"] = round(cost, 2)
     long_term["duration_months"] = round(months, 1)
@@ -476,8 +483,7 @@ def create_send_quote_sms_tool(tac: TAC, context: ConversationSession) -> Any:
             from twilio.rest import Client
 
             client = Client(
-                tac_instance.config.twilio_account_sid,
-                tac_instance.config.twilio_auth_token
+                tac_instance.config.twilio_account_sid, tac_instance.config.twilio_auth_token
             )
 
             message = client.messages.create(
@@ -487,7 +493,7 @@ def create_send_quote_sms_tool(tac: TAC, context: ConversationSession) -> Any:
             )
 
             logger.info(f"[TOOL:SMS_QUOTE] SMS sent successfully: {message.sid}")
-            return f"Quote sent via SMS to the customer. They should receive it shortly."
+            return "Quote sent via SMS to the customer. They should receive it shortly."
 
         except Exception as e:
             logger.error(f"[TOOL:SMS_QUOTE] Failed to send SMS: {e}", exc_info=True)
@@ -556,8 +562,7 @@ def create_acknowledge_photo_sms_tool(tac: TAC, context: ConversationSession) ->
             from twilio.rest import Client
 
             client = Client(
-                tac_instance.config.twilio_account_sid,
-                tac_instance.config.twilio_auth_token
+                tac_instance.config.twilio_account_sid, tac_instance.config.twilio_auth_token
             )
 
             client.messages.create(
@@ -622,7 +627,9 @@ async def get_packing_options() -> list[dict[str, Any]]:
             "key": key,
             "name": data["name"],
             "description": data["description"],
-            "pricing": f"${data['rate_per_sqft']:.2f}/sqft" if data["rate_per_sqft"] > 0 else "Included",
+            "pricing": f"${data['rate_per_sqft']:.2f}/sqft"
+            if data["rate_per_sqft"] > 0
+            else "Included",
         }
         for key, data in PACKING_SERVICES.items()
     ]

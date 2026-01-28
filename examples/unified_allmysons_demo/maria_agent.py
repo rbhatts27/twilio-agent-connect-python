@@ -14,8 +14,6 @@ Usage:
 
 import argparse
 import asyncio
-import base64
-import json
 import os
 import sys
 from pathlib import Path
@@ -93,18 +91,14 @@ class MariaAgent:
             return "Hello, I'm interested in getting a moving quote."
 
         # Add agent message to history
-        self.conversation_history.append({
-            "role": "user",
-            "content": f"[All My Sons Agent]: {agent_message}"
-        })
+        self.conversation_history.append(
+            {"role": "user", "content": f"[All My Sons Agent]: {agent_message}"}
+        )
 
         try:
             response = self.openai_client.chat.completions.create(
                 model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": MARIA_PERSONA},
-                    *self.conversation_history
-                ],
+                messages=[{"role": "system", "content": MARIA_PERSONA}, *self.conversation_history],
                 max_tokens=200,
                 temperature=0.8,
             )
@@ -112,10 +106,7 @@ class MariaAgent:
             maria_response = response.choices[0].message.content or ""
 
             # Add Maria's response to history
-            self.conversation_history.append({
-                "role": "assistant",
-                "content": maria_response
-            })
+            self.conversation_history.append({"role": "assistant", "content": maria_response})
 
             return maria_response
 
@@ -149,7 +140,7 @@ class MariaAgent:
             twiml_url = f"https://{PUBLIC_DOMAIN}/maria-twiml" if PUBLIC_DOMAIN else None
 
         try:
-            print(f"\n📞 Initiating call...")
+            print("\n📞 Initiating call...")
             print(f"   From: {MARIA_NUMBER} (Maria)")
             print(f"   To:   {SUPPORT_NUMBER} (All My Sons Support)")
 
@@ -207,10 +198,12 @@ class MariaAgent:
             return None
 
         try:
-            print(f"\n📱 Sending SMS...")
+            print("\n📱 Sending SMS...")
             print(f"   From: {MARIA_NUMBER} (Maria)")
             print(f"   To:   {SUPPORT_NUMBER} (All My Sons Support)")
-            print(f"   Message: {message[:50]}..." if len(message) > 50 else f"   Message: {message}")
+            print(
+                f"   Message: {message[:50]}..." if len(message) > 50 else f"   Message: {message}"
+            )
 
             kwargs = {
                 "to": SUPPORT_NUMBER,
@@ -247,10 +240,7 @@ class MariaAgent:
             "boxes": "https://images.unsplash.com/photo-1600585152220-90363fe7e115?w=800",
         }
 
-        image_url = sample_images.get(
-            photo_description.lower(),
-            sample_images["living room"]
-        )
+        image_url = sample_images.get(photo_description.lower(), sample_images["living room"])
 
         message = f"Here's a photo of our {photo_description}. This should help with the estimate!"
 
@@ -318,38 +308,40 @@ def main():
         description="AI Maria Agent - Consumer simulation for Anchor 1 demo"
     )
     parser.add_argument(
-        "--call",
-        action="store_true",
-        help="Initiate a voice call to the support line"
+        "--call", action="store_true", help="Initiate a voice call to the support line"
     )
     parser.add_argument(
         "--sms",
         type=str,
         nargs="?",
         const="Hi, I'm interested in getting a moving quote.",
-        help="Send an SMS (optionally with custom message)"
+        help="Send an SMS (optionally with custom message)",
     )
     parser.add_argument(
         "--photo",
         type=str,
         nargs="?",
         const="living room",
-        help="Send an SMS with a photo (living room, bedroom, piano, furniture, boxes)"
+        help="Send an SMS with a photo (living room, bedroom, piano, furniture, boxes)",
     )
     parser.add_argument(
-        "--demo",
-        action="store_true",
-        help="Run the full demo scenario (call + SMS with photos)"
+        "--demo", action="store_true", help="Run the full demo scenario (call + SMS with photos)"
     )
 
     args = parser.parse_args()
 
     # Validate configuration
     print("\n🔧 Configuration Check:")
-    print(f"   Account SID: {'✓' if TWILIO_ACCOUNT_SID else '✗'} {TWILIO_ACCOUNT_SID[:10]}..." if TWILIO_ACCOUNT_SID else "   Account SID: ✗ Not set")
+    print(
+        f"   Account SID: {'✓' if TWILIO_ACCOUNT_SID else '✗'} {TWILIO_ACCOUNT_SID[:10]}..."
+        if TWILIO_ACCOUNT_SID
+        else "   Account SID: ✗ Not set"
+    )
     print(f"   Support #:   {'✓' if SUPPORT_NUMBER else '✗'} {SUPPORT_NUMBER}")
     print(f"   Maria #:     {'✓' if MARIA_NUMBER else '✗'} {MARIA_NUMBER}")
-    print(f"   OpenAI Key:  {'✓' if OPENAI_API_KEY else '✗'} {'Set' if OPENAI_API_KEY else 'Not set'}")
+    print(
+        f"   OpenAI Key:  {'✓' if OPENAI_API_KEY else '✗'} {'Set' if OPENAI_API_KEY else 'Not set'}"
+    )
 
     if not MARIA_NUMBER:
         print("\n⚠️  TWILIO_TAC_MARIA_NUMBER is not set!")

@@ -6,7 +6,6 @@ previous conversations, preferences, and quote details from memory,
 providing a seamless continuation of the relationship.
 """
 
-import logging
 from typing import Optional
 
 from anchors.base import BaseAnchor

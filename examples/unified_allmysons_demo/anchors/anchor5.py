@@ -6,7 +6,6 @@ triggers (e.g., move date approaching, weather alerts affecting
 scheduled moves, follow-up on pending quotes).
 """
 
-import logging
 from typing import Optional
 
 from anchors.base import BaseAnchor

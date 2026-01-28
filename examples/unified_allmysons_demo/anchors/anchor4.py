@@ -6,7 +6,6 @@ Demo scenario: AI handles initial inquiry, detects a complex situation
 human specialist while preserving full conversation context.
 """
 
-import logging
 from typing import Optional
 
 from anchors.base import BaseAnchor
