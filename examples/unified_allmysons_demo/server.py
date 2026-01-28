@@ -12,7 +12,6 @@ Architecture:
 """
 
 import asyncio
-import json
 import os
 import re
 from pathlib import Path
@@ -26,7 +25,6 @@ from dashboard.event_handler import (
     push_anchor_event,
     push_demo_status,
     push_sms_event,
-    push_voice_transcript,
     setup_dashboard_logging,
 )
 from dotenv import load_dotenv
@@ -38,7 +36,6 @@ from tac import TAC, TACConfig
 from tac.channels import SMSChannel
 from tac.channels.voice import VoiceChannel
 from tac.core.logging import get_logger, setup_logging
-from tac.models.conversation import ParticipantAddress
 from tac.models.memory import MemoryRetrievalResponse
 from tac.models.session import ConversationSession
 
@@ -164,9 +161,7 @@ async def select_anchor_endpoint(request: Request) -> JSONResponse:
         anchor_id = body.get("anchor_id")
 
         if not anchor_id:
-            return JSONResponse(
-                content={"error": "anchor_id is required"}, status_code=400
-            )
+            return JSONResponse(content={"error": "anchor_id is required"}, status_code=400)
 
         anchor = select_anchor(anchor_id)
         return JSONResponse(content=anchor.get_scenario_info())
@@ -198,36 +193,96 @@ async def webhook_handler(request: Request) -> JSONResponse:
         from_number = webhook_data.get("From") or webhook_data.get("from_address")
 
         if event_type == "onMessageAdded":
+            # DEBUG: Log full webhook payload to understand media format
+            logger.info(f"SMS WEBHOOK DEBUG | Full payload keys: {list(webhook_data.keys())}")
+            if "data" in webhook_data:
+                data_obj = webhook_data.get("data", {})
+                logger.info(
+                    f"SMS WEBHOOK DEBUG | data keys: {list(data_obj.keys()) if isinstance(data_obj, dict) else type(data_obj)}"
+                )
+                if isinstance(data_obj, dict) and "content" in data_obj:
+                    content_obj = data_obj.get("content", {})
+                    logger.info(
+                        f"SMS WEBHOOK DEBUG | content keys: {list(content_obj.keys()) if isinstance(content_obj, dict) else type(content_obj)}"
+                    )
+
             # Extract message body and media for dashboard
             message_body = webhook_data.get("Body", "")
             conversation_id = webhook_data.get("ConversationSid", "")
 
-            # Extract media attachments if present (standard Twilio SMS format)
-            num_media = int(webhook_data.get("NumMedia", 0))
+            # Extract media attachments - check multiple possible formats
             media_urls = []
+
+            # Format 1: Standard Twilio SMS format (NumMedia, MediaUrl0, etc.)
+            num_media = int(webhook_data.get("NumMedia", 0))
             for i in range(num_media):
                 media_url = webhook_data.get(f"MediaUrl{i}", "")
                 media_type = webhook_data.get(f"MediaContentType{i}", "image/jpeg")
                 if media_url:
-                    media_urls.append({
-                        "url": media_url,
-                        "content_type": media_type,
-                        "filename": f"image_{i + 1}.jpg",
-                    })
+                    media_urls.append(
+                        {
+                            "url": media_url,
+                            "content_type": media_type,
+                            "filename": f"image_{i + 1}.jpg",
+                        }
+                    )
 
-            # Also check for Maestro/Conversations API media format
+            # Format 2: Maestro top-level media array
             if not media_urls and "media" in webhook_data:
                 media_list = webhook_data.get("media", [])
                 if isinstance(media_list, list):
                     for i, media in enumerate(media_list):
                         if isinstance(media, dict):
-                            media_urls.append({
-                                "url": media.get("url", media.get("contentUrl", "")),
-                                "content_type": media.get("contentType", "image/jpeg"),
-                                "filename": media.get("filename", f"image_{i + 1}.jpg"),
-                            })
+                            media_urls.append(
+                                {
+                                    "url": media.get("url", media.get("contentUrl", "")),
+                                    "content_type": media.get("contentType", "image/jpeg"),
+                                    "filename": media.get("filename", f"image_{i + 1}.jpg"),
+                                }
+                            )
 
-            logger.debug(f"SMS webhook: body={message_body[:50] if message_body else 'empty'}, media_count={len(media_urls)}")
+            # Format 3: Maestro nested in data.content.media
+            if not media_urls and "data" in webhook_data:
+                data_obj = webhook_data.get("data", {})
+                if isinstance(data_obj, dict):
+                    content_obj = data_obj.get("content", {})
+                    if isinstance(content_obj, dict) and "media" in content_obj:
+                        media_list = content_obj.get("media", [])
+                        if isinstance(media_list, list):
+                            for i, media in enumerate(media_list):
+                                if isinstance(media, dict):
+                                    media_urls.append(
+                                        {
+                                            "url": media.get("url", media.get("contentUrl", "")),
+                                            "content_type": media.get(
+                                                "contentType",
+                                                media.get("content_type", "image/jpeg"),
+                                            ),
+                                            "filename": media.get("filename", f"image_{i + 1}.jpg"),
+                                        }
+                                    )
+
+            # Format 4: Maestro nested in data.media
+            if not media_urls and "data" in webhook_data:
+                data_obj = webhook_data.get("data", {})
+                if isinstance(data_obj, dict) and "media" in data_obj:
+                    media_list = data_obj.get("media", [])
+                    if isinstance(media_list, list):
+                        for i, media in enumerate(media_list):
+                            if isinstance(media, dict):
+                                media_urls.append(
+                                    {
+                                        "url": media.get("url", media.get("contentUrl", "")),
+                                        "content_type": media.get(
+                                            "contentType", media.get("content_type", "image/jpeg")
+                                        ),
+                                        "filename": media.get("filename", f"image_{i + 1}.jpg"),
+                                    }
+                                )
+
+            logger.info(
+                f"SMS webhook: body={message_body[:50] if message_body else 'empty'}, media_count={len(media_urls)}"
+            )
 
             # Push enhanced SMS event to dashboard
             if message_body or media_urls:
@@ -236,8 +291,7 @@ async def webhook_handler(request: Request) -> JSONResponse:
                     from_number=from_number or "",
                     sms_body=message_body,
                     media_urls=media_urls if media_urls else None,
-                    profile_id=webhook_data.get("profile_id")
-                    or webhook_data.get("ProfileId"),
+                    profile_id=webhook_data.get("profile_id") or webhook_data.get("ProfileId"),
                 )
 
             # Check cross-channel linking for active anchor
@@ -246,8 +300,7 @@ async def webhook_handler(request: Request) -> JSONResponse:
                 existing_conv = anchor.get_conversation_for_phone(from_number)
                 if existing_conv and existing_conv in anchor.active_voice_calls:
                     logger.info(
-                        f"CONCURRENT SMS | Message from {from_number} "
-                        f"linked to active voice call",
+                        f"CONCURRENT SMS | Message from {from_number} linked to active voice call",
                         conversation_id=existing_conv,
                     )
 
@@ -404,9 +457,7 @@ async def get_profile_data(profile_id: str) -> JSONResponse:
     """Fetch profile data including traits from Memora."""
     try:
         if not tac.memora_client:
-            return JSONResponse(
-                content={"error": "Memora not configured"}, status_code=400
-            )
+            return JSONResponse(content={"error": "Memora not configured"}, status_code=400)
 
         # Get profile with traits
         profile = await tac.memora_client.get_profile(
@@ -414,11 +465,13 @@ async def get_profile_data(profile_id: str) -> JSONResponse:
             trait_groups=["Contact", "Preferences", "Demographics"],
         )
 
-        return JSONResponse(content={
-            "id": profile.id,
-            "created_at": profile.created_at,
-            "traits": profile.traits,
-        })
+        return JSONResponse(
+            content={
+                "id": profile.id,
+                "created_at": profile.created_at,
+                "traits": profile.traits,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error fetching profile: {e}", exc_info=True)
@@ -430,9 +483,7 @@ async def get_profile_memory(profile_id: str, query: Optional[str] = None) -> JS
     """Fetch profile memory including observations and summaries from Memora."""
     try:
         if not tac.memora_client:
-            return JSONResponse(
-                content={"error": "Memora not configured"}, status_code=400
-            )
+            return JSONResponse(content={"error": "Memora not configured"}, status_code=400)
 
         # Get memory (observations, summaries, sessions)
         memory = await tac.memora_client.retrieve_memory(
@@ -440,34 +491,36 @@ async def get_profile_memory(profile_id: str, query: Optional[str] = None) -> JS
             query=query,
         )
 
-        return JSONResponse(content={
-            "observations": [
-                {
-                    "id": obs.id,
-                    "content": obs.content,
-                    "created_at": obs.created_at,
-                    "source": obs.source,
-                }
-                for obs in (memory.observations or [])
-            ],
-            "summaries": [
-                {
-                    "id": s.id,
-                    "content": s.content,
-                    "created_at": s.created_at,
-                }
-                for s in (memory.summaries or [])
-            ],
-            "communications": [
-                {
-                    "id": comm.id,
-                    "content": comm.content.text if comm.content else None,
-                    "created_at": comm.created_at,
-                    "channel": comm.author.channel if comm.author else None,
-                }
-                for comm in (memory.communications or [])
-            ],
-        })
+        return JSONResponse(
+            content={
+                "observations": [
+                    {
+                        "id": obs.id,
+                        "content": obs.content,
+                        "created_at": obs.created_at,
+                        "source": obs.source,
+                    }
+                    for obs in (memory.observations or [])
+                ],
+                "summaries": [
+                    {
+                        "id": s.id,
+                        "content": s.content,
+                        "created_at": s.created_at,
+                    }
+                    for s in (memory.summaries or [])
+                ],
+                "communications": [
+                    {
+                        "id": comm.id,
+                        "content": comm.content.text if comm.content else None,
+                        "created_at": comm.created_at,
+                        "channel": comm.author.channel if comm.author else None,
+                    }
+                    for comm in (memory.communications or [])
+                ],
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error fetching profile memory: {e}", exc_info=True)
@@ -485,35 +538,35 @@ async def get_conversation_data(conversation_id: str) -> JSONResponse:
         )
 
         # Get participants
-        participants = await tac.maestro_client.list_participants(
-            conversation_id=conversation_id
-        )
+        participants = await tac.maestro_client.list_participants(conversation_id=conversation_id)
 
-        return JSONResponse(content={
-            "conversation_id": conversation_id,
-            "participants": [
-                {
-                    "id": p.id,
-                    "type": p.type,
-                    "addresses": [
-                        {"channel": a.channel, "address": a.address}
-                        for a in (p.addresses or [])
-                    ],
-                }
-                for p in participants
-            ],
-            "communications": [
-                {
-                    "id": comm.id,
-                    "content": comm.content.text if comm.content else None,
-                    "author_id": comm.author.participant_id if comm.author else None,
-                    "author_address": comm.author.address if comm.author else None,
-                    "created_at": comm.created_at,
-                    "channel": comm.author.channel if comm.author else None,
-                }
-                for comm in communications
-            ],
-        })
+        return JSONResponse(
+            content={
+                "conversation_id": conversation_id,
+                "participants": [
+                    {
+                        "id": p.id,
+                        "type": p.type,
+                        "addresses": [
+                            {"channel": a.channel, "address": a.address}
+                            for a in (p.addresses or [])
+                        ],
+                    }
+                    for p in participants
+                ],
+                "communications": [
+                    {
+                        "id": comm.id,
+                        "content": comm.content.text if comm.content else None,
+                        "author_id": comm.author.participant_id if comm.author else None,
+                        "author_address": comm.author.address if comm.author else None,
+                        "created_at": comm.created_at,
+                        "channel": comm.author.channel if comm.author else None,
+                    }
+                    for comm in communications
+                ],
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error fetching conversation: {e}", exc_info=True)
@@ -538,7 +591,7 @@ async def trigger_maria_call() -> JSONResponse:
         if not maria_number:
             return JSONResponse(
                 content={"error": "TWILIO_TAC_MARIA_NUMBER not configured. Add it to .env"},
-                status_code=400
+                status_code=400,
             )
 
         twilio_client = TwilioClient(
@@ -571,13 +624,15 @@ async def trigger_maria_call() -> JSONResponse:
             )
 
         logger.info(f"Maria call initiated: {call.sid}")
-        return JSONResponse(content={
-            "success": True,
-            "call_sid": call.sid,
-            "status": call.status,
-            "from": maria_number,
-            "to": support_number,
-        })
+        return JSONResponse(
+            content={
+                "success": True,
+                "call_sid": call.sid,
+                "status": call.status,
+                "from": maria_number,
+                "to": support_number,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error initiating Maria call: {e}")
@@ -591,7 +646,11 @@ async def trigger_maria_sms(request: Request) -> JSONResponse:
         from twilio.rest import Client as TwilioClient
 
         # Get photo type from request body
-        body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+        body = (
+            await request.json()
+            if request.headers.get("content-type") == "application/json"
+            else {}
+        )
         photo_type = body.get("photo_type", "living room")
 
         maria_number = os.environ.get("TWILIO_TAC_MARIA_NUMBER", "")
@@ -599,8 +658,7 @@ async def trigger_maria_sms(request: Request) -> JSONResponse:
 
         if not maria_number:
             return JSONResponse(
-                content={"error": "TWILIO_TAC_MARIA_NUMBER not configured"},
-                status_code=400
+                content={"error": "TWILIO_TAC_MARIA_NUMBER not configured"}, status_code=400
             )
 
         # Sample images
@@ -627,12 +685,30 @@ async def trigger_maria_sms(request: Request) -> JSONResponse:
         )
 
         logger.info(f"Maria SMS sent: {msg.sid}")
-        return JSONResponse(content={
-            "success": True,
-            "message_sid": msg.sid,
-            "status": msg.status,
-            "photo_type": photo_type,
-        })
+
+        # Push SMS event directly to dashboard with media
+        push_sms_event(
+            conversation_id="maria_sms",
+            from_number=maria_number,
+            sms_body=message,
+            media_urls=[
+                {
+                    "url": image_url,
+                    "content_type": "image/jpeg",
+                    "filename": f"{photo_type.replace(' ', '_')}.jpg",
+                }
+            ],
+            profile_id=None,
+        )
+
+        return JSONResponse(
+            content={
+                "success": True,
+                "message_sid": msg.sid,
+                "status": msg.status,
+                "photo_type": photo_type,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error sending Maria SMS: {e}")
@@ -659,7 +735,7 @@ async def maria_twiml(request: Request) -> Response:
 
     # Scripted conversation from Maria's perspective
     # Maria speaks, pauses to let agent respond, then continues
-    twiml = '''<?xml version="1.0" encoding="UTF-8"?>
+    twiml = """<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Pause length="3"/>
     <Say voice="Polly.Joanna">
@@ -693,7 +769,7 @@ async def maria_twiml(request: Request) -> Response:
         Thanks! Goodbye!
     </Say>
     <Hangup/>
-</Response>'''
+</Response>"""
 
     return Response(content=twiml, media_type="application/xml")
 
@@ -718,8 +794,7 @@ async def run_demo() -> JSONResponse:
 
         if not maria_number:
             return JSONResponse(
-                content={"error": "TWILIO_TAC_MARIA_NUMBER not configured"},
-                status_code=400
+                content={"error": "TWILIO_TAC_MARIA_NUMBER not configured"}, status_code=400
             )
 
         push_demo_status("started", "🚀 Demo starting...", 0)
@@ -759,6 +834,23 @@ async def run_demo() -> JSONResponse:
                     media_url=[image_url],
                 )
                 logger.info(f"DEMO | SMS sent: {msg.sid}")
+
+                # Push SMS event directly to dashboard with media (workaround for Maestro webhook format)
+                # This ensures the image thumbnail appears in the activity timeline immediately
+                push_sms_event(
+                    conversation_id="demo",  # Use "demo" as placeholder since we don't have Maestro conv ID
+                    from_number=maria_number,
+                    sms_body=message,
+                    media_urls=[
+                        {
+                            "url": image_url,
+                            "content_type": "image/jpeg",
+                            "filename": "living_room.jpg",
+                        }
+                    ],
+                    profile_id=None,
+                )
+
                 push_demo_status("progress", "📱 Photo sent! Waiting for call to complete...", 80)
 
                 # Wait for call to finish (Maria's script is ~45 seconds total)
@@ -772,11 +864,13 @@ async def run_demo() -> JSONResponse:
         # Fire and forget the delayed SMS
         asyncio.create_task(send_delayed_sms())
 
-        return JSONResponse(content={
-            "success": True,
-            "call_sid": call.sid,
-            "message": "Demo started. Maria is calling and will send a photo in 8 seconds.",
-        })
+        return JSONResponse(
+            content={
+                "success": True,
+                "call_sid": call.sid,
+                "message": "Demo started. Maria is calling and will send a photo in 8 seconds.",
+            }
+        )
 
     except Exception as e:
         logger.error(f"DEMO | Error: {e}")
@@ -793,16 +887,18 @@ async def run_demo() -> JSONResponse:
 async def health_check() -> JSONResponse:
     """Health check endpoint."""
     anchor = get_active_anchor()
-    return JSONResponse({
-        "status": "healthy",
-        "demo": "Unified All My Sons Demo",
-        "active_anchor": anchor.anchor_id,
-        "active_anchor_name": anchor.name,
-        "channels": ["voice", "sms"],
-        "active_voice_calls": len(
-            [c for c, active in anchor.active_voice_calls.items() if active]
-        ),
-    })
+    return JSONResponse(
+        {
+            "status": "healthy",
+            "demo": "Unified All My Sons Demo",
+            "active_anchor": anchor.anchor_id,
+            "active_anchor_name": anchor.name,
+            "channels": ["voice", "sms"],
+            "active_voice_calls": len(
+                [c for c, active in anchor.active_voice_calls.items() if active]
+            ),
+        }
+    )
 
 
 # =============================================================================

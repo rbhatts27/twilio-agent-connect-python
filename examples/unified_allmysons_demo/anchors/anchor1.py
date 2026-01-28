@@ -5,15 +5,13 @@ The Ramirez Family Quote Request - Maria calls for a moving quote (voice),
 then texts photos while on the call (SMS). AI handles both channels concurrently.
 """
 
-import logging
-from typing import Any, Optional
+from typing import Optional
 
 from anchors.base import BaseAnchor
 from dashboard.event_handler import push_voice_transcript
 from llm_service import LLMService
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
-    ChatCompletionMessageParam,
     ChatCompletionUserMessageParam,
 )
 
@@ -122,9 +120,7 @@ class Anchor1ConcurrentChannels(BaseAnchor):
 
             # Get websocket for voice responses
             active_websocket = (
-                self.voice_channel.get_websocket(conv_id)
-                if context.channel == "voice"
-                else None
+                self.voice_channel.get_websocket(conv_id) if context.channel == "voice" else None
             )
 
             # Process message with LLM
@@ -146,19 +142,13 @@ class Anchor1ConcurrentChannels(BaseAnchor):
             # Send response through appropriate channel
             if llm_response:
                 if channel == "voice":
-                    await self.voice_channel.send_response(
-                        conv_id, llm_response, role="assistant"
-                    )
+                    await self.voice_channel.send_response(conv_id, llm_response, role="assistant")
                 elif channel == "sms":
-                    await self.sms_channel.send_response(
-                        conv_id, llm_response, role="assistant"
-                    )
+                    await self.sms_channel.send_response(conv_id, llm_response, role="assistant")
 
                 # Log response preview
                 response_preview = (
-                    llm_response[:100] + "..."
-                    if len(llm_response) > 100
-                    else llm_response
+                    llm_response[:100] + "..." if len(llm_response) > 100 else llm_response
                 )
                 logger.info(
                     f"AI RESPONSE [{channel.upper()}] | {response_preview}",
