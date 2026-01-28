@@ -502,36 +502,62 @@
                     <div id="scenarioSteps"></div>
                 </div>
 
-                <!-- Maria Agent Controls -->
-                <div class="card shadow-sm mb-3" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #e94560;">
+                <!-- One-Click Demo Button -->
+                <div class="card shadow-sm mb-3" style="background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%); border: none;">
+                    <div class="card-body py-3">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <span style="font-size: 1.5rem;">🎬</span>
+                                <strong class="text-light ms-2" style="font-size: 1.1rem;">Run Demo</strong>
+                                <div class="text-light opacity-75 small">Maria calls + sends photo (~30 sec)</div>
+                            </div>
+                            <button class="btn btn-light btn-lg" onclick="runDemo()" id="runDemoBtn">
+                                ▶️ Start Demo
+                            </button>
+                        </div>
+                        <div id="demoProgress" style="display: none;" class="mt-2">
+                            <div class="progress" style="height: 6px; background: rgba(255,255,255,0.2);">
+                                <div class="progress-bar bg-light" id="demoProgressBar" style="width: 0%"></div>
+                            </div>
+                            <small class="text-light" id="demoStatusText"></small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Transcript Panel -->
+                <div class="card shadow-sm mb-3" id="transcriptCard" style="display: none;">
+                    <div class="card-header d-flex justify-content-between align-items-center" style="background: rgba(25, 135, 84, 0.2);">
+                        <div>
+                            <span class="channel-dot voice active me-2"></span>
+                            <strong>📞 Live Call</strong>
+                        </div>
+                        <small class="text-muted" id="transcriptDuration">0:00</small>
+                    </div>
+                    <div class="card-body p-2" style="max-height: 200px; overflow-y: auto;" id="transcriptContent">
+                        <div class="text-center text-muted py-2">
+                            <small>Waiting for conversation...</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Maria Agent Controls (Manual) -->
+                <div class="card shadow-sm mb-3" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #0f3460;">
                     <div class="card-body py-2">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <span style="font-size: 1.2rem;">👩</span>
-                                <strong class="text-light ms-2">Maria (AI Consumer)</strong>
-                                <small class="text-muted ms-2">Simulate customer interaction</small>
+                                <span style="font-size: 1rem;">👩</span>
+                                <strong class="text-light ms-2">Manual Controls</strong>
+                                <small class="text-muted ms-2">Individual actions</small>
                             </div>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-sm btn-outline-success" onclick="mariaCall()" id="mariaCallBtn">
                                     📞 Call
                                 </button>
                                 <button class="btn btn-sm btn-outline-primary" onclick="mariaSms('living room')" id="mariaSmsBtn">
-                                    📱 SMS + Photo
+                                    📱 Photo
                                 </button>
-                                <div class="dropdown d-inline">
-                                    <button class="btn btn-sm btn-outline-info dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                        📷
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-dark">
-                                        <li><a class="dropdown-item" href="#" onclick="mariaSms('living room')">Living Room</a></li>
-                                        <li><a class="dropdown-item" href="#" onclick="mariaSms('piano')">Piano</a></li>
-                                        <li><a class="dropdown-item" href="#" onclick="mariaSms('bedroom')">Bedroom</a></li>
-                                        <li><a class="dropdown-item" href="#" onclick="mariaSms('furniture')">Furniture</a></li>
-                                    </ul>
-                                </div>
                             </div>
                         </div>
-                        <div id="mariaStatus" class="text-muted small mt-1" style="display: none;"></div>
                     </div>
                 </div>
 

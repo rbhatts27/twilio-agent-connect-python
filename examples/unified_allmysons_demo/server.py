@@ -24,7 +24,9 @@ from anchors.base import BaseAnchor
 from dashboard.event_handler import (
     get_event_queue,
     push_anchor_event,
+    push_demo_status,
     push_sms_event,
+    push_voice_transcript,
     setup_dashboard_logging,
 )
 from dotenv import load_dotenv
@@ -711,6 +713,92 @@ async def maria_twiml(request: Request) -> Response:
     </Say>
 </Response>'''
         return Response(content=twiml, media_type="application/xml")
+
+
+# =============================================================================
+# One-Click Demo Endpoint (Call + SMS sequence)
+# =============================================================================
+
+
+@app.post("/api/maria/demo")
+async def run_demo() -> JSONResponse:
+    """
+    Run a complete demo: Maria calls, then sends SMS with photo after 8 seconds.
+    The demo auto-ends after ~30 seconds.
+    """
+    try:
+        from twilio.rest import Client as TwilioClient
+
+        maria_number = os.environ.get("TWILIO_TAC_MARIA_NUMBER", "")
+        support_number = os.environ.get("TWILIO_TAC_PHONE_NUMBER", "")
+        public_domain = os.environ.get("TWILIO_TAC_VOICE_PUBLIC_DOMAIN", "")
+
+        if not maria_number:
+            return JSONResponse(
+                content={"error": "TWILIO_TAC_MARIA_NUMBER not configured"},
+                status_code=400
+            )
+
+        push_demo_status("started", "🚀 Demo starting...", 0)
+
+        twilio_client = TwilioClient(
+            os.environ.get("TWILIO_TAC_ACCOUNT_SID"),
+            os.environ.get("TWILIO_TAC_AUTH_TOKEN"),
+        )
+
+        # Step 1: Initiate the call
+        push_demo_status("progress", "📞 Maria is calling support...", 10)
+
+        call = twilio_client.calls.create(
+            to=support_number,
+            from_=maria_number,
+            url=f"https://{public_domain}/maria-twiml",
+            timeout=30,  # Auto-hangup after 30 seconds
+        )
+
+        logger.info(f"DEMO | Call initiated: {call.sid}")
+        push_demo_status("progress", f"📞 Call connected (ID: {call.sid[:8]}...)", 30)
+
+        # Step 2: Schedule SMS with photo after 8 seconds
+        async def send_delayed_sms():
+            await asyncio.sleep(8)
+            push_demo_status("progress", "📱 Maria is sending a photo...", 60)
+
+            # Sample house photo
+            image_url = "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800"
+            message = "Here's a photo of our living room for the estimate!"
+
+            try:
+                msg = twilio_client.messages.create(
+                    to=support_number,
+                    from_=maria_number,
+                    body=message,
+                    media_url=[image_url],
+                )
+                logger.info(f"DEMO | SMS sent: {msg.sid}")
+                push_demo_status("progress", "📱 Photo sent! Check the activity log.", 80)
+
+                # Wait a bit then mark complete
+                await asyncio.sleep(5)
+                push_demo_status("completed", "✅ Demo complete! Review the conversation.", 100)
+
+            except Exception as e:
+                logger.error(f"DEMO | SMS failed: {e}")
+                push_demo_status("error", f"SMS failed: {str(e)}", 60)
+
+        # Fire and forget the delayed SMS
+        asyncio.create_task(send_delayed_sms())
+
+        return JSONResponse(content={
+            "success": True,
+            "call_sid": call.sid,
+            "message": "Demo started. Maria is calling and will send a photo in 8 seconds.",
+        })
+
+    except Exception as e:
+        logger.error(f"DEMO | Error: {e}")
+        push_demo_status("error", f"Demo failed: {str(e)}", 0)
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
 # =============================================================================

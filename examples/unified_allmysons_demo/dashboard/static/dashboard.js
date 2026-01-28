@@ -174,6 +174,20 @@ function handleEvent(event) {
     // Update channel indicators
     updateChannelIndicators(event);
 
+    // Handle demo status events
+    if (event.event_type === 'demo_status') {
+        updateDemoProgress(event);
+        appendToActivityLog(event);
+        return;
+    }
+
+    // Handle voice transcript events
+    if (event.event_type === 'voice_transcript') {
+        addTranscriptLine(event);
+        appendToActivityLog(event);
+        return;
+    }
+
     // Handle anchor selection events
     if (event.event_type === 'anchor_selected' || event.event_type === 'anchor_switched') {
         appendToActivityLog(event);
@@ -592,7 +606,9 @@ function getEventLabel(eventType) {
         'sms_received': 'SMS Received',
         'sms_with_media': 'SMS + Media',
         'anchor_selected': 'Anchor',
-        'anchor_switched': 'Anchor'
+        'anchor_switched': 'Anchor',
+        'demo_status': 'Demo',
+        'voice_transcript': 'Transcript'
     };
     return labels[eventType] || eventType;
 }
@@ -618,7 +634,9 @@ function getEventIcon(eventType) {
         'sms_received': '📱',
         'sms_with_media': '📷',
         'anchor_selected': '🎯',
-        'anchor_switched': '🎯'
+        'anchor_switched': '🎯',
+        'demo_status': '🎬',
+        'voice_transcript': '🗣️'
     };
     return icons[eventType] || '📌';
 }
@@ -644,7 +662,9 @@ function getEventBadgeClass(eventType) {
         'sms_received': 'bg-primary',
         'sms_with_media': 'bg-info',
         'anchor_selected': 'bg-warning text-dark',
-        'anchor_switched': 'bg-warning text-dark'
+        'anchor_switched': 'bg-warning text-dark',
+        'demo_status': 'bg-danger',
+        'voice_transcript': 'bg-success'
     };
     return classes[eventType] || 'bg-secondary';
 }
@@ -932,7 +952,170 @@ document.addEventListener('keydown', (e) => {
 });
 
 // =============================================================================
-// Maria Agent Controls
+// One-Click Demo
+// =============================================================================
+
+let demoActive = false;
+let demoStartTime = null;
+let transcriptTimer = null;
+
+/**
+ * Run the one-click demo: Maria calls and then sends SMS.
+ */
+async function runDemo() {
+    const btn = document.getElementById('runDemoBtn');
+    const progress = document.getElementById('demoProgress');
+    const progressBar = document.getElementById('demoProgressBar');
+    const statusText = document.getElementById('demoStatusText');
+    const transcriptCard = document.getElementById('transcriptCard');
+    const transcriptContent = document.getElementById('transcriptContent');
+
+    if (demoActive) {
+        return;
+    }
+
+    demoActive = true;
+    demoStartTime = Date.now();
+    btn.disabled = true;
+    btn.textContent = '⏳ Running...';
+    progress.style.display = 'block';
+    progressBar.style.width = '0%';
+    statusText.textContent = 'Starting demo...';
+
+    // Show transcript panel
+    transcriptCard.style.display = 'block';
+    transcriptContent.innerHTML = '<div class="text-center text-muted py-2"><small>Connecting call...</small></div>';
+
+    // Start duration timer
+    startTranscriptTimer();
+
+    try {
+        const response = await fetch('/api/maria/demo', { method: 'POST' });
+        const data = await response.json();
+
+        if (!data.success) {
+            statusText.textContent = `Error: ${data.error}`;
+            progressBar.classList.add('bg-danger');
+            endDemo();
+        }
+    } catch (error) {
+        statusText.textContent = `Error: ${error.message}`;
+        progressBar.classList.add('bg-danger');
+        endDemo();
+    }
+}
+window.runDemo = runDemo;
+
+/**
+ * Update demo progress from SSE event.
+ */
+function updateDemoProgress(event) {
+    const progress = document.getElementById('demoProgress');
+    const progressBar = document.getElementById('demoProgressBar');
+    const statusText = document.getElementById('demoStatusText');
+    const btn = document.getElementById('runDemoBtn');
+
+    if (!event.metadata) return;
+
+    const { status, progress: pct } = event.metadata;
+
+    progress.style.display = 'block';
+    progressBar.style.width = `${pct}%`;
+    statusText.textContent = event.message;
+
+    if (status === 'completed' || status === 'error') {
+        endDemo();
+        if (status === 'completed') {
+            progressBar.classList.remove('bg-danger');
+            btn.textContent = '✅ Complete';
+            setTimeout(() => {
+                btn.textContent = '▶️ Start Demo';
+            }, 3000);
+        } else {
+            progressBar.classList.add('bg-danger');
+            btn.textContent = '❌ Failed';
+            setTimeout(() => {
+                btn.textContent = '▶️ Start Demo';
+            }, 3000);
+        }
+    }
+}
+
+/**
+ * End the demo and reset state.
+ */
+function endDemo() {
+    demoActive = false;
+    const btn = document.getElementById('runDemoBtn');
+    btn.disabled = false;
+
+    if (transcriptTimer) {
+        clearInterval(transcriptTimer);
+        transcriptTimer = null;
+    }
+
+    // Hide transcript card after 10 seconds
+    setTimeout(() => {
+        if (!demoActive) {
+            document.getElementById('transcriptCard').style.display = 'none';
+        }
+    }, 10000);
+}
+
+/**
+ * Start the transcript duration timer.
+ */
+function startTranscriptTimer() {
+    const durationEl = document.getElementById('transcriptDuration');
+
+    if (transcriptTimer) {
+        clearInterval(transcriptTimer);
+    }
+
+    transcriptTimer = setInterval(() => {
+        if (!demoStartTime) return;
+        const elapsed = Math.floor((Date.now() - demoStartTime) / 1000);
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        durationEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+    }, 1000);
+}
+
+/**
+ * Add a transcript line to the live transcript panel.
+ */
+function addTranscriptLine(event) {
+    const transcriptContent = document.getElementById('transcriptContent');
+    const transcriptCard = document.getElementById('transcriptCard');
+
+    // Show the transcript card
+    transcriptCard.style.display = 'block';
+
+    // Clear "waiting" message if present
+    if (transcriptContent.querySelector('.text-muted')) {
+        transcriptContent.innerHTML = '';
+    }
+
+    const speaker = event.metadata?.speaker || 'unknown';
+    const isAgent = speaker === 'agent' || speaker === 'ai';
+    const bgColor = isAgent ? 'rgba(25, 135, 84, 0.2)' : 'rgba(13, 110, 253, 0.2)';
+    const label = isAgent ? '🤖 Agent' : '👩 Customer';
+
+    const line = document.createElement('div');
+    line.className = 'p-2 mb-1 rounded';
+    line.style.background = bgColor;
+    line.style.fontSize = '0.85rem';
+    line.innerHTML = `
+        <small class="text-muted">${label}</small>
+        <div class="text-light">${escapeHtml(event.message)}</div>
+    `;
+
+    transcriptContent.appendChild(line);
+    transcriptContent.scrollTop = transcriptContent.scrollHeight;
+}
+
+// =============================================================================
+// Maria Agent Controls (Manual)
 // =============================================================================
 
 /**

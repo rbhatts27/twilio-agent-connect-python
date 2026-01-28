@@ -241,6 +241,63 @@ def push_sms_event(
         _event_queue.append(event)
 
 
+def push_voice_transcript(
+    conversation_id: str,
+    speaker: str,
+    text: str,
+    profile_id: Optional[str] = None,
+) -> None:
+    """Push a voice transcript event to the dashboard for real-time display.
+
+    Args:
+        conversation_id: The Maestro conversation ID
+        speaker: Who is speaking ('customer' or 'agent')
+        text: The transcript text
+        profile_id: Optional customer profile ID
+    """
+    global _event_queue
+
+    if _event_queue is None:
+        return
+
+    event = DashboardEvent(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        event_type="voice_transcript",
+        conversation_id=conversation_id,
+        channel="voice",
+        profile_id=profile_id,
+        message=text,
+        metadata={"speaker": speaker},
+    )
+
+    with _queue_lock:
+        _event_queue.append(event)
+
+
+def push_demo_status(status: str, message: str, progress: int = 0) -> None:
+    """Push a demo status event to the dashboard.
+
+    Args:
+        status: Status type ('started', 'progress', 'completed', 'error')
+        message: Status message
+        progress: Progress percentage (0-100)
+    """
+    global _event_queue
+
+    if _event_queue is None:
+        return
+
+    event = DashboardEvent(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        event_type="demo_status",
+        message=message,
+        metadata={"status": status, "progress": progress},
+    )
+
+    with _queue_lock:
+        _event_queue.append(event)
+
+
 def push_anchor_event(anchor_id: str, anchor_name: str) -> None:
     """Push an anchor selection event to the dashboard."""
     global _event_queue

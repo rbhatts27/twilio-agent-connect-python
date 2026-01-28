@@ -9,6 +9,7 @@ import logging
 from typing import Any, Optional
 
 from anchors.base import BaseAnchor
+from dashboard.event_handler import push_voice_transcript
 from llm_service import LLMService
 from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
@@ -83,6 +84,15 @@ class Anchor1ConcurrentChannels(BaseAnchor):
                 profile_id=context.profile_id,
             )
 
+            # Push transcript for real-time display (voice only)
+            if channel == "voice":
+                push_voice_transcript(
+                    conversation_id=conv_id,
+                    speaker="customer",
+                    text=user_message,
+                    profile_id=context.profile_id,
+                )
+
             # Log memory retrieval
             if memory_response:
                 memory_items = []
@@ -155,6 +165,15 @@ class Anchor1ConcurrentChannels(BaseAnchor):
                     conversation_id=conv_id,
                     channel=channel,
                 )
+
+                # Push agent transcript for real-time display (voice only)
+                if channel == "voice":
+                    push_voice_transcript(
+                        conversation_id=conv_id,
+                        speaker="agent",
+                        text=llm_response,
+                        profile_id=context.profile_id,
+                    )
 
                 # Store assistant response
                 assistant_msg: ChatCompletionAssistantMessageParam = {
