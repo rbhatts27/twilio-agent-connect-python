@@ -193,6 +193,15 @@ function handleEvent(event) {
         return;
     }
 
+    // Handle Maestro events - add to Maestro log and update conversation tags
+    if (event.event_type && event.event_type.startsWith('maestro_')) {
+        appendToMaestroLog(event);
+        // Update conversation with is_new_conversation flag
+        if (event.conversation_id && event.metadata && event.metadata.is_new_conversation !== undefined) {
+            updateConversationIsNew(event.conversation_id, event.metadata.is_new_conversation);
+        }
+    }
+
     // Update conversation card if conversation_id is present
     if (event.conversation_id) {
         updateConversationCard(event);
@@ -226,7 +235,8 @@ function updateConversationCard(event) {
             channels: new Set(),
             profile_id: event.profile_id,
             events: [],
-            isConcurrent: false
+            isConcurrent: false,
+            isNew: null  // null = unknown, true = new, false = existing
         });
         activeChannels.set(convId, new Set());
         createConversationCard(convId);
@@ -336,6 +346,14 @@ function updateCardContent(convId) {
         channelBadges += `<span class="badge ${bgClass} text-uppercase" style="font-size: 0.65rem;">${ch}</span> `;
     }
 
+    // Build New/Existing badge (from Maestro)
+    let statusBadge = '';
+    if (conversation.isNew === true) {
+        statusBadge = '<span class="badge bg-info text-uppercase" style="font-size: 0.6rem;">New</span> ';
+    } else if (conversation.isNew === false) {
+        statusBadge = '<span class="badge bg-secondary text-uppercase" style="font-size: 0.6rem;">Existing</span> ';
+    }
+
     // Event count
     const eventCount = conversation.events.length;
 
@@ -345,7 +363,7 @@ function updateCardContent(convId) {
                 <div class="font-monospace small" style="color: #8892b0;" title="${convId}">${shortId}</div>
                 <small class="text-muted">${eventCount} events</small>
             </div>
-            <div>${channelBadges}</div>
+            <div>${statusBadge}${channelBadges}</div>
         </div>
     `;
 }
@@ -511,6 +529,73 @@ function buildActivityLogSmsContent(event) {
 }
 
 // =============================================================================
+// Maestro Event Log
+// =============================================================================
+
+/**
+ * Append event to Maestro events log.
+ */
+function appendToMaestroLog(event) {
+    const maestroLog = document.getElementById('maestroLog');
+    if (!maestroLog) return;
+
+    // Remove empty state if present
+    const emptyState = maestroLog.querySelector('.empty-state');
+    if (emptyState) {
+        maestroLog.innerHTML = '';
+    }
+
+    const timestamp = formatTimestamp(event.timestamp);
+    const icon = getEventIcon(event.event_type);
+    const channel = event.channel || 'system';
+    const channelBg = channel === 'voice' ? 'bg-success' : channel === 'sms' ? 'bg-primary' : 'bg-secondary';
+
+    // Format event type for display
+    let eventLabel = '';
+    if (event.event_type === 'maestro_conversation') {
+        eventLabel = 'Conversation';
+    } else if (event.event_type === 'maestro_participant') {
+        eventLabel = 'Participant';
+    } else if (event.event_type === 'maestro_communication') {
+        eventLabel = 'Communication';
+    } else {
+        eventLabel = event.event_type.replace('maestro_', '');
+    }
+
+    // Check if new/existing
+    let statusBadge = '';
+    if (event.metadata && event.metadata.is_new_conversation !== undefined) {
+        if (event.metadata.is_new_conversation) {
+            statusBadge = '<span class="badge bg-info" style="font-size: 0.55rem; margin-left: 4px;">NEW</span>';
+        } else {
+            statusBadge = '<span class="badge bg-secondary" style="font-size: 0.55rem; margin-left: 4px;">EXISTING</span>';
+        }
+    }
+
+    const logEntry = document.createElement('div');
+    logEntry.className = 'maestro-log-entry';
+    logEntry.style.cssText = 'padding: 0.4rem 0.5rem; border-bottom: 1px solid #1a1a2e; font-size: 0.75rem;';
+
+    logEntry.innerHTML = `
+        <div class="d-flex align-items-start gap-2">
+            <span style="font-size: 0.85rem;">${icon}</span>
+            <div class="flex-grow-1">
+                <div class="d-flex align-items-center gap-1 flex-wrap">
+                    <span class="text-muted font-monospace" style="font-size: 0.65rem;">${timestamp}</span>
+                    <span class="badge ${channelBg}" style="font-size: 0.55rem;">${channel}</span>
+                    <span class="text-warning" style="font-size: 0.7rem;">${eventLabel}</span>
+                    ${statusBadge}
+                </div>
+                <small class="text-light d-block" style="word-break: break-all;">${escapeHtml(event.message)}</small>
+            </div>
+        </div>
+    `;
+
+    maestroLog.appendChild(logEntry);
+    maestroLog.scrollTop = maestroLog.scrollHeight;
+}
+
+// =============================================================================
 // Utility Functions
 // =============================================================================
 
@@ -585,7 +670,11 @@ function getEventIcon(eventType) {
         'anchor_selected': '🎯',
         'anchor_switched': '🎯',
         'demo_status': '🎬',
-        'voice_transcript': '🗣️'
+        'voice_transcript': '🗣️',
+        // Maestro events
+        'maestro_conversation': '📋',
+        'maestro_participant': '👤',
+        'maestro_communication': '💬'
     };
     return icons[eventType] || '📌';
 }
@@ -620,6 +709,17 @@ function getEventBadgeClass(eventType) {
 
 function updateConversationCount() {
     conversationCount.textContent = conversations.size;
+}
+
+/**
+ * Update conversation's isNew flag from Maestro event.
+ */
+function updateConversationIsNew(convId, isNew) {
+    if (conversations.has(convId)) {
+        const conversation = conversations.get(convId);
+        conversation.isNew = isNew;
+        updateCardContent(convId);
+    }
 }
 
 // =============================================================================

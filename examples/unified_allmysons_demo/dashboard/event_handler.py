@@ -76,6 +76,10 @@ EVENT_PATTERNS = {
     # Anchor selection events
     "ANCHOR SELECTED": "anchor_selected",
     "ANCHOR SWITCHED": "anchor_switched",
+    # Maestro events (pushed directly via push_maestro_event)
+    "MAESTRO | Conversation": "maestro_conversation",
+    "MAESTRO | Participant": "maestro_participant",
+    "MAESTRO | Communication": "maestro_communication",
 }
 
 
@@ -310,6 +314,53 @@ def push_anchor_event(anchor_id: str, anchor_name: str) -> None:
         event_type="anchor_selected",
         message=f"Switched to {anchor_name} ({anchor_id})",
         metadata={"anchor_id": anchor_id, "anchor_name": anchor_name},
+    )
+
+    with _queue_lock:
+        _event_queue.append(event)
+
+
+def push_maestro_event(
+    event_type: str,
+    conversation_id: str,
+    message: str,
+    channel: Optional[str] = None,
+    is_new_conversation: Optional[bool] = None,
+    details: Optional[dict[str, Any]] = None,
+) -> None:
+    """Push a Maestro API event to the dashboard.
+
+    This tracks Maestro operations like:
+    - Conversation created/fetched
+    - Participant added
+    - Communication added
+
+    Args:
+        event_type: Type of Maestro event (e.g., 'maestro_conversation_created')
+        conversation_id: The Maestro conversation ID
+        message: Human-readable message describing the event
+        channel: Optional channel (voice, sms)
+        is_new_conversation: True if conversation was newly created, False if existing
+        details: Optional additional details dict
+    """
+    global _event_queue
+
+    if _event_queue is None:
+        return
+
+    metadata: dict[str, Any] = {"source": "maestro"}
+    if is_new_conversation is not None:
+        metadata["is_new_conversation"] = is_new_conversation
+    if details:
+        metadata.update(details)
+
+    event = DashboardEvent(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        event_type=event_type,
+        conversation_id=conversation_id,
+        channel=channel,
+        message=message,
+        metadata=metadata,
     )
 
     with _queue_lock:

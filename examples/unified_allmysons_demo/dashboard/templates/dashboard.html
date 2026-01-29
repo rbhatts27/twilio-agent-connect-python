@@ -530,18 +530,32 @@
                 </div>
 
                 <!-- Maestro Conversations -->
-                <div class="card shadow-sm flex-grow-1 d-flex flex-column">
+                <div class="card shadow-sm mb-3">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">Maestro Conversations</h5>
                         <button class="refresh-btn" onclick="clearConversations()">Clear</button>
                     </div>
-                    <div class="card-body flex-grow-1 overflow-hidden">
+                    <div class="card-body" style="max-height: 200px; overflow-y: auto;">
                         <div class="conversations-grid" id="conversationsGrid">
                             <div class="text-center py-4 text-muted" id="noConversationsMsg">
                                 <div style="font-size: 2rem; opacity: 0.3;">💬</div>
                                 <p class="mb-1 small">No conversations yet</p>
                                 <small>Run demo to create conversations</small>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Maestro Events Log -->
+                <div class="card shadow-sm flex-grow-1 d-flex flex-column">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">📋 Maestro Events</h5>
+                        <small class="text-muted">API operations log</small>
+                    </div>
+                    <div class="card-body flex-grow-1 overflow-auto" style="max-height: 300px;" id="maestroLog">
+                        <div class="empty-state">
+                            <div style="font-size: 1.5rem; opacity: 0.3;">📋</div>
+                            <small>Maestro events will appear here</small>
                         </div>
                     </div>
                 </div>

@@ -24,6 +24,7 @@ from dashboard.event_handler import (
     get_event_queue,
     push_anchor_event,
     push_demo_status,
+    push_maestro_event,
     push_sms_event,
     setup_dashboard_logging,
 )
@@ -192,6 +193,31 @@ async def webhook_handler(request: Request) -> JSONResponse:
         # Extract SMS details for enhanced dashboard display
         event_type = webhook_data.get("EventType")
         from_number = webhook_data.get("From") or webhook_data.get("from_address")
+        conversation_id = webhook_data.get("ConversationSid", "")
+
+        # Push Maestro events to dashboard for logging
+        if event_type == "onConversationAdded":
+            # Determine if this is a new or existing conversation
+            # New conversations have minimal data, existing ones may have more history
+            is_new = True  # Maestro creates new conversation for each inbound
+            push_maestro_event(
+                event_type="maestro_conversation",
+                conversation_id=conversation_id,
+                message=f"Conversation {'created' if is_new else 'fetched'}: {conversation_id[:20]}...",
+                channel="sms",
+                is_new_conversation=is_new,
+                details={"webhook_event": event_type},
+            )
+
+        elif event_type == "onParticipantAdded":
+            participant_type = webhook_data.get("ParticipantType", "unknown")
+            push_maestro_event(
+                event_type="maestro_participant",
+                conversation_id=conversation_id,
+                message=f"Participant added: {participant_type}",
+                channel="sms",
+                details={"participant_type": participant_type, "webhook_event": event_type},
+            )
 
         if event_type == "onMessageAdded":
             # DEBUG: Log full webhook payload to understand media format
@@ -209,7 +235,20 @@ async def webhook_handler(request: Request) -> JSONResponse:
 
             # Extract message body and media for dashboard
             message_body = webhook_data.get("Body", "")
-            conversation_id = webhook_data.get("ConversationSid", "")
+
+            # Push Maestro communication event
+            author_type = webhook_data.get("AuthorType", "customer")
+            push_maestro_event(
+                event_type="maestro_communication",
+                conversation_id=conversation_id,
+                message=f"Communication added: {author_type} - {message_body[:30]}..." if message_body else f"Communication added: {author_type}",
+                channel="sms",
+                details={
+                    "webhook_event": event_type,
+                    "author_type": author_type,
+                    "has_media": int(webhook_data.get("NumMedia", 0)) > 0,
+                },
+            )
 
             # Extract media attachments - check multiple possible formats
             media_urls = []
@@ -353,6 +392,24 @@ async def post_twiml(
         anchor = get_active_anchor()
         anchor.link_phone_to_conversation(from_number, conversation_id)
         anchor.active_voice_calls[conversation_id] = True
+
+        # Push Maestro events for voice conversation
+        push_maestro_event(
+            event_type="maestro_conversation",
+            conversation_id=conversation_id,
+            message=f"Conversation created: {conversation_id[:20]}...",
+            channel="voice",
+            is_new_conversation=True,
+            details={"call_sid": call_sid, "from": from_number},
+        )
+        push_maestro_event(
+            event_type="maestro_participant",
+            conversation_id=conversation_id,
+            message=f"Participant added: CUSTOMER ({from_number})",
+            channel="voice",
+            details={"participant_type": "CUSTOMER", "address": from_number},
+        )
+
         logger.info(
             f"VOICE ACTIVE | Cross-channel enabled for {from_number}",
             conversation_id=conversation_id,
