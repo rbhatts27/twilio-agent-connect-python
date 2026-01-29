@@ -191,12 +191,21 @@ async def webhook_handler(request: Request) -> JSONResponse:
         idempotency_token = request.headers.get("i-twilio-idempotency-token")
 
         # Extract SMS details for enhanced dashboard display
-        event_type = webhook_data.get("EventType")
+        event_type = webhook_data.get("EventType") or webhook_data.get("eventType", "")
         from_number = webhook_data.get("From") or webhook_data.get("from_address")
-        conversation_id = webhook_data.get("ConversationSid", "")
+        conversation_id = webhook_data.get("ConversationSid", "") or webhook_data.get(
+            "data", {}
+        ).get("conversationId", "")
+
+        # DEBUG: Log ALL webhooks to investigate duplicates
+        logger.info(
+            f"WEBHOOK RECEIVED | type={event_type}, "
+            f"conv={conversation_id[:20] if conversation_id else 'none'}..., "
+            f"idempotency={idempotency_token[:20] if idempotency_token else 'NONE'}..."
+        )
 
         # Push Maestro events to dashboard for logging
-        if event_type == "onConversationAdded":
+        if event_type == "onConversationAdded" or event_type == "CONVERSATION_CREATED":
             # Determine if this is a new or existing conversation
             # New conversations have minimal data, existing ones may have more history
             is_new = True  # Maestro creates new conversation for each inbound
@@ -209,8 +218,10 @@ async def webhook_handler(request: Request) -> JSONResponse:
                 details={"webhook_event": event_type},
             )
 
-        elif event_type == "onParticipantAdded":
-            participant_type = webhook_data.get("ParticipantType", "unknown")
+        elif event_type == "onParticipantAdded" or event_type == "PARTICIPANT_ADDED":
+            participant_type = webhook_data.get("ParticipantType") or webhook_data.get(
+                "data", {}
+            ).get("type", "unknown")
             push_maestro_event(
                 event_type="maestro_participant",
                 conversation_id=conversation_id,
@@ -219,18 +230,26 @@ async def webhook_handler(request: Request) -> JSONResponse:
                 details={"participant_type": participant_type, "webhook_event": event_type},
             )
 
-        if event_type == "onMessageAdded":
-            # DEBUG: Log webhook details to investigate duplicates
-            message_sid = webhook_data.get("MessageSid", "")
-            author_address = webhook_data.get("Author", webhook_data.get("From", ""))
-            logger.info(
-                f"SMS WEBHOOK | event={event_type}, "
-                f"conv={conversation_id[:20] if conversation_id else 'none'}..., "
-                f"msg_sid={message_sid[:15] if message_sid else 'none'}..., "
-                f"author={author_address}, "
-                f"idempotency={idempotency_token[:20] if idempotency_token else 'none'}..."
+        if event_type == "onMessageAdded" or event_type == "COMMUNICATION_CREATED":
+            # Extract message details - handle both Twilio and Maestro formats
+            data_obj = webhook_data.get("data", {})
+            message_sid = webhook_data.get("MessageSid", "") or data_obj.get("id", "")
+            author_obj = data_obj.get("author", {})
+            author_address = (
+                webhook_data.get("Author")
+                or webhook_data.get("From")
+                or author_obj.get("address", "")
             )
-            logger.info(f"SMS WEBHOOK DEBUG | Full payload keys: {list(webhook_data.keys())}")
+
+            # DEBUG: Log webhook details to investigate duplicates
+            logger.info(
+                f"COMM WEBHOOK | event={event_type}, "
+                f"conv={conversation_id[:20] if conversation_id else 'none'}..., "
+                f"comm_id={message_sid[:25] if message_sid else 'none'}..., "
+                f"author={author_address}, "
+                f"idempotency={idempotency_token[:20] if idempotency_token else 'NONE'}..."
+            )
+            logger.info(f"COMM WEBHOOK DEBUG | Full payload keys: {list(webhook_data.keys())}")
             if "data" in webhook_data:
                 data_obj = webhook_data.get("data", {})
                 logger.info(
