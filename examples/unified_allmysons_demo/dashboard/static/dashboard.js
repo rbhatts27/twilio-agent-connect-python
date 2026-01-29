@@ -181,9 +181,8 @@ function handleEvent(event) {
         return;
     }
 
-    // Handle voice transcript events
+    // Handle voice transcript events (just add to activity log)
     if (event.event_type === 'voice_transcript') {
-        addTranscriptLine(event);
         appendToActivityLog(event);
         return;
     }
@@ -269,29 +268,50 @@ function updateConversationCard(event) {
 
 function createConversationCard(convId) {
     // Remove empty state if present
-    const emptyState = conversationsGrid.querySelector('.text-center');
+    const emptyState = document.getElementById('noConversationsMsg');
     if (emptyState) {
-        conversationsGrid.innerHTML = '';
+        emptyState.style.display = 'none';
     }
 
     const card = document.createElement('div');
-    card.className = 'card conversation-card';
+    card.className = 'conversation-item';
     card.id = `card-${convId}`;
-    card.style.cursor = 'pointer';
+    card.style.cssText = 'background: #1a1a2e; border-radius: 6px; padding: 0.75rem; margin-bottom: 0.5rem; cursor: pointer; border-left: 3px solid #0f3460;';
 
-    // Add click handler to select conversation for data panels
+    // Add click handler to select conversation and load communications
     card.addEventListener('click', () => {
         const conversation = conversations.get(convId);
         selectConversation(convId, conversation?.profile_id);
 
         // Highlight selected card
-        document.querySelectorAll('.conversation-card').forEach(c => c.style.outline = 'none');
-        card.style.outline = '2px solid #e94560';
+        document.querySelectorAll('.conversation-item').forEach(c => {
+            c.style.borderLeftColor = '#0f3460';
+        });
+        card.style.borderLeftColor = '#e94560';
     });
 
-    conversationsGrid.prepend(card);
+    conversationsGrid.appendChild(card);
     updateConversationCount();
 }
+
+function clearConversations() {
+    conversations.clear();
+    conversationsGrid.innerHTML = `
+        <div class="text-center py-4 text-muted" id="noConversationsMsg">
+            <div style="font-size: 2rem; opacity: 0.3;">💬</div>
+            <p class="mb-1 small">No conversations yet</p>
+            <small>Run demo to create conversations</small>
+        </div>
+    `;
+    updateConversationCount();
+    // Clear data panels
+    document.getElementById('profileContent').innerHTML = '<div class="empty-state">No profile selected</div>';
+    document.getElementById('observationsContent').innerHTML = '<div class="empty-state">No observations loaded</div>';
+    document.getElementById('conversationContent').innerHTML = '<div class="empty-state">Click a conversation to view communications</div>';
+    selectedConversationId = null;
+    selectedProfileId = null;
+}
+window.clearConversations = clearConversations;
 
 function updateCardContent(convId) {
     const conversation = conversations.get(convId);
@@ -299,100 +319,35 @@ function updateCardContent(convId) {
 
     if (!card) return;
 
-    // Update card styling for concurrent channels
-    card.className = 'card conversation-card';
-    if (conversation.isConcurrent) {
-        card.classList.add('concurrent');
-    } else if (conversation.channels.has('voice')) {
-        card.classList.add('border-start-voice');
+    // Update card styling based on channel
+    if (conversation.channels.has('voice')) {
+        card.style.borderLeftColor = '#198754';
     } else if (conversation.channels.has('sms')) {
-        card.classList.add('border-start-sms');
+        card.style.borderLeftColor = '#0d6efd';
     }
 
-    // Shorten conversation ID
-    const shortId = convId.length > 15 ? '...' + convId.slice(-10) : convId;
+    // Shorten conversation ID for display
+    const shortId = convId.length > 20 ? convId.slice(0, 8) + '...' + convId.slice(-8) : convId;
 
     // Build channel badges
     let channelBadges = '';
-    if (conversation.isConcurrent) {
-        channelBadges = '<span class="badge concurrent-badge me-1">CONCURRENT</span>';
-    }
     for (const ch of conversation.channels) {
         const bgClass = ch === 'voice' ? 'bg-success' : 'bg-primary';
-        channelBadges += `<span class="badge ${bgClass} text-uppercase me-1">${ch}</span>`;
+        channelBadges += `<span class="badge ${bgClass} text-uppercase" style="font-size: 0.65rem;">${ch}</span> `;
     }
 
-    // Build profile information
-    let profileInfo = '';
-    if (conversation.profile_id) {
-        const shortProfileId = conversation.profile_id.length > 10
-            ? '...' + conversation.profile_id.slice(-8)
-            : conversation.profile_id;
-        profileInfo = `
-            <div class="alert alert-dark py-2 mb-3" style="font-size: 0.8rem; background: #0f3460; border: none;">
-                <span class="text-muted">Profile:</span>
-                <span class="font-monospace" title="${conversation.profile_id}">${shortProfileId}</span>
-            </div>
-        `;
-    }
-
-    // Build event list with timeline styling
-    const eventListHtml = conversation.events.slice(-10).map(event => {
-        let messagePreview = '';
-
-        // Enhanced SMS content display
-        if (event.event_type === 'sms_received' || event.event_type === 'sms_with_media') {
-            messagePreview = buildSmsContentPreview(event);
-        } else if (event.message && ['user_message', 'ai_response', 'memory', 'concurrent_channel'].includes(event.event_type)) {
-            const truncated = event.message.length > 60 ? event.message.slice(0, 60) + '...' : event.message;
-            messagePreview = `<div class="text-muted small mt-1">${escapeHtml(truncated)}</div>`;
-        }
-
-        const icon = getEventIcon(event.event_type);
-        const badgeClass = getEventBadgeClass(event.event_type);
-        const channelClass = event.channel || 'system';
-
-        return `
-            <div class="timeline-event">
-                <div class="timeline-dot ${channelClass}"></div>
-                <div class="event-item ${event.event_type} py-2 px-3">
-                    <div class="d-flex align-items-start gap-2">
-                        <span style="font-size: 1.1rem;">${icon}</span>
-                        <div class="flex-grow-1">
-                            <span class="badge ${badgeClass}" style="font-size: 0.6rem;">
-                                ${getEventLabel(event.event_type)}
-                            </span>
-                            ${event.channel ? `<span class="badge bg-dark ms-1" style="font-size: 0.55rem;">${event.channel.toUpperCase()}</span>` : ''}
-                            ${messagePreview}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
+    // Event count
+    const eventCount = conversation.events.length;
 
     card.innerHTML = `
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <span class="text-muted small">Conversation: </span>
-                    <span class="font-monospace small text-muted" title="${convId}">${shortId}</span>
-                </div>
-                <div>${channelBadges}</div>
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <div class="font-monospace small" style="color: #8892b0;" title="${convId}">${shortId}</div>
+                <small class="text-muted">${eventCount} events</small>
             </div>
-            ${profileInfo}
-            <div class="timeline-container">
-                <div class="timeline-line"></div>
-                ${eventListHtml}
-            </div>
+            <div>${channelBadges}</div>
         </div>
     `;
-
-    // Auto-scroll to latest event
-    const timeline = card.querySelector('.timeline-container');
-    if (timeline) {
-        timeline.scrollTop = timeline.scrollHeight;
-    }
 }
 
 // =============================================================================
@@ -958,11 +913,10 @@ let transcriptTimer = null;
  */
 async function runDemo() {
     const btn = document.getElementById('runDemoBtn');
+    const stopBtn = document.getElementById('stopDemoBtn');
     const progress = document.getElementById('demoProgress');
     const progressBar = document.getElementById('demoProgressBar');
     const statusText = document.getElementById('demoStatusText');
-    const transcriptCard = document.getElementById('transcriptCard');
-    const transcriptContent = document.getElementById('transcriptContent');
 
     if (demoActive) {
         return;
@@ -972,16 +926,11 @@ async function runDemo() {
     demoStartTime = Date.now();
     btn.disabled = true;
     btn.textContent = '⏳ Running...';
+    stopBtn.style.display = 'inline-block';
     progress.style.display = 'block';
     progressBar.style.width = '0%';
+    progressBar.classList.remove('bg-danger');
     statusText.textContent = 'Starting demo...';
-
-    // Show transcript panel
-    transcriptCard.style.display = 'block';
-    transcriptContent.innerHTML = '<div class="text-center text-muted py-2"><small>Connecting call...</small></div>';
-
-    // Start duration timer
-    startTranscriptTimer();
 
     try {
         const response = await fetch('/api/maria/demo', { method: 'POST' });
@@ -991,11 +940,13 @@ async function runDemo() {
             statusText.textContent = `Error: ${data.error}`;
             progressBar.classList.add('bg-danger');
             endDemo();
+            btn.textContent = '▶️ Start Demo';
         }
     } catch (error) {
         statusText.textContent = `Error: ${error.message}`;
         progressBar.classList.add('bg-danger');
         endDemo();
+        btn.textContent = '▶️ Start Demo';
     }
 }
 window.runDemo = runDemo;
@@ -1041,72 +992,49 @@ function updateDemoProgress(event) {
 function endDemo() {
     demoActive = false;
     const btn = document.getElementById('runDemoBtn');
+    const stopBtn = document.getElementById('stopDemoBtn');
+
     btn.disabled = false;
+    stopBtn.style.display = 'none';
+}
 
-    if (transcriptTimer) {
-        clearInterval(transcriptTimer);
-        transcriptTimer = null;
-    }
+/**
+ * Stop the demo by calling the server to end connections.
+ */
+async function stopDemo() {
+    const btn = document.getElementById('runDemoBtn');
+    const stopBtn = document.getElementById('stopDemoBtn');
+    const progress = document.getElementById('demoProgress');
+    const progressBar = document.getElementById('demoProgressBar');
+    const statusText = document.getElementById('demoStatusText');
 
-    // Hide transcript card after 10 seconds
-    setTimeout(() => {
-        if (!demoActive) {
-            document.getElementById('transcriptCard').style.display = 'none';
+    try {
+        stopBtn.textContent = '⏳ Stopping...';
+        stopBtn.disabled = true;
+
+        const response = await fetch('/api/maria/stop', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            statusText.textContent = '⏹️ Demo stopped';
+            progressBar.style.width = '100%';
         }
-    }, 10000);
-}
-
-/**
- * Start the transcript duration timer.
- */
-function startTranscriptTimer() {
-    const durationEl = document.getElementById('transcriptDuration');
-
-    if (transcriptTimer) {
-        clearInterval(transcriptTimer);
+    } catch (error) {
+        console.error('Error stopping demo:', error);
     }
 
-    transcriptTimer = setInterval(() => {
-        if (!demoStartTime) return;
-        const elapsed = Math.floor((Date.now() - demoStartTime) / 1000);
-        const mins = Math.floor(elapsed / 60);
-        const secs = elapsed % 60;
-        durationEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
-    }, 1000);
+    // Reset UI
+    endDemo();
+    btn.textContent = '▶️ Start Demo';
+    stopBtn.textContent = '⏹️ Stop';
+    stopBtn.disabled = false;
+
+    // Hide progress after a moment
+    setTimeout(() => {
+        progress.style.display = 'none';
+    }, 2000);
 }
-
-/**
- * Add a transcript line to the live transcript panel.
- */
-function addTranscriptLine(event) {
-    const transcriptContent = document.getElementById('transcriptContent');
-    const transcriptCard = document.getElementById('transcriptCard');
-
-    // Show the transcript card
-    transcriptCard.style.display = 'block';
-
-    // Clear "waiting" message if present
-    if (transcriptContent.querySelector('.text-muted')) {
-        transcriptContent.innerHTML = '';
-    }
-
-    const speaker = event.metadata?.speaker || 'unknown';
-    const isAgent = speaker === 'agent' || speaker === 'ai';
-    const bgColor = isAgent ? 'rgba(25, 135, 84, 0.2)' : 'rgba(13, 110, 253, 0.2)';
-    const label = isAgent ? '🤖 Agent' : '👩 Customer';
-
-    const line = document.createElement('div');
-    line.className = 'p-2 mb-1 rounded';
-    line.style.background = bgColor;
-    line.style.fontSize = '0.85rem';
-    line.innerHTML = `
-        <small class="text-muted">${label}</small>
-        <div class="text-light">${escapeHtml(event.message)}</div>
-    `;
-
-    transcriptContent.appendChild(line);
-    transcriptContent.scrollTop = transcriptContent.scrollHeight;
-}
+window.stopDemo = stopDemo;
 
 // =============================================================================
 // Maria Agent Controls (Manual)

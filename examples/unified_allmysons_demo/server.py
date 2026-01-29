@@ -774,13 +774,48 @@ async def maria_twiml(request: Request) -> Response:
 # One-Click Demo Endpoint (Call + SMS sequence)
 # =============================================================================
 
+# Track active demo call for stop functionality
+active_demo_call_sid: Optional[str] = None
+
+
+@app.post("/api/maria/stop")
+async def stop_demo() -> JSONResponse:
+    """Stop the active demo by ending the call."""
+    global active_demo_call_sid
+
+    try:
+        if not active_demo_call_sid:
+            return JSONResponse(content={"success": True, "message": "No active demo"})
+
+        from twilio.rest import Client as TwilioClient
+
+        twilio_client = TwilioClient(
+            os.environ.get("TWILIO_TAC_ACCOUNT_SID"),
+            os.environ.get("TWILIO_TAC_AUTH_TOKEN"),
+        )
+
+        # End the call
+        twilio_client.calls(active_demo_call_sid).update(status="completed")
+        logger.info(f"DEMO | Call ended: {active_demo_call_sid}")
+
+        push_demo_status("completed", "⏹️ Demo stopped", 100)
+        active_demo_call_sid = None
+
+        return JSONResponse(content={"success": True, "message": "Demo stopped"})
+
+    except Exception as e:
+        logger.error(f"Error stopping demo: {e}")
+        return JSONResponse(content={"success": False, "error": str(e)}, status_code=500)
+
 
 @app.post("/api/maria/demo")
 async def run_demo() -> JSONResponse:
     """
-    Run a complete demo: Maria calls, then sends SMS with photo after 8 seconds.
-    The demo auto-ends after ~30 seconds.
+    Run a complete demo: Maria calls, then sends SMS with photo after 18 seconds.
+    The demo auto-ends after ~50 seconds.
     """
+    global active_demo_call_sid
+
     try:
         from twilio.rest import Client as TwilioClient
 
@@ -807,8 +842,11 @@ async def run_demo() -> JSONResponse:
             to=support_number,
             from_=maria_number,
             url=f"https://{public_domain}/maria-twiml",
-            timeout=30,  # Auto-hangup after 30 seconds
+            timeout=60,  # Allow 60 seconds for the call
         )
+
+        # Track call SID for stop functionality
+        active_demo_call_sid = call.sid
 
         logger.info(f"DEMO | Call initiated: {call.sid}")
         push_demo_status("progress", f"📞 Call connected (ID: {call.sid[:8]}...)", 30)
@@ -853,6 +891,10 @@ async def run_demo() -> JSONResponse:
 
                 # Wait for call to finish (Maria's script is ~50 seconds total)
                 await asyncio.sleep(35)
+
+                # Clear the active call SID and notify completion
+                global active_demo_call_sid
+                active_demo_call_sid = None
                 push_demo_status("completed", "✅ Demo complete! Review the conversation.", 100)
 
             except Exception as e:

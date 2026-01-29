@@ -509,11 +509,16 @@
                             <div>
                                 <span style="font-size: 1.5rem;">🎬</span>
                                 <strong class="text-light ms-2" style="font-size: 1.1rem;">Run Demo</strong>
-                                <div class="text-light opacity-75 small">Maria calls + sends photo (~30 sec)</div>
+                                <div class="text-light opacity-75 small">Maria calls + sends photo (~50 sec)</div>
                             </div>
-                            <button class="btn btn-light btn-lg" onclick="runDemo()" id="runDemoBtn">
-                                ▶️ Start Demo
-                            </button>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-light btn-lg" onclick="runDemo()" id="runDemoBtn">
+                                    ▶️ Start Demo
+                                </button>
+                                <button class="btn btn-outline-light" onclick="stopDemo()" id="stopDemoBtn" style="display: none;">
+                                    ⏹️ Stop
+                                </button>
+                            </div>
                         </div>
                         <div id="demoProgress" style="display: none;" class="mt-2">
                             <div class="progress" style="height: 6px; background: rgba(255,255,255,0.2);">
@@ -524,33 +529,18 @@
                     </div>
                 </div>
 
-                <!-- Live Transcript Panel -->
-                <div class="card shadow-sm mb-3" id="transcriptCard" style="display: none;">
-                    <div class="card-header d-flex justify-content-between align-items-center" style="background: rgba(25, 135, 84, 0.2);">
-                        <div>
-                            <span class="channel-dot voice active me-2"></span>
-                            <strong>📞 Live Call</strong>
-                        </div>
-                        <small class="text-muted" id="transcriptDuration">0:00</small>
-                    </div>
-                    <div class="card-body p-2" style="max-height: 200px; overflow-y: auto;" id="transcriptContent">
-                        <div class="text-center text-muted py-2">
-                            <small>Waiting for conversation...</small>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Conversations -->
+                <!-- Maestro Conversations -->
                 <div class="card shadow-sm flex-grow-1 d-flex flex-column">
-                    <div class="card-header">
-                        <h5 class="mb-0">Active Conversations (<span id="conversationCount">0</span>)</h5>
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Maestro Conversations</h5>
+                        <button class="refresh-btn" onclick="clearConversations()">Clear</button>
                     </div>
                     <div class="card-body flex-grow-1 overflow-hidden">
                         <div class="conversations-grid" id="conversationsGrid">
-                            <div class="text-center py-5 text-muted">
-                                <div style="font-size: 3rem; opacity: 0.3;">📦🚚</div>
-                                <p class="mb-1">No active conversations yet</p>
-                                <small>Call or text your Twilio number to start</small>
+                            <div class="text-center py-4 text-muted" id="noConversationsMsg">
+                                <div style="font-size: 2rem; opacity: 0.3;">💬</div>
+                                <p class="mb-1 small">No conversations yet</p>
+                                <small>Run demo to create conversations</small>
                             </div>
                         </div>
                     </div>
