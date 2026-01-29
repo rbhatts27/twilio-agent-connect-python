@@ -736,31 +736,31 @@ async def maria_twiml(request: Request) -> Response:
 
     # Scripted conversation from Maria's perspective
     # Maria speaks, pauses to let agent respond, then continues
-    # Timeline: SMS sent at ~18s, so Maria mentions photo at ~15s
-    # Total script ~45 seconds for natural pacing
+    # Timeline: SMS sent at ~18s, so Maria mentions photo at ~12s
+    # Total script ~50 seconds for natural pacing with longer pauses
     twiml = """<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Pause length="2"/>
     <Say voice="Polly.Joanna">
         Hi! I'm Maria Ramirez. I'm calling about a move from Austin to Denver.
     </Say>
-    <Pause length="4"/>
+    <Pause length="5"/>
     <Say voice="Polly.Joanna">
-        We have a three bedroom house. I'm going to text you a photo of our living room right now.
+        We have a three bedroom house. I'm texting you a photo of our living room now.
     </Say>
-    <Pause length="6"/>
+    <Pause length="8"/>
     <Say voice="Polly.Joanna">
         We have a piano, about 500 pounds, and some antiques that need special care.
     </Say>
-    <Pause length="5"/>
+    <Pause length="6"/>
     <Say voice="Polly.Joanna">
         We're hoping to move next month. Can you give me a rough estimate?
     </Say>
-    <Pause length="6"/>
+    <Pause length="8"/>
     <Say voice="Polly.Joanna">
         That sounds reasonable. Thank you for your help!
     </Say>
-    <Pause length="2"/>
+    <Pause length="3"/>
     <Say voice="Polly.Joanna">
         Goodbye!
     </Say>
@@ -813,10 +813,10 @@ async def run_demo() -> JSONResponse:
         logger.info(f"DEMO | Call initiated: {call.sid}")
         push_demo_status("progress", f"📞 Call connected (ID: {call.sid[:8]}...)", 30)
 
-        # Step 2: Schedule SMS with photo when Maria mentions it (~16 seconds in)
-        # Timeline: Maria says "I'm going to text you a photo" at ~12s, send at ~16s
+        # Step 2: Schedule SMS with photo when Maria mentions it (~18 seconds in)
+        # Timeline: Maria says "I'm texting you a photo" at ~14s, send at ~18s
         async def send_delayed_sms():
-            await asyncio.sleep(16)
+            await asyncio.sleep(18)
             push_demo_status("progress", "📱 Maria is sending a photo...", 60)
 
             # Sample house photo (living room with furniture)
@@ -851,8 +851,8 @@ async def run_demo() -> JSONResponse:
 
                 push_demo_status("progress", "📱 Photo sent! Waiting for call to complete...", 80)
 
-                # Wait for call to finish (Maria's script is ~35 seconds total)
-                await asyncio.sleep(20)
+                # Wait for call to finish (Maria's script is ~50 seconds total)
+                await asyncio.sleep(35)
                 push_demo_status("completed", "✅ Demo complete! Review the conversation.", 100)
 
             except Exception as e:

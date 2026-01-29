@@ -257,20 +257,14 @@ function updateConversationCard(event) {
     // Update card content
     updateCardContent(convId);
 
-    // Auto-select first conversation with profile, or auto-refresh if this is the selected conversation
-    if (convId === selectedConversationId) {
-        // Refresh data panels for the selected conversation
-        if (conversation.profile_id) {
-            loadProfileData(conversation.profile_id);
-            loadMemoryData(conversation.profile_id);
-        }
-        loadConversationData(convId);
-    } else if (!selectedConversationId && conversation.profile_id) {
+    // Auto-select first conversation with profile (but don't keep refreshing)
+    if (!selectedConversationId && conversation.profile_id) {
         // Auto-select first conversation that has a profile
         selectConversation(convId, conversation.profile_id);
         const card = document.getElementById(`card-${convId}`);
         if (card) card.style.outline = '2px solid #e94560';
     }
+    // Note: Data panels only refresh on manual click or Refresh button, not on every event
 }
 
 function createConversationCard(convId) {

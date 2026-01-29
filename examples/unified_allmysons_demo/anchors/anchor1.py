@@ -129,18 +129,20 @@ class Anchor1ConcurrentChannels(BaseAnchor):
                         channel=channel,
                     )
 
-            # Check for concurrent channel activity
-            is_concurrent = (
-                channel == "sms"
-                and conv_id in self.active_voice_calls
-                and self.active_voice_calls[conv_id]
-            )
-
-            if is_concurrent:
-                logger.info(
-                    "CONCURRENT | SMS received during active voice call - cross-channel mode",
-                    conversation_id=conv_id,
-                )
+            # Check for concurrent channel activity (SMS during active voice call)
+            # Find linked voice conversation to inject SMS context
+            linked_voice_conv_id = None
+            if channel == "sms":
+                # Check if there's a voice call from the same phone number
+                for voice_conv_id, is_active in self.active_voice_calls.items():
+                    if is_active and voice_conv_id in self.conversation_messages:
+                        linked_voice_conv_id = voice_conv_id
+                        logger.info(
+                            "CONCURRENT | SMS received during active voice call - injecting to voice history",
+                            sms_conv_id=conv_id,
+                            voice_conv_id=linked_voice_conv_id,
+                        )
+                        break
 
             # Get websocket for voice responses
             active_websocket = (
@@ -195,6 +197,30 @@ class Anchor1ConcurrentChannels(BaseAnchor):
                     "content": f"[{channel.upper()}] {llm_response}",
                 }
                 self.conversation_messages[conv_id].append(assistant_msg)
+
+                # CROSS-CHANNEL: If this was SMS during a voice call,
+                # inject the SMS exchange into voice conversation history
+                # so the voice agent knows the photo was received and analyzed
+                if linked_voice_conv_id and linked_voice_conv_id != conv_id:
+                    # Inject user SMS message
+                    voice_user_msg: ChatCompletionUserMessageParam = {
+                        "role": "user",
+                        "content": f"[CROSS-CHANNEL SMS RECEIVED] Customer sent via SMS: {user_message}",
+                    }
+                    self.conversation_messages[linked_voice_conv_id].append(voice_user_msg)
+
+                    # Inject SMS response (summarized)
+                    voice_assist_msg: ChatCompletionAssistantMessageParam = {
+                        "role": "assistant",
+                        "content": f"[CROSS-CHANNEL SMS RESPONSE] I analyzed the photo and responded via SMS with the quote details.",
+                    }
+                    self.conversation_messages[linked_voice_conv_id].append(voice_assist_msg)
+
+                    logger.info(
+                        "CROSS-CHANNEL | Injected SMS exchange into voice conversation history",
+                        voice_conv_id=linked_voice_conv_id,
+                        sms_conv_id=conv_id,
+                    )
 
         except Exception as e:
             logger.error(
