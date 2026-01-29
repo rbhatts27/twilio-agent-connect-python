@@ -220,7 +220,16 @@ async def webhook_handler(request: Request) -> JSONResponse:
             )
 
         if event_type == "onMessageAdded":
-            # DEBUG: Log full webhook payload to understand media format
+            # DEBUG: Log webhook details to investigate duplicates
+            message_sid = webhook_data.get("MessageSid", "")
+            author_address = webhook_data.get("Author", webhook_data.get("From", ""))
+            logger.info(
+                f"SMS WEBHOOK | event={event_type}, "
+                f"conv={conversation_id[:20] if conversation_id else 'none'}..., "
+                f"msg_sid={message_sid[:15] if message_sid else 'none'}..., "
+                f"author={author_address}, "
+                f"idempotency={idempotency_token[:20] if idempotency_token else 'none'}..."
+            )
             logger.info(f"SMS WEBHOOK DEBUG | Full payload keys: {list(webhook_data.keys())}")
             if "data" in webhook_data:
                 data_obj = webhook_data.get("data", {})
@@ -589,14 +598,35 @@ async def get_profile_memory(profile_id: str, query: Optional[str] = None) -> JS
 async def get_conversation_data(conversation_id: str) -> JSONResponse:
     """Fetch conversation data and communications from Maestro."""
     try:
+        # Get participants first to build lookup map
+        participants = await tac.maestro_client.list_participants(conversation_id=conversation_id)
+
+        # Build participant_id -> type lookup map
+        participant_type_map: dict[str, str] = {}
+        for p in participants:
+            participant_type_map[p.id] = p.type or "unknown"
+
         # Get communications for this conversation
         communications = await tac.maestro_client.list_communications(
             conversation_id=conversation_id,
             page_size=50,
         )
 
-        # Get participants
-        participants = await tac.maestro_client.list_participants(conversation_id=conversation_id)
+        # Enrich communications with author_type from participant lookup
+        enriched_communications = []
+        for comm in communications:
+            author_id = comm.author.participant_id if comm.author else None
+            author_type = participant_type_map.get(author_id, "unknown") if author_id else "unknown"
+
+            enriched_communications.append({
+                "id": comm.id,
+                "content": comm.content.text if comm.content else None,
+                "author_id": author_id,
+                "author_address": comm.author.address if comm.author else None,
+                "author_type": author_type,  # Now enriched with participant type
+                "created_at": comm.created_at,
+                "channel": comm.author.channel if comm.author else None,
+            })
 
         return JSONResponse(
             content={
@@ -612,17 +642,7 @@ async def get_conversation_data(conversation_id: str) -> JSONResponse:
                     }
                     for p in participants
                 ],
-                "communications": [
-                    {
-                        "id": comm.id,
-                        "content": comm.content.text if comm.content else None,
-                        "author_id": comm.author.participant_id if comm.author else None,
-                        "author_address": comm.author.address if comm.author else None,
-                        "created_at": comm.created_at,
-                        "channel": comm.author.channel if comm.author else None,
-                    }
-                    for comm in communications
-                ],
+                "communications": enriched_communications,
             }
         )
 

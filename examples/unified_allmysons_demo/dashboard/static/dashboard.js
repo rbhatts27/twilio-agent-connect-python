@@ -899,11 +899,24 @@ async function loadConversationData(convId) {
         if (data.communications && data.communications.length > 0) {
             html += '<div style="color: #e94560; font-size: 0.7rem; margin-top: 0.75rem; margin-bottom: 0.5rem;">COMMUNICATIONS</div>';
             for (const comm of data.communications.slice(-15)) {
-                const authorType = comm.author_type || 'unknown';
-                const channelBadge = comm.channel ? `<span class="badge bg-${comm.channel === 'voice' ? 'success' : 'primary'}" style="font-size: 0.6rem;">${comm.channel}</span>` : '';
+                // Format author type for display
+                let authorType = comm.author_type || 'unknown';
+                if (authorType === 'CUSTOMER') {
+                    authorType = '👤 Customer';
+                } else if (authorType === 'AI_AGENT' || authorType === 'AGENT') {
+                    authorType = '🤖 AI Agent';
+                } else if (authorType === 'unknown') {
+                    authorType = '❓ Unknown';
+                }
+
+                // Channel badge with proper casing
+                const channelName = comm.channel ? comm.channel.toUpperCase() : '';
+                const channelClass = channelName === 'VOICE' ? 'success' : channelName === 'SMS' ? 'primary' : 'secondary';
+                const channelBadge = channelName ? `<span class="badge bg-${channelClass}" style="font-size: 0.6rem;">${channelName}</span>` : '';
+
                 html += `
                     <div class="comm-item">
-                        <div class="comm-author">${escapeHtml(authorType)} ${channelBadge}</div>
+                        <div class="comm-author">${authorType} ${channelBadge}</div>
                         <div class="comm-content">${escapeHtml(comm.content || '(no content)')}</div>
                         <div class="comm-channel">${formatDate(comm.created_at)}</div>
                     </div>
